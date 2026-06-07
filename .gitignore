@@ -1,0 +1,27 @@
+# Gradle
+android-app/.gradle/
+android-app/build/
+android-app/**/build/
+
+# Android local config
+android-app/local.properties
+android-app/.idea/workspace.xml
+android-app/.idea/caches/
+android-app/.idea/navEditor.xml
+android-app/.idea/assetWizardSettings.xml
+
+# APKs and bundles
+android-app/**/*.apk
+android-app/**/*.aab
+android-app/**/*.ap_
+
+# keystore
+android-app/**/*.jks
+android-app/**/*.keystore
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

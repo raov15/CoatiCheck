@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.CoatiCheck" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#1B2A4A</item>
+        <item name="android:windowBackground">#F0F4F8</item>
+    </style>
+    <style name="Theme.CoatiCheck.SplashScreen" parent="Theme.CoatiCheck">
+        <item name="android:windowBackground">#1B2A4A</item>
+    </style>
+</resources>
