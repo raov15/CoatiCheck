@@ -35,8 +35,8 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:sync"))
     implementation(project(":feature:location"))
-    // EmbeddingService para reconocimiento facial en asistencia
-    implementation(project(":feature:employee-enrollment"))
+    // Motor de reconocimiento facial 1:N (FaceRecognitionEngine)
+    implementation(project(":feature:face-recognition"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

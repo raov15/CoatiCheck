@@ -7,7 +7,7 @@ import com.coati.checador.core.database.dao.EmployeeFaceProfileDao
 import com.coati.checador.core.database.entity.EmployeeEntity
 import com.coati.checador.core.database.entity.EmployeeFaceProfileEntity
 import com.coati.checador.core.database.model.SyncStatus
-import com.coati.checador.feature.employeeenrollment.data.service.EmbeddingService
+import com.coati.checador.feature.facerecognition.domain.FaceRecognitionEngine
 import com.coati.checador.feature.employeeenrollment.domain.model.Empleado
 import com.coati.checador.feature.employeeenrollment.domain.model.ResultadoVerificacion
 import com.coati.checador.feature.employeeenrollment.domain.repository.RepositorioRegistroEmpleado
@@ -34,7 +34,7 @@ class RepositorioRegistroEmpleadoImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val employeeDao: EmployeeDao,
     private val faceProfileDao: EmployeeFaceProfileDao,
-    private val embeddingService: EmbeddingService
+    private val embeddingService: FaceRecognitionEngine
 ) : RepositorioRegistroEmpleado {
 
     override suspend fun registrarEmpleado(empleado: Empleado, imagenRostro: Bitmap): Boolean {
@@ -62,7 +62,7 @@ class RepositorioRegistroEmpleadoImpl @Inject constructor(
                 id = UUID.randomUUID().toString(),
                 employeeId = empleado.idLocal,
                 embeddingBlob = embeddingCifrado,
-                modelVersion = EmbeddingService.VERSION_MODELO,
+                modelVersion = embeddingService.versionModelo,
                 qualityScore = puntuacionCalidad,
                 createdAt = System.currentTimeMillis(),
                 isActive = true

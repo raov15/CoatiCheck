@@ -10,7 +10,7 @@ import com.coati.checador.core.database.entity.AttendanceRecordEntity
 import com.coati.checador.core.database.entity.EmployeeEntity
 import com.coati.checador.core.database.model.EventType
 import com.coati.checador.core.database.model.SyncStatus
-import com.coati.checador.feature.employeeenrollment.data.service.EmbeddingService
+import com.coati.checador.feature.facerecognition.domain.FaceRecognitionEngine
 import com.coati.checador.feature.location.LocationSnapshot
 import com.coati.checador.feature.location.LocationTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +29,7 @@ class AttendanceViewModel @Inject constructor(
     private val employeeDao: EmployeeDao,
     private val attendanceRecordDao: AttendanceRecordDao,
     private val faceProfileDao: EmployeeFaceProfileDao,
-    private val embeddingService: EmbeddingService,
+    private val embeddingService: FaceRecognitionEngine,
     private val locationTracker: LocationTracker
 ) : ViewModel() {
 

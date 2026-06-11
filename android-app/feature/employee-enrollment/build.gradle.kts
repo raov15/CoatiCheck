@@ -9,9 +9,7 @@ android {
     namespace = "com.coati.checador.feature.employeeenrollment"
     compileSdk = 34
 
-    defaultConfig {
-        minSdk = 26
-    }
+    defaultConfig { minSdk = 26 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -20,7 +18,6 @@ android {
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
 
-    // Excluir duplicados de metadatos de TFLite/MLKit
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -34,6 +31,11 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:database"))
     implementation(project(":core:security"))
+    // Motor de reconocimiento facial — TFLite + MLKit viven en face-recognition
+    implementation(project(":feature:face-recognition"))
+
+    // ML Kit también usado directamente en CamaraFacialCompose (detección facial en UI)
+    implementation(libs.mlkit.face.detection)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -53,13 +55,6 @@ dependencies {
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-
-    // ML Kit — Detección facial
-    implementation(libs.mlkit.face.detection)
-
-    // TensorFlow Lite — Generación de embeddings
-    implementation(libs.tflite)
-    implementation(libs.tflite.support)
 
     // Hilt DI
     implementation(libs.hilt.android)

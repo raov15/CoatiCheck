@@ -271,7 +271,7 @@ private fun validarRostros(
             val rostro = rostros[0]
             val pitch = rostro.headEulerAngleX
             val yaw = rostro.headEulerAngleY
-            if (Math.abs(pitch) > 25f || Math.abs(yaw) > 25f) {
+            if (kotlin.math.abs(pitch) > 25f || kotlin.math.abs(yaw) > 25f) {
                 return ResultadoValidacionRostro.PosicionInvalida
             }
 
