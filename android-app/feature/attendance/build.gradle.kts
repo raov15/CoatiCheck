@@ -67,6 +67,7 @@ dependencies {
 
     // Permisos en Compose (cámara y ubicación)
     implementation(libs.accompanist.permissions)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
 }

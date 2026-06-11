@@ -1,5 +1,6 @@
 package com.coati.checador.feature.employeeenrollment.data.repository
 
+import android.content.Context
 import android.graphics.Bitmap
 import com.coati.checador.core.database.dao.EmployeeDao
 import com.coati.checador.core.database.dao.EmployeeFaceProfileDao
@@ -10,9 +11,12 @@ import com.coati.checador.feature.employeeenrollment.data.service.EmbeddingServi
 import com.coati.checador.feature.employeeenrollment.domain.model.Empleado
 import com.coati.checador.feature.employeeenrollment.domain.model.ResultadoVerificacion
 import com.coati.checador.feature.employeeenrollment.domain.repository.RepositorioRegistroEmpleado
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
+import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +31,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class RepositorioRegistroEmpleadoImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val employeeDao: EmployeeDao,
     private val faceProfileDao: EmployeeFaceProfileDao,
     private val embeddingService: EmbeddingService
@@ -35,6 +40,9 @@ class RepositorioRegistroEmpleadoImpl @Inject constructor(
     override suspend fun registrarEmpleado(empleado: Empleado, imagenRostro: Bitmap): Boolean {
         return try {
             Timber.d("RepositorioRegistroEmpleado: guardando empleado ${empleado.idLocal}")
+
+            // 0. Guardar imagen física en almacenamiento interno
+            guardarFotoEmpleado(empleado.idLocal, imagenRostro)
 
             // 1. Insertar entidad de empleado en Room
             val entidadEmpleado = empleado.aEntidad()
@@ -204,5 +212,23 @@ class RepositorioRegistroEmpleadoImpl @Inject constructor(
         val varianza = (sumaVarianza / pixeles.size).toFloat()
         // Normalizar: varianza max teórica ~16256 (contraste perfecto)
         return (varianza / 16256f).coerceIn(0f, 1f)
+    }
+
+    /**
+     * Guarda la imagen del rostro en el almacenamiento interno.
+     */
+    private fun guardarFotoEmpleado(id: String, bitmap: Bitmap) {
+        try {
+            val folder = File(context.filesDir, "employee_photos")
+            if (!folder.exists()) folder.mkdirs()
+
+            val file = File(folder, "$id.jpg")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
+            Timber.d("RepositorioRegistroEmpleado: foto guardada en ${file.absolutePath}")
+        } catch (e: Exception) {
+            Timber.e(e, "RepositorioRegistroEmpleado: error al guardar foto de empleado $id")
+        }
     }
 }

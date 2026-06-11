@@ -913,3 +913,70 @@ Para alguien que inicia en Android, el orden de construcción recomendado es sec
 ---
 
 *Documento generado para el proyecto `reloj-checador`. Versión inicial.*
+
+---
+
+## 14. Estado de Implementación Actual
+
+> Sección actualizada automáticamente. Refleja el estado real del código en el repositorio.
+
+### Tabla de estado por módulo
+
+| Módulo | Estado | Archivos clave |
+|---|---|---|
+| `app` | ✅ Implementado | `MainActivity.kt`, `CoatiApplication.kt` |
+| `core/common` | ✅ Implementado | `Constants.kt`, `Result.kt` |
+| `core/database` | ✅ Implementado | `CoatiDatabase.kt`, 6 entidades, 6 DAOs, `DatabaseModule.kt`, `DatabasePassphraseManager.kt` |
+| `core/security` | ✅ Implementado | `KeystoreHelper.kt` (AES-256-GCM, Android Keystore hardware-backed) |
+| `core/sync` | ✅ Implementado | `AttendanceSyncWorker.kt`, `SyncManager.kt` |
+| `core/network` | ✅ Implementado | `CoatiApiService.kt` (Retrofit interfaces) |
+| `core/datastore` | ✅ Implementado | `DevicePreferencesDataStore.kt` |
+| `core/ui` | ✅ Implementado | `Color.kt` (CoatiNavy/Blue/Teal), `Theme.kt`, `Typography.kt` |
+| `feature/attendance` | ✅ Implementado | `AttendanceScreen.kt`, `AttendanceViewModel.kt`, `AttendanceFaceCamera.kt`, `HistoryScreen.kt`, `EmployeeListScreen.kt` |
+| `feature/employee-enrollment` | ✅ Implementado | Clean Architecture completa: domain + data + UI. `EmbeddingService.kt` con TFLite + fallback simulado + cifrado AES-256-GCM |
+| `feature/settings` | ✅ Implementado | `SettingsScreen.kt`, `SettingsViewModel.kt` |
+| `feature/location` | ✅ Implementado | `LocationTracker.kt`, `LocationSnapshot.kt` |
+| `feature/device-auth` | ⚠️ Placeholder | Solo `DeviceAuthPlaceholder.kt` — autenticación de dispositivo vs backend no implementada |
+| `feature/face-recognition` | ⚠️ Placeholder | Solo `FaceRecognitionPlaceholder.kt` — la lógica de reconocimiento 1:N está en `EmbeddingService` dentro de `feature/employee-enrollment` |
+| Modelo TFLite | ⚠️ Pendiente | `mobilefacenet.tflite` no incluido en assets; `EmbeddingService` tiene fallback simulado activo |
+| Backend NestJS | ❌ No iniciado | Arquitectura definida en secciones 7-9 |
+| Panel Admin Next.js | ❌ No iniciado | Arquitectura definida en sección 9 |
+
+### Desviaciones respecto a la arquitectura planificada
+
+| Desviación | Impacto | Recomendación |
+|---|---|---|
+| El pipeline facial (ML Kit + TFLite) está en `feature/employee-enrollment/data/service/EmbeddingService` en lugar de en `feature/face-recognition` | Acoplamiento entre módulos de enrollment y attendance | Mover `EmbeddingService` a `core/security` o crear un `core/face` compartido cuando se implemente `feature/face-recognition` |
+| Umbral de distancia coseno: `EmbeddingService` usa `0.4f` pero `AttendanceViewModel` usa `0.5f` | Inconsistencia en la sensibilidad de reconocimiento | Centralizar el umbral en `Constants.kt` como `FACE_MATCH_THRESHOLD` y usarlo desde ambos lugares |
+| `feature/device-auth` no implementado | Sin autenticación del dispositivo vs backend | La sync funciona sin JWT de dispositivo actualmente; implementar antes de pasar a producción |
+| Modo simulado de embeddings activo | El reconocimiento no es biométrico real | Proveer `mobilefacenet.tflite` en assets para activar reconocimiento real |
+
+### Dependencias clave implementadas
+
+| Librería | Versión | Nota |
+|---|---|---|
+| Accompanist Permissions | 0.34.0 | Actualizado desde 0.32.0 por incompatibilidad con Compose 1.6.x |
+| Room | 2.6.1 | Con `fallbackToDestructiveMigration()` para robustez en desarrollo |
+| SQLCipher | 4.5.4 | Cifrado automático de toda la BD sin cambios en el código de acceso |
+
+### Instrucciones de compilación
+
+```bash
+# Compilar APK debug (Windows — workaround rutas largas)
+cd android-app
+gradlew.bat assembleDebug --no-daemon --project-cache-dir "C:\GH"
+
+# APK generado en:
+# app/build/outputs/apk/debug/app-debug.apk
+```
+
+**Requisito en Windows:** Habilitar Long Path Support para usar con Android Studio:
+```powershell
+# PowerShell como Administrador
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+  -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+```
+
+---
+
+*Última actualización: junio 2026 — Implementación Android completa (sin backend ni panel admin).*

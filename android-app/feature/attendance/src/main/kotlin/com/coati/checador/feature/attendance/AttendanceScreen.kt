@@ -2,48 +2,19 @@ package com.coati.checador.feature.attendance
 
 import android.Manifest
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +33,8 @@ fun AttendanceScreen(
     onClose: () -> Unit,
     onRegisterEmployee: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onViewHistory: () -> Unit = {},
+    onViewEmployees: () -> Unit = {},
     viewModel: AttendanceViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -73,7 +46,11 @@ fun AttendanceScreen(
     )
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
     val attendanceTypes = listOf("Entrada", "Salida", "Entrada Comida", "Salida Comida")
-    var expanded by remember { mutableStateOf(false) }
+    
+    val recognitionMsg = state.recognitionMessage
+    val isRecognized = recognitionMsg?.startsWith("Reconocido") == true
+    val hasAttemptedRecognition = recognitionMsg != null
+    
     val selectedEmployee = state.employees.firstOrNull { it.id == state.selectedEmployeeId }
 
     Scaffold(
@@ -81,11 +58,17 @@ fun AttendanceScreen(
             TopAppBar(
                 title = { Text(text = "Registro de Asistencia") },
                 actions = {
+                    IconButton(onClick = onRegisterEmployee) {
+                        Icon(Icons.Default.Person, contentDescription = "Registrar Empleado")
+                    }
+                    IconButton(onClick = onViewEmployees) {
+                        Icon(Icons.Default.People, contentDescription = "Ver Empleados")
+                    }
+                    IconButton(onClick = onViewHistory) {
+                        Icon(Icons.Default.History, contentDescription = "Ver Historial")
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Configuración")
-                    }
-                    TextButton(onClick = onRegisterEmployee) {
-                        Text(text = "Nuevo empleado")
                     }
                     IconButton(onClick = onClose) {
                         Icon(Icons.Default.Close, contentDescription = "Cerrar")
@@ -103,7 +86,7 @@ fun AttendanceScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // ── Sección de cámara: reconocimiento facial ──────────────────────────
+            // Camera Section
             if (cameraPermission.status.isGranted) {
                 AttendanceFaceCamera(
                     onFaceCapturado = viewModel::recognizeFace,
@@ -115,50 +98,70 @@ fun AttendanceScreen(
                     isProcessing = state.isRecognizing
                 )
 
-                // Resultado del reconocimiento
-                state.recognitionMessage?.let { msg ->
+                recognitionMsg?.let { msg ->
                     Spacer(modifier = Modifier.height(8.dp))
-                    val isRecognized = msg.startsWith("Reconocido")
                     Text(
                         text = msg,
-                        color = if (isRecognized) Color(0xFF3BAF8E) else Color.DarkGray,
+                        color = if (isRecognized) Color(0xFF3BAF8E) else Color.Red,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isRecognized) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                if (isRecognized) Color(0xFFE8F5E9) else Color(0xFFF5F5F5),
+                                if (isRecognized) Color(0xFFE8F5E9) else Color(0xFFFBE9E7),
                                 RoundedCornerShape(8.dp)
                             )
                             .padding(12.dp)
                     )
                 }
             } else {
-                // Solicitar permiso de cámara
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .background(Color.LightGray.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                Button(onClick = { cameraPermission.launchPermissionRequest() }) {
+                    Text("Permitir Cámara para Identificación")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (hasAttemptedRecognition && !isRecognized) {
+                // Form for unrecognized employees
+                Text(
+                    "Información del Empleado (No Reconocido)",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.Red,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.unrecognizedName,
+                    onValueChange = { viewModel.updateUnrecognizedInfo(it, state.unrecognizedPosition, state.unrecognizedEmployeeNumber) },
+                    label = { Text("Nombre Completo") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.unrecognizedPosition,
+                    onValueChange = { viewModel.updateUnrecognizedInfo(state.unrecognizedName, it, state.unrecognizedEmployeeNumber) },
+                    label = { Text("Puesto") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.unrecognizedEmployeeNumber,
+                    onValueChange = { viewModel.updateUnrecognizedInfo(state.unrecognizedName, state.unrecognizedPosition, it) },
+                    label = { Text("Número de Empleado") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else if (isRecognized) {
+                // Info for recognized employee
+                selectedEmployee?.let { emp ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PhotoCamera,
-                            contentDescription = null,
-                            modifier = Modifier.size(40.dp),
-                            tint = Color.Gray
-                        )
-                        Text(
-                            text = "La cámara permite identificación automática",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.DarkGray
-                        )
-                        Button(onClick = { cameraPermission.launchPermissionRequest() }) {
-                            Text("Permitir cámara")
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Empleado: ${emp.fullName}", fontWeight = FontWeight.Bold)
+                            Text("Puesto: ${emp.department}")
+                            Text("No. Empleado: ${emp.code}")
                         }
                     }
                 }
@@ -166,91 +169,15 @@ fun AttendanceScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            if (state.isLoading) {
-                CircularProgressIndicator()
-                return@Column
-            }
-
-            if (state.employees.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "No hay empleados registrados en este dispositivo.",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "Usa el botón 'Nuevo empleado' para registrar al primero.")
-                    }
-                }
-                return@Column
-            }
-
-            // ── Selector manual de empleado ───────────────────────────────────────
-            Text(
-                text = "Empleado",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.align(Alignment.Start)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
-            ) {
-                OutlinedTextField(
-                    value = selectedEmployee?.let { "${it.fullName} (${it.code})" } ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Selecciona empleado") },
-                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    modifier = Modifier
-                        .menuAnchor()
-                        .fillMaxWidth()
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    state.employees.forEach { employee ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(text = employee.fullName)
-                                    Text(
-                                        text = "${employee.code} • ${employee.department.ifBlank { "Sin departamento" }}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            },
-                            onClick = {
-                                viewModel.selectEmployee(employee.id)
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // ── Tipo de registro ──────────────────────────────────────────────────
+            // Attendance Type
             Text(
                 text = "Tipo de Registro",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.align(Alignment.Start)
             )
-
             attendanceTypes.forEach { type ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(
@@ -263,51 +190,36 @@ fun AttendanceScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── Info de ubicación y modo offline ─────────────────────────────────
+            // GPS Location Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "Modo offline activo", fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val locationText = state.currentLocation?.let { loc ->
-                        "Ubicación: ${"%.4f".format(loc.latitude)}, ${"%.4f".format(loc.longitude)} • ${loc.accuracyMeters?.let { "±${"%.0f".format(it)}m" } ?: ""}"
-                    } ?: "Ubicación pendiente — se intentará obtener al guardar"
+                    val loc = state.currentLocation
+                    val locationText = if (loc != null) {
+                        "Ubicación: Lat ${loc.latitude}, Lon ${loc.longitude}"
+                    } else {
+                        "Ubicación pendiente..."
+                    }
                     Text(text = locationText)
-                    Text(text = "El registro se guardará con sync_status = pending")
-                    if (!locationPermissions.permissions.all { it.status.isGranted }) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                    if (!locationPermissions.allPermissionsGranted) {
                         TextButton(onClick = { locationPermissions.launchMultiplePermissionRequest() }) {
-                            Text("Permitir ubicación")
+                            Text("Permitir Ubicación (GPS)")
                         }
                     }
                 }
             }
 
-            // ── Mensajes de éxito / error ─────────────────────────────────────────
-            state.successMessage?.let { message ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = message, color = Color(0xFF3BAF8E), fontWeight = FontWeight.Bold)
-            }
-
-            state.errorMessage?.let { message ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(text = message, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-            }
-
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ── Botón guardar ─────────────────────────────────────────────────────
             Button(
                 onClick = viewModel::saveAttendance,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 enabled = !state.isSaving && !state.isRecognizing
             ) {
-                Text(text = if (state.isSaving) "Guardando..." else "Guardar Asistencia Offline")
+                Text(text = if (state.isSaving) "Guardando..." else "Guardar Asistencia")
             }
         }
     }

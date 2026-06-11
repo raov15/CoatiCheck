@@ -61,4 +61,7 @@ interface EmployeeDao {
 
     @Query("SELECT COUNT(*) FROM employees WHERE is_active = 1")
     suspend fun countActive(): Int
+
+    @Query("DELETE FROM employees WHERE id_local = :idLocal")
+    suspend fun deleteById(idLocal: String)
 }

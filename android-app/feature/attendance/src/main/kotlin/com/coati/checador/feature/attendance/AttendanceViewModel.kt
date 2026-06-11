@@ -7,6 +7,7 @@ import com.coati.checador.core.database.dao.AttendanceRecordDao
 import com.coati.checador.core.database.dao.EmployeeDao
 import com.coati.checador.core.database.dao.EmployeeFaceProfileDao
 import com.coati.checador.core.database.entity.AttendanceRecordEntity
+import com.coati.checador.core.database.entity.EmployeeEntity
 import com.coati.checador.core.database.model.EventType
 import com.coati.checador.core.database.model.SyncStatus
 import com.coati.checador.feature.employeeenrollment.data.service.EmbeddingService
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 
@@ -36,6 +38,15 @@ class AttendanceViewModel @Inject constructor(
 
     init {
         loadEmployees()
+        observeRecentRecords()
+    }
+
+    private fun observeRecentRecords() {
+        viewModelScope.launch {
+            attendanceRecordDao.observeRecent(50).collect { records ->
+                _state.update { it.copy(recentRecords = records) }
+            }
+        }
     }
 
     fun loadEmployees() {
@@ -48,7 +59,8 @@ class AttendanceViewModel @Inject constructor(
                         id = entity.idLocal,
                         code = parts.getOrElse(0) { entity.employeeCode },
                         department = parts.getOrElse(1) { "" },
-                        fullName = entity.fullName
+                        fullName = entity.fullName,
+                        createdAt = entity.createdAt
                     )
                 }
             }.onSuccess { employees ->
@@ -76,6 +88,31 @@ class AttendanceViewModel @Inject constructor(
 
     fun selectEvent(label: String) {
         _state.update { it.copy(selectedEventLabel = label, successMessage = null, errorMessage = null) }
+    }
+
+    fun deleteEmployee(employeeId: String, context: android.content.Context) {
+        viewModelScope.launch {
+            runCatching {
+                employeeDao.deleteById(employeeId)
+                // Borrar foto física
+                val file = File(File(context.filesDir, "employee_photos"), "$employeeId.jpg")
+                if (file.exists()) file.delete()
+            }.onSuccess {
+                loadEmployees()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = "No se pudo borrar: ${error.message}") }
+            }
+        }
+    }
+
+    fun updateUnrecognizedInfo(name: String, position: String, number: String) {
+        _state.update { 
+            it.copy(
+                unrecognizedName = name,
+                unrecognizedPosition = position,
+                unrecognizedEmployeeNumber = number
+            )
+        }
     }
 
     /**
@@ -126,7 +163,7 @@ class AttendanceViewModel @Inject constructor(
                     }
                 }
 
-                val THRESHOLD = 0.4f
+                val THRESHOLD = 0.5f
                 if (bestDist <= THRESHOLD && bestEmployeeId != null) {
                     val employee = employeeDao.findById(bestEmployeeId)
                     val confidence = ((1f - bestDist / THRESHOLD) * 100f).toInt()
@@ -164,44 +201,69 @@ class AttendanceViewModel @Inject constructor(
     fun saveAttendance() {
         val current = _state.value
         val employeeId = current.selectedEmployeeId
-        if (employeeId == null) {
-            _state.update { it.copy(errorMessage = "Selecciona un empleado para guardar la asistencia") }
+        
+        // Validation: must have either a selected employee or manual info
+        if (employeeId == null && current.unrecognizedName.isBlank()) {
+            _state.update { it.copy(errorMessage = "Selecciona un empleado o ingresa los datos manualmente") }
             return
         }
 
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true, successMessage = null, errorMessage = null) }
-            val eventType = current.selectedEventLabel.toEventType()
-            val employee = current.employees.firstOrNull { it.id == employeeId }
-            val now = System.currentTimeMillis()
-            val snapshot = locationTracker.getBestEffortLocation()
-            val record = AttendanceRecordEntity(
-                idLocal = UUID.randomUUID().toString(),
-                employeeId = employeeId,
-                eventType = eventType,
-                occurredAt = now,
-                latitude = snapshot?.latitude,
-                longitude = snapshot?.longitude,
-                accuracyM = snapshot?.accuracyMeters,
-                altitudeM = snapshot?.altitudeMeters,
-                faceConfidence = current.faceConfidence,
-                deviceId = null,
-                syncStatus = SyncStatus.PENDING,
-                syncAttempts = 0,
-                lastError = null,
-                createdAt = now
-            )
-
+            
             runCatching {
+                val now = System.currentTimeMillis()
+                val snapshot = locationTracker.getBestEffortLocation()
+                val eventType = current.selectedEventLabel.toEventType()
+                
+                val finalEmployeeId = if (employeeId != null) {
+                    employeeId
+                } else {
+                    // Create new employee for unrecognized person
+                    val newId = UUID.randomUUID().toString()
+                    val newEmployee = EmployeeEntity(
+                        idLocal = newId,
+                        employeeCode = "${current.unrecognizedEmployeeNumber}|${current.unrecognizedPosition}",
+                        fullName = current.unrecognizedName,
+                        isActive = true,
+                        createdAt = now,
+                        updatedAt = now,
+                        syncStatus = SyncStatus.PENDING
+                    )
+                    employeeDao.insertOrReplace(newEmployee)
+                    newId
+                }
+
+                val record = AttendanceRecordEntity(
+                    idLocal = UUID.randomUUID().toString(),
+                    employeeId = finalEmployeeId,
+                    eventType = eventType,
+                    occurredAt = now,
+                    latitude = snapshot?.latitude,
+                    longitude = snapshot?.longitude,
+                    accuracyM = snapshot?.accuracyMeters,
+                    altitudeM = snapshot?.altitudeMeters,
+                    faceConfidence = current.faceConfidence,
+                    deviceId = null,
+                    syncStatus = SyncStatus.PENDING,
+                    syncAttempts = 0,
+                    lastError = null,
+                    createdAt = now
+                )
+                
                 attendanceRecordDao.insert(record)
-            }.onSuccess {
+                snapshot
+            }.onSuccess { snapshot ->
                 _state.update {
                     it.copy(
                         isSaving = false,
                         currentLocation = snapshot,
                         faceConfidence = null,
                         recognitionMessage = null,
-                        successMessage = "Asistencia guardada offline para ${employee?.fullName ?: "empleado"}",
+                        unrecognizedName = "",
+                        unrecognizedPosition = "",
+                        unrecognizedEmployeeNumber = "",
+                        successMessage = "Asistencia guardada con éxito",
                         errorMessage = null
                     )
                 }
@@ -229,14 +291,20 @@ data class AttendanceUiState(
     val faceConfidence: Float? = null,
     val recognitionMessage: String? = null,
     val successMessage: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val recentRecords: List<AttendanceRecordEntity> = emptyList(),
+    // New fields for unrecognized employees
+    val unrecognizedName: String = "",
+    val unrecognizedPosition: String = "",
+    val unrecognizedEmployeeNumber: String = ""
 )
 
 data class AttendanceEmployee(
     val id: String,
     val code: String,
     val department: String,
-    val fullName: String
+    val fullName: String,
+    val createdAt: Long = 0L
 )
 
 private fun String.toEventType(): String = when (this) {

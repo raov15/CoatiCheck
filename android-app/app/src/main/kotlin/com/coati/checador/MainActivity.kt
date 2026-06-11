@@ -44,6 +44,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.coati.checador.core.ui.theme.CoatiCheckTheme
 import com.coati.checador.feature.attendance.AttendanceScreen
+import com.coati.checador.feature.attendance.HistoryScreen
+import com.coati.checador.feature.attendance.EmployeeListScreen
 import com.coati.checador.feature.employeeenrollment.ui.screen.PantallaRegistroEmpleado
 import com.coati.checador.feature.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -94,6 +96,25 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpenSettings = {
                                 navController.navigate("settings")
+                            },
+                            onViewHistory = {
+                                navController.navigate("history")
+                            },
+                            onViewEmployees = {
+                                navController.navigate("employees")
+                            }
+                        )
+                    }
+                    composable("history") {
+                        HistoryScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("employees") {
+                        EmployeeListScreen(
+                            onBack = { navController.popBackStack() },
+                            onAddEmployee = {
+                                navController.navigate("registro_empleado")
                             }
                         )
                     }

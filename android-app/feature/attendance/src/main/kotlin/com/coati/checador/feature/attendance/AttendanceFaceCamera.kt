@@ -117,8 +117,8 @@ fun AttendanceFaceCamera(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cx = size.width / 2f
             val cy = size.height * 0.44f
-            val rx = size.width * 0.33f
-            val ry = size.height * 0.30f
+            val rx = size.width * 0.22f  // Basado en el ancho para mantener consistencia
+            val ry = size.width * 0.32f  // Más alto que ancho para asegurar forma de óvalo vertical
 
             drawRect(color = Color.Black.copy(alpha = 0.4f), size = size)
             drawOval(
