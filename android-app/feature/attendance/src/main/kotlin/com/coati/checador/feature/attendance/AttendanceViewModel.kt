@@ -163,7 +163,7 @@ class AttendanceViewModel @Inject constructor(
                     }
                 }
 
-                val THRESHOLD = 0.5f
+                val THRESHOLD = 0.55f   // MobileFaceNet: umbral generoso para condiciones reales
                 if (bestDist <= THRESHOLD && bestEmployeeId != null) {
                     val employee = employeeDao.findById(bestEmployeeId)
                     val confidence = ((1f - bestDist / THRESHOLD) * 100f).toInt()
