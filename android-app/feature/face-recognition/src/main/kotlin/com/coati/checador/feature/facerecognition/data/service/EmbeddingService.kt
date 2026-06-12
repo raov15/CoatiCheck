@@ -22,7 +22,7 @@ import org.tensorflow.lite.Interpreter
  * Responsabilidades:
  * 1. Cargar el modelo TFLite (mobilefacenet.tflite) desde assets (lazy).
  * 2. Pre-procesar el bitmap del rostro a la entrada del modelo (112×112 px, [-1,1]).
- * 3. Generar el vector de embeddings de 128 dimensiones y normalizarlo con L2.
+ * 3. Generar el vector de embeddings de 192 dimensiones y normalizarlo con L2.
  * 4. Cifrar/descifrar embeddings con AES-256-GCM usando la clave del Android Keystore.
  * 5. Calcular distancia coseno para comparación 1:N en la pantalla de asistencia.
  *
@@ -43,7 +43,7 @@ class EmbeddingService @Inject constructor(
     }
 
     override val versionModelo: String get() = if (interpreter != null) "mobilefacenet_v1" else "simulado_v1"
-    override val embeddingSize: Int = 128
+    override val embeddingSize: Int = 192
 
     // Intérprete de TFLite inicializado de forma lazy con manejo de errores
     private val interpreter: Interpreter? by lazy {

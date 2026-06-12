@@ -14,7 +14,7 @@ interface FaceRecognitionEngine {
     /** Versión del modelo activo (ej. "mobilefacenet_v1" o "simulado_v1") */
     val versionModelo: String
 
-    /** Dimensión del vector de embeddings (128 para MobileFaceNet) */
+    /** Dimensión del vector de embeddings (192 para el modelo actual) */
     val embeddingSize: Int
 
     /**
