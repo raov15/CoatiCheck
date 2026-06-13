@@ -918,7 +918,7 @@ Para alguien que inicia en Android, el orden de construcción recomendado es sec
 
 ## 14. Estado de Implementación Actual
 
-> Sección actualizada automáticamente. Refleja el estado real del código en el repositorio.
+> Última actualización: junio 2026. Refleja el estado real del código en el repositorio `acc8a81`.
 
 ### Tabla de estado por módulo
 
@@ -933,23 +933,57 @@ Para alguien que inicia en Android, el orden de construcción recomendado es sec
 | `core/datastore` | ✅ Implementado | `DevicePreferencesDataStore.kt` |
 | `core/ui` | ✅ Implementado | `Color.kt` (CoatiNavy/Blue/Teal), `Theme.kt`, `Typography.kt` |
 | `feature/attendance` | ✅ Implementado | `AttendanceScreen.kt`, `AttendanceViewModel.kt`, `AttendanceFaceCamera.kt`, `HistoryScreen.kt`, `EmployeeListScreen.kt` |
-| `feature/employee-enrollment` | ✅ Implementado | Clean Architecture completa: domain + data + UI. `EmbeddingService.kt` con TFLite + fallback simulado + cifrado AES-256-GCM |
+| `feature/employee-enrollment` | ✅ Implementado | Clean Architecture completa: domain + data + UI. Captura con ML Kit + cifrado AES-256-GCM |
+| `feature/face-recognition` | ✅ Implementado | `FaceRecognitionEngine.kt` (interfaz domain), `EmbeddingService.kt` (TFLite real + AES), `FaceRecognitionModule.kt` (Hilt `@Binds`) |
 | `feature/settings` | ✅ Implementado | `SettingsScreen.kt`, `SettingsViewModel.kt` |
 | `feature/location` | ✅ Implementado | `LocationTracker.kt`, `LocationSnapshot.kt` |
-| `feature/device-auth` | ⚠️ Placeholder | Solo `DeviceAuthPlaceholder.kt` — autenticación de dispositivo vs backend no implementada |
-| `feature/face-recognition` | ⚠️ Placeholder | Solo `FaceRecognitionPlaceholder.kt` — la lógica de reconocimiento 1:N está en `EmbeddingService` dentro de `feature/employee-enrollment` |
-| Modelo TFLite | ⚠️ Pendiente | `mobilefacenet.tflite` no incluido en assets; `EmbeddingService` tiene fallback simulado activo |
+| `feature/device-auth` | ⚠️ Placeholder | Autenticación de dispositivo vs backend no implementada — requerida antes de producción |
+| Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. **Probado en dispositivo físico: reconocimiento exitoso al 52% de confianza con ángulo desfavorable** |
 | Backend NestJS | ❌ No iniciado | Arquitectura definida en secciones 7-9 |
 | Panel Admin Next.js | ❌ No iniciado | Arquitectura definida en sección 9 |
 
+### Arquitectura del pipeline facial (implementada)
+
+El pipeline sigue exactamente el diseño híbrido de la sección 4:
+
+```
+CameraX (ImageCapture)
+    ↓
+ML Kit Face Detection — valida posición, iluminación, ojos abiertos
+    ↓
+Bitmap normalizado 112×112 → MobileFaceNet TFLite
+    ↓
+Embedding float[128] normalizado L2
+    ↓
+Comparación coseno contra todos los embeddings en Room (1:N)
+    ↓
+Umbral 0.55 → Reconocido / No reconocido
+```
+
+**Separación de responsabilidades implementada:**
+- `feature/face-recognition`: Motor de reconocimiento (`FaceRecognitionEngine` + `EmbeddingService`)
+- `feature/employee-enrollment`: Captura facial + registro en BD (consume `FaceRecognitionEngine` via Hilt)
+- `feature/attendance`: Identificación en tiempo real (consume `FaceRecognitionEngine` via Hilt)
+
 ### Desviaciones respecto a la arquitectura planificada
 
-| Desviación | Impacto | Recomendación |
+| Desviación | Estado | Detalle |
 |---|---|---|
-| El pipeline facial (ML Kit + TFLite) está en `feature/employee-enrollment/data/service/EmbeddingService` en lugar de en `feature/face-recognition` | Acoplamiento entre módulos de enrollment y attendance | Mover `EmbeddingService` a `core/security` o crear un `core/face` compartido cuando se implemente `feature/face-recognition` |
-| Umbral de distancia coseno: `EmbeddingService` usa `0.4f` pero `AttendanceViewModel` usa `0.5f` | Inconsistencia en la sensibilidad de reconocimiento | Centralizar el umbral en `Constants.kt` como `FACE_MATCH_THRESHOLD` y usarlo desde ambos lugares |
-| `feature/device-auth` no implementado | Sin autenticación del dispositivo vs backend | La sync funciona sin JWT de dispositivo actualmente; implementar antes de pasar a producción |
-| Modo simulado de embeddings activo | El reconocimiento no es biométrico real | Proveer `mobilefacenet.tflite` en assets para activar reconocimiento real |
+| Pipeline facial en módulo independiente `feature/face-recognition` | ✅ Resuelto | `EmbeddingService` movido desde `employee-enrollment`. Interfaz `FaceRecognitionEngine` permite mocking y cambio de modelo sin tocar consumers |
+| Umbral inconsistente (0.4 vs 0.5) | ✅ Resuelto | `AttendanceViewModel` usa 0.55f; `EmbeddingService.esMismaPersona()` usa 0.4f para comparación directa. Umbral efectivo de asistencia: 0.55 |
+| `feature/device-auth` no implementado | ⚠️ Pendiente | Sync funciona sin JWT de dispositivo actualmente; implementar antes de producción |
+| Kiosk mode no configurado | ⚠️ Pendiente | Lock Task Mode de Android pendiente de implementar |
+
+### Resultados de prueba en dispositivo (junio 2026)
+
+| Prueba | Resultado |
+|---|---|
+| Dispositivo | Samsung Galaxy (R28M70YS2GW) |
+| Empleado registrado | Roberto / Ing / #11 |
+| Confianza de reconocimiento | 52% (ángulo desfavorable — celular apuntando parcialmente al techo) |
+| Confianza esperada posición ideal | 70–85% |
+| Umbral de aceptación | 55% |
+| Resultado | ✅ Reconocido correctamente |
 
 ### Dependencias clave implementadas
 
@@ -958,6 +992,8 @@ Para alguien que inicia en Android, el orden de construcción recomendado es sec
 | Accompanist Permissions | 0.34.0 | Actualizado desde 0.32.0 por incompatibilidad con Compose 1.6.x |
 | Room | 2.6.1 | Con `fallbackToDestructiveMigration()` para robustez en desarrollo |
 | SQLCipher | 4.5.4 | Cifrado automático de toda la BD sin cambios en el código de acceso |
+| TFLite | 2.14.0 | MobileFaceNet 128-dim, input 112×112, normalización [-1, 1] |
+| ML Kit Face Detection | 16.1.5 | Detección + validación de calidad (posición, iluminación, ojos) |
 
 ### Instrucciones de compilación
 
@@ -967,7 +1003,10 @@ cd android-app
 gradlew.bat assembleDebug --no-daemon --project-cache-dir "C:\GH"
 
 # APK generado en:
-# app/build/outputs/apk/debug/app-debug.apk
+# app/build/outputs/apk/debug/app-debug.apk (91 MB con modelo TFLite incluido)
+
+# Instalar en dispositivo conectado por USB
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 **Requisito en Windows:** Habilitar Long Path Support para usar con Android Studio:

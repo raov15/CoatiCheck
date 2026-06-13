@@ -20,7 +20,7 @@ Un único dispositivo Android compartido (modo kiosk) permite que múltiples emp
 | DI | Hilt | 2.50 |
 | Base de datos local | Room + SQLCipher | 2.6.1 / 4.5.4 |
 | Seguridad biométrica | Android Keystore + AES-256-GCM | — |
-| Reconocimiento facial | ML Kit Face Detection + TFLite | 16.1.5 / 2.14.0 |
+| Reconocimiento facial | ML Kit Face Detection + MobileFaceNet TFLite | 16.1.5 / 2.14.0 |
 | Cámara | CameraX | 1.3.1 |
 | Geolocalización | Fused Location Provider | 21.2.0 |
 | Sincronización | WorkManager | 2.9.0 |
@@ -45,11 +45,12 @@ reloj-checador/
 │   │   └── ui/                       # Tema COATI (colores, tipografía)
 │   └── feature/
 │       ├── attendance/               # Pantalla principal, reconocimiento 1:N, GPS
-│       ├── employee-enrollment/      # Registro de empleados, EmbeddingService TFLite
+│       ├── employee-enrollment/      # Registro de empleados, captura facial con ML Kit
+│       ├── face-recognition/         # FaceRecognitionEngine, MobileFaceNet TFLite, Hilt DI
+│       │   └── src/main/assets/      # mobilefacenet.tflite (5.2 MB)
 │       ├── settings/                 # Configuración del kiosk
 │       ├── location/                 # LocationTracker wrapper
-│       ├── device-auth/              # [Pendiente]
-│       └── face-recognition/         # [Pendiente — lógica en EmbeddingService]
+│       └── device-auth/              # [Pendiente — autenticación vs backend]
 ├── architecture.md                   # Documento de arquitectura completo
 └── assets/branding/                  # Logos y branding COATI
 ```
@@ -68,12 +69,12 @@ reloj-checador/
 | `core/datastore` | ✅ Completo | DataStore preferences |
 | `core/ui` | ✅ Completo | Tema COATI (Navy/Blue/Teal), tipografía |
 | `feature/attendance` | ✅ Completo | Reconocimiento 1:N, GPS, historial, lista empleados |
-| `feature/employee-enrollment` | ✅ Completo | Clean Architecture, TFLite + fallback simulado, cifrado |
+| `feature/employee-enrollment` | ✅ Completo | Clean Architecture completa, captura facial con ML Kit, cifrado AES-256-GCM |
+| `feature/face-recognition` | ✅ Completo | `FaceRecognitionEngine` (interfaz domain), `EmbeddingService` con TFLite real, `FaceRecognitionModule` Hilt |
 | `feature/settings` | ✅ Completo | URL API, GPS timeout, umbral facial, PIN admin |
 | `feature/location` | ✅ Completo | Fused Location Provider wrapper |
 | `feature/device-auth` | ⚠️ Pendiente | Autenticación del dispositivo vs backend |
-| `feature/face-recognition` | ⚠️ Pendiente | Módulo placeholder (lógica en EmbeddingService) |
-| Modelo `mobilefacenet.tflite` | ⚠️ Pendiente | Colocar en `assets/`; hay fallback simulado activo |
+| Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
 | Backend NestJS | ❌ No iniciado | — |
 | Panel Admin Next.js | ❌ No iniciado | — |
 
@@ -106,6 +107,13 @@ cd android-app
 android-app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Instalar en dispositivo via ADB
+
+```bash
+# Conectar celular con Depuración USB activada
+adb install -r android-app/app/build/outputs/apk/debug/app-debug.apk
+```
+
 ### Abrir en Android Studio
 
 1. **File → Open** → seleccionar la carpeta `android-app/`
@@ -120,45 +128,34 @@ android-app/app/build/outputs/apk/debug/app-debug.apk
 ### Paso 1 — Registrar empleado con foto
 
 1. Abrir la app → pantalla de asistencia
-2. Tocar el botón **"Registrar empleado"**
-3. Llenar nombre, ID/código, departamento
-4. Tocar **"Capturar foto"** → apuntar la cámara al rostro
-5. ML Kit detecta el rostro automáticamente
-6. Guardar → el embedding facial queda cifrado en Room
+2. Tocar el ícono de **persona con +** (registro de empleado)
+3. Llenar nombre, código de empleado, puesto
+4. Tocar **"Capturar foto"** → apuntar la cámara frontal al rostro
+5. ML Kit detecta y valida el rostro automáticamente (iluminación, posición, ojos abiertos)
+6. Guardar → el embedding MobileFaceNet queda cifrado en Room
 
 ### Paso 2 — Registrar asistencia
 
-1. Otorgar permiso de cámara en la pantalla principal
-2. Apuntar la cámara al rostro del empleado registrado
-3. La app compara el embedding en tiempo real (1:N)
-4. Si la similitud supera el umbral → muestra **"Bienvenido [nombre]"**
-5. Seleccionar tipo de evento: Entrada / Salida / Inicio comida / Fin comida
-6. La asistencia se guarda con GPS automáticamente
-
-### Colocar el modelo TFLite (reconocimiento real)
-
-Sin el modelo, la app usa un **modo simulado** (embeddings por hash del bitmap) que permite desarrollo y pruebas pero no es biométrico real.
-
-Para activar el reconocimiento real:
-1. Obtener el modelo **MobileFaceNet** en formato `.tflite`
-2. Copiarlo a:
-   ```
-   android-app/feature/employee-enrollment/src/main/assets/mobilefacenet.tflite
-   ```
-3. Recompilar
+1. En la pantalla **"Registro de Asistencia"** la cámara frontal se activa automáticamente
+2. Apuntar la cámara al rostro — el óvalo se pone verde cuando detecta una cara
+3. Tocar el botón de obturador (ícono de cámara verde)
+4. MobileFaceNet calcula el embedding y busca coincidencia 1:N en la base de datos local
+5. Si la confianza supera el umbral (55%) → muestra **"Reconocido: [nombre] (XX%)"**
+6. Seleccionar tipo de evento: Entrada / Salida / Entrada Comida / Salida Comida
+7. Tocar **"Guardar Asistencia"** → registro se guarda con GPS
 
 ---
 
 ## Pantallas
 
-| Pantalla | Ruta | Descripción |
-|---|---|---|
-| Splash | `splash` | Logo COATI, 4 segundos |
-| Asistencia | `attendance` | Cámara + reconocimiento 1:N + GPS |
-| Registro de empleado | `registro_empleado` | Alta con foto y datos |
-| Lista de empleados | `employee_list` | Ver y eliminar empleados |
-| Historial | `history` | Últimos 50 registros de asistencia |
-| Configuración | `settings` | URL API, umbral facial (0.4), PIN admin |
+| Pantalla | Descripción |
+|---|---|
+| Splash | Logo COATI, 4 segundos |
+| Registro de Asistencia | Cámara frontal + reconocimiento 1:N + GPS + tipo de registro |
+| Registro de Empleado | Alta con foto, nombre, puesto, número de empleado |
+| Empleados Registrados | Lista, ver perfiles y eliminar empleados |
+| Historial | Últimos registros de asistencia del dispositivo |
+| Configuración | URL API, umbral facial, GPS timeout, PIN admin |
 
 ---
 
@@ -167,21 +164,23 @@ Para activar el reconocimiento real:
 | Medida | Implementación |
 |---|---|
 | BD cifrada | SQLCipher — AES-256 sobre todo el archivo |
-| Embeddings cifrados | AES-256-GCM por cada embedding antes de guardarse |
-| Clave maestra | Android Keystore hardware-backed |
+| Embeddings cifrados | AES-256-GCM por cada embedding antes de guardarse en Room |
+| Clave maestra | Android Keystore hardware-backed (nunca sale del chip) |
 | Sin backup de biometría | `allowBackup="false"` en AndroidManifest |
-| Embeddings sin salir del dispositivo | El servidor solo recibe metadatos, nunca el vector |
+| Embeddings en el dispositivo | El servidor solo recibe metadatos, nunca el vector facial |
 
 ---
 
-## Problemas Conocidos
+## Problemas Conocidos / Resueltos
 
 | Problema | Estado | Fix aplicado |
 |---|---|---|
-| Crash al arrancar (Accompanist 0.32.0 + Compose 1.6.x) | Corregido | Actualizado a Accompanist 0.34.0 |
+| Crash al arrancar (Accompanist 0.32.0 + Compose 1.6.x) | ✅ Resuelto | Actualizado a Accompanist 0.34.0 |
 | Rutas largas en Gradle 8.9 Windows (MAX_PATH 260) | Workaround | `--project-cache-dir C:/GH` o habilitar LongPaths |
-| Reconocimiento facial sin modelo TFLite | Activo | Fallback simulado (modo desarrollo) |
-| `feature/device-auth` no implementado | Pendiente | — |
+| Reconocimiento facial sin modelo TFLite | ✅ Resuelto | MobileFaceNet incluido en assets — reconocimiento real activo |
+| `Math.abs` overload ambiguity en Kotlin (Float) | ✅ Resuelto | Cambiado a `kotlin.math.abs` |
+| `feature/attendance` acoplado a `employee-enrollment` | ✅ Resuelto | Refactorizado a `FaceRecognitionEngine` en módulo propio |
+| `feature/device-auth` no implementado | ⚠️ Pendiente | Requerido antes de producción |
 
 ---
 
