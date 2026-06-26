@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.coati.checador.core.database.entity.DeviceEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DeviceDao {
@@ -15,6 +16,10 @@ interface DeviceDao {
     // El dispositivo kiosk tiene solo un registro
     @Query("SELECT * FROM devices LIMIT 1")
     suspend fun getCurrent(): DeviceEntity?
+
+    /** Emite el estado del dispositivo como Flow reactivo. */
+    @Query("SELECT * FROM devices LIMIT 1")
+    fun observeCurrent(): Flow<DeviceEntity?>
 
     @Query("SELECT * FROM devices WHERE id_local = :idLocal")
     suspend fun findById(idLocal: String): DeviceEntity?

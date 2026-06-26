@@ -1,0 +1,51 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coati-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://coati:coati_password@db:5432/coaticheck
+      - JWT_SECRET=change_this_secret
+      # Nginx Proxy Manager
+      - VIRTUAL_HOST=checador.icadmon.com
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=checador.icadmon.com
+      - LETSENCRYPT_EMAIL=admin@icadmon.com
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - nginx-proxy
+
+  db:
+    image: postgres:16-alpine
+    container_name: coati-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=coati
+      - POSTGRES_PASSWORD=coati_password
+      - POSTGRES_DB=coaticheck
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coati -d coaticheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  db_data:
+
+networks:
+  internal:
+    driver: bridge
+  nginx-proxy:
+    external: true

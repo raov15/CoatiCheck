@@ -47,6 +47,7 @@ import com.coati.checador.feature.attendance.AttendanceScreen
 import com.coati.checador.feature.attendance.HistoryScreen
 import com.coati.checador.feature.attendance.EmployeeListScreen
 import com.coati.checador.feature.employeeenrollment.ui.screen.PantallaRegistroEmpleado
+import com.coati.checador.feature.deviceauth.ui.DeviceAuthScreen
 import com.coati.checador.feature.settings.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
@@ -131,6 +132,12 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("settings") {
                         SettingsScreen(
+                            onBack = { navController.popBackStack() },
+                            onDeviceAuth = { navController.navigate("device_auth") }
+                        )
+                    }
+                    composable("device_auth") {
+                        DeviceAuthScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }

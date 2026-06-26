@@ -1,10 +1,36 @@
 package com.coati.checador.core.network
 
+import com.coati.checador.core.network.dto.DeviceRegisterRequest
+import com.coati.checador.core.network.dto.DeviceRegisterResponse
+import com.coati.checador.core.network.dto.DeviceTokenRefreshResponse
+import com.coati.checador.core.network.dto.DeviceTokenVerifyResponse
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
 
 interface CoatiApiService {
-    // TODO: Define API endpoints
-    // See architecture.md section 7 for the backend API structure
+
     @GET("health")
     suspend fun healthCheck(): Map<String, String>
+
+    // ── Device Auth ──────────────────────────────────────────────────────────
+
+    /** Registra el dispositivo y obtiene su auth_token de larga duracion. */
+    @POST("devices/register")
+    suspend fun registerDevice(
+        @Body request: DeviceRegisterRequest
+    ): DeviceRegisterResponse
+
+    /** Verifica si el token sigue siendo valido. */
+    @GET("devices/verify")
+    suspend fun verifyToken(
+        @Header("Authorization") bearerToken: String
+    ): DeviceTokenVerifyResponse
+
+    /** Refresca el token del dispositivo. */
+    @POST("devices/refresh-token")
+    suspend fun refreshToken(
+        @Header("Authorization") bearerToken: String
+    ): DeviceTokenRefreshResponse
 }
