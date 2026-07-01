@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.coati.checador.core.database.dao.AppSettingDao
 import com.coati.checador.core.database.entity.AppSettingEntity
+import com.coati.checador.core.network.DEFAULT_SERVER_URL
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +31,7 @@ class SettingsViewModel @Inject constructor(
             runCatching {
                 SettingsUiState(
                     isLoading = false,
-                    apiBaseUrl = appSettingDao.getValue(AppSettingEntity.KEY_API_BASE_URL).orEmpty(),
+                    apiBaseUrl = appSettingDao.getValue(AppSettingEntity.KEY_API_BASE_URL) ?: DEFAULT_SERVER_URL,
                     gpsTimeoutMs = appSettingDao.getValue(AppSettingEntity.KEY_GPS_TIMEOUT_MS) ?: "10000",
                     faceMatchThreshold = appSettingDao.getValue(AppSettingEntity.KEY_FACE_MATCH_THRESHOLD) ?: "0.4",
                     adminPin = "",
@@ -75,7 +76,7 @@ class SettingsViewModel @Inject constructor(
                 appSettingDao.upsert(
                     AppSettingEntity(
                         key = AppSettingEntity.KEY_API_BASE_URL,
-                        value = current.apiBaseUrl.ifBlank { null },
+                        value = current.apiBaseUrl.ifBlank { DEFAULT_SERVER_URL },
                         updatedAt = now
                     )
                 )
@@ -126,7 +127,7 @@ class SettingsViewModel @Inject constructor(
 data class SettingsUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val apiBaseUrl: String = "",
+    val apiBaseUrl: String = DEFAULT_SERVER_URL,
     val gpsTimeoutMs: String = "10000",
     val faceMatchThreshold: String = "0.4",
     val adminPin: String = "",

@@ -5,7 +5,7 @@ import com.coati.checador.core.database.dao.AppSettingDao
 import com.coati.checador.core.database.dao.DeviceDao
 import com.coati.checador.core.database.entity.AppSettingEntity
 import com.coati.checador.core.database.entity.DeviceEntity
-import com.coati.checador.core.network.CoatiApiService
+import com.coati.checador.core.network.CoatiApiServiceFactory
 import com.coati.checador.core.network.dto.DeviceRegisterRequest
 import com.coati.checador.feature.deviceauth.domain.model.Device
 import com.coati.checador.feature.deviceauth.domain.repository.DeviceAuthRepository
@@ -17,7 +17,7 @@ import javax.inject.Inject
 class DeviceAuthRepositoryImpl @Inject constructor(
     private val deviceDao: DeviceDao,
     private val appSettingDao: AppSettingDao,
-    private val apiService: CoatiApiService
+    private val apiServiceFactory: CoatiApiServiceFactory
 ) : DeviceAuthRepository {
 
     override fun observeDevice(): Flow<Device?> =
@@ -50,6 +50,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
         deviceFingerprint: String,
         apiBaseUrl: String
     ): Result<Device> = runCatching {
+        val apiService = apiServiceFactory.create(apiBaseUrl)
         val current = deviceDao.getCurrent()
             ?: throw IllegalStateException("No hay dispositivo local creado")
 
@@ -66,8 +67,9 @@ class DeviceAuthRepositoryImpl @Inject constructor(
             idRemote = response.deviceId,
             authToken = response.authToken
         )
-        if (response.siteId != null) {
-            deviceDao.updateSiteId(current.idLocal, response.siteId)
+        val siteId = response.siteId
+        if (siteId != null) {
+            deviceDao.updateSiteId(current.idLocal, siteId)
         }
 
         // Persistir token en DataStore tambien
@@ -86,6 +88,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
     )
 
     override suspend fun refreshToken(apiBaseUrl: String): Result<String> = runCatching {
+        val apiService = apiServiceFactory.create(apiBaseUrl)
         val token = appSettingDao.getValue(KEY_AUTH_TOKEN)
             ?: throw IllegalStateException("No hay token almacenado")
         val response = apiService.refreshToken("Bearer $token")
@@ -106,6 +109,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
     )
 
     override suspend fun verifyToken(apiBaseUrl: String): Result<Boolean> = runCatching {
+        val apiService = apiServiceFactory.create(apiBaseUrl)
         val token = appSettingDao.getValue(KEY_AUTH_TOKEN)
             ?: return Result.Success(false)
         val response = apiService.verifyToken("Bearer $token")

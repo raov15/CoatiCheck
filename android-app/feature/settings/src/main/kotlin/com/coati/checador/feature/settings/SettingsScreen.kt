@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.coati.checador.core.network.DEFAULT_API_IP_FALLBACK
+import com.coati.checador.core.network.DEFAULT_SERVER_URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,8 +85,15 @@ fun SettingsScreen(
                 value = state.apiBaseUrl,
                 onValueChange = viewModel::updateApiBaseUrl,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("API Base URL") },
+                label = { Text("URL del servidor") },
+                placeholder = { Text(DEFAULT_SERVER_URL) },
                 singleLine = true
+            )
+
+            Text(
+                text = "Dominio configurado: $DEFAULT_SERVER_URL · Respaldo IP: $DEFAULT_API_IP_FALLBACK",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             OutlinedTextField(

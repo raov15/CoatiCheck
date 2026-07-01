@@ -3,6 +3,7 @@ package com.coati.checador.feature.deviceauth.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.coati.checador.core.common.Result
+import com.coati.checador.core.network.DEFAULT_SERVER_URL
 import com.coati.checador.feature.deviceauth.domain.model.Device
 import com.coati.checador.feature.deviceauth.domain.usecase.ObserveDeviceUseCase
 import com.coati.checador.feature.deviceauth.domain.usecase.RegisterDeviceUseCase
@@ -106,7 +107,7 @@ data class DeviceAuthUiState(
     val isLoading: Boolean = false,
     val device: Device? = null,
     val deviceName: String = "",
-    val apiBaseUrl: String = "",
+    val apiBaseUrl: String = DEFAULT_SERVER_URL,
     val successMessage: String? = null,
     val errorMessage: String? = null
 )
