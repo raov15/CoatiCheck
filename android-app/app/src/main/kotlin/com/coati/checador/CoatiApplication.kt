@@ -2,11 +2,21 @@ package com.coati.checador
 
 import android.app.Application
 import android.content.Context
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
+import com.coati.checador.core.sync.SyncManager
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
+import javax.inject.Inject
 
 @HiltAndroidApp
-class CoatiApplication : Application() {
+class CoatiApplication : Application(), Configuration.Provider {
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var syncManager: SyncManager
 
     override fun onCreate() {
         super.onCreate()
@@ -14,7 +24,13 @@ class CoatiApplication : Application() {
             Timber.plant(Timber.DebugTree())
         }
         installCrashLogger()
+        syncManager.schedulePeriodicSync()
     }
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
 
     private fun installCrashLogger() {
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

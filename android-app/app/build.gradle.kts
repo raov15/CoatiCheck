@@ -51,6 +51,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
+    implementation(project(":core:sync"))
     implementation(project(":feature:attendance"))
     implementation(project(":feature:device-auth"))
     implementation(project(":feature:settings"))
@@ -68,6 +69,9 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.work)
+    kapt(libs.hilt.compiler.androidx)
+    implementation(libs.work.runtime.ktx)
     implementation(libs.coil.compose)
     implementation(libs.timber)
 

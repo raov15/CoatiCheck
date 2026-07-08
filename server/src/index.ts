@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { initDb } from './db/migrate';
 import devicesRouter from './routes/devices';
+import attendanceRouter from './routes/attendance';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -15,6 +16,7 @@ app.get('/api/health', (_req, res) => {
 
 // Rutas
 app.use('/api/devices', devicesRouter);
+app.use('/api/attendance', attendanceRouter);
 
 // Arranque
 initDb()

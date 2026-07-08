@@ -24,5 +24,6 @@ data class AppSettingEntity(
         const val KEY_API_BASE_URL = "api_base_url"
         const val KEY_MODEL_VERSION = "face_model_version"
         const val KEY_ADMIN_PIN_HASH = "admin_pin_hash"
+        const val KEY_AUTH_TOKEN = "device_auth_token"
     }
 }

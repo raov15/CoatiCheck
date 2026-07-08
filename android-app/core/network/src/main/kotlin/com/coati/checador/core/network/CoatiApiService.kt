@@ -1,5 +1,7 @@
 package com.coati.checador.core.network
 
+import com.coati.checador.core.network.dto.AttendanceSyncRequest
+import com.coati.checador.core.network.dto.AttendanceSyncResponse
 import com.coati.checador.core.network.dto.DeviceRegisterRequest
 import com.coati.checador.core.network.dto.DeviceRegisterResponse
 import com.coati.checador.core.network.dto.DeviceTokenRefreshResponse
@@ -33,4 +35,13 @@ interface CoatiApiService {
     suspend fun refreshToken(
         @Header("Authorization") bearerToken: String
     ): DeviceTokenRefreshResponse
+
+    // ── Attendance Sync ──────────────────────────────────────────────────────
+
+    /** Sincroniza un lote de registros de asistencia pendientes. */
+    @POST("attendance/sync")
+    suspend fun syncAttendance(
+        @Header("Authorization") bearerToken: String,
+        @Body request: AttendanceSyncRequest
+    ): AttendanceSyncResponse
 }

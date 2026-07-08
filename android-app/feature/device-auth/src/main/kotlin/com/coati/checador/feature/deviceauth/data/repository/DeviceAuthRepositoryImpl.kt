@@ -75,7 +75,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
         // Persistir token en DataStore tambien
         appSettingDao.upsert(
             AppSettingEntity(
-                key = KEY_AUTH_TOKEN,
+                key = AppSettingEntity.KEY_AUTH_TOKEN,
                 value = response.authToken,
                 updatedAt = System.currentTimeMillis()
             )
@@ -89,7 +89,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
 
     override suspend fun refreshToken(apiBaseUrl: String): Result<String> = runCatching {
         val apiService = apiServiceFactory.create(apiBaseUrl)
-        val token = appSettingDao.getValue(KEY_AUTH_TOKEN)
+        val token = appSettingDao.getValue(AppSettingEntity.KEY_AUTH_TOKEN)
             ?: throw IllegalStateException("No hay token almacenado")
         val response = apiService.refreshToken("Bearer $token")
         val device = deviceDao.getCurrent()
@@ -97,7 +97,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
         deviceDao.updateAuthToken(device.idLocal, response.authToken)
         appSettingDao.upsert(
             AppSettingEntity(
-                key = KEY_AUTH_TOKEN,
+                key = AppSettingEntity.KEY_AUTH_TOKEN,
                 value = response.authToken,
                 updatedAt = System.currentTimeMillis()
             )
@@ -110,7 +110,7 @@ class DeviceAuthRepositoryImpl @Inject constructor(
 
     override suspend fun verifyToken(apiBaseUrl: String): Result<Boolean> = runCatching {
         val apiService = apiServiceFactory.create(apiBaseUrl)
-        val token = appSettingDao.getValue(KEY_AUTH_TOKEN)
+        val token = appSettingDao.getValue(AppSettingEntity.KEY_AUTH_TOKEN)
             ?: return Result.Success(false)
         val response = apiService.verifyToken("Bearer $token")
         response.valid
@@ -130,7 +130,4 @@ class DeviceAuthRepositoryImpl @Inject constructor(
         registeredAt = registeredAt
     )
 
-    companion object {
-        private const val KEY_AUTH_TOKEN = "device_auth_token"
-    }
 }

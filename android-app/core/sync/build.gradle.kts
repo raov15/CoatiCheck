@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.work.runtime.ktx)
     implementation(libs.hilt.work)
     implementation(libs.hilt.android)
+    implementation(libs.timber)
     kapt(libs.hilt.compiler)
     kapt(libs.hilt.compiler.androidx)
     testImplementation(libs.junit)
