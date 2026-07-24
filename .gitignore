@@ -15,9 +15,14 @@ android-app/**/*.apk
 android-app/**/*.aab
 android-app/**/*.ap_
 
+# Local test artifacts
+logcat_dump.txt
+screen_test*.png
+
 # keystore
 android-app/**/*.jks
 android-app/**/*.keystore
+android-app/keystore.properties
 
 # VS Code
 .vscode/
