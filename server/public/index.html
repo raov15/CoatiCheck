@@ -210,6 +210,15 @@
         codeButton.style.margin = "8px";
         codeButton.addEventListener("click", () => createEnrollmentCode(company.id));
         item.appendChild(codeButton);
+        const siteSelect = document.createElement("select");
+        siteSelect.className = "enrollment-site";
+        siteSelect.dataset.companyId = company.id;
+        const allSites = document.createElement("option");
+        allSites.value = "";
+        allSites.textContent = "Todos los sitios";
+        siteSelect.appendChild(allSites);
+        item.appendChild(siteSelect);
+        loadCompanySites(company.id, siteSelect);
         companies.appendChild(item);
       });
       companySelects.forEach((select) => {
@@ -240,11 +249,27 @@
 
     document.querySelector("#user-company").addEventListener("change", loadUserSites);
 
+    async function loadCompanySites(companyId, select) {
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/sites`);
+      const data = await response.json().catch(() => []);
+      if (!response.ok) return;
+      data.forEach((site) => {
+        const option = document.createElement("option");
+        option.value = site.id;
+        option.textContent = site.name;
+        select.appendChild(option);
+      });
+    }
+
     async function createEnrollmentCode(companyId) {
+      const siteSelect = document.querySelector(`.enrollment-site[data-company-id="${companyId}"]`);
       const response = await authorizedFetch(`/api/admin/companies/${companyId}/enrollment-codes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expires_in_minutes: 30 })
+        body: JSON.stringify({
+          site_id: siteSelect ? siteSelect.value || null : null,
+          expires_in_minutes: 30
+        })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
