@@ -147,8 +147,29 @@
           logo.style.cssText = "width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-left:8px";
           item.appendChild(logo);
         }
+        const codeButton = document.createElement("button");
+        codeButton.type = "button";
+        codeButton.textContent = "Generar código de celular";
+        codeButton.style.width = "auto";
+        codeButton.style.margin = "8px";
+        codeButton.addEventListener("click", () => createEnrollmentCode(company.id));
+        item.appendChild(codeButton);
         companies.appendChild(item);
       });
+    }
+
+    async function createEnrollmentCode(companyId) {
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/enrollment-codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expires_in_minutes: 30 })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        status.textContent = data.error || "No se pudo generar el código";
+        return;
+      }
+      status.textContent = `Código de enrolamiento: ${data.enrollment_code}. Expira: ${data.expires_at}`;
     }
 
     document.querySelector("#load-companies").addEventListener("click", loadCompanies);
