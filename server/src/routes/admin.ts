@@ -100,7 +100,11 @@ router.post('/companies/:companyId/enrollment-codes', userAuthMiddleware, requir
 
 router.get('/logos/:filename', (req: Request, res: Response): void => {
   const filename = path.basename(req.params.filename);
-  res.sendFile(path.join(uploadDir, filename));
+  res.sendFile(path.join(uploadDir, filename), (error) => {
+    if (error && !res.headersSent) {
+      res.status(error.statusCode === 404 ? 404 : 500).json({ error: 'Logo no encontrado' });
+    }
+  });
 });
 
 router.post('/users', userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin'), async (req: UserAuthRequest, res: Response): Promise<void> => {

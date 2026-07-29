@@ -22,6 +22,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
     networks:
       - internal
       - nginx-proxy
@@ -46,6 +48,7 @@ services:
 
 volumes:
   db_data:
+  uploads_data:
 
 networks:
   internal:

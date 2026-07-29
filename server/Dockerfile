@@ -18,6 +18,8 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+RUN mkdir -p /app/uploads/logos
+
 EXPOSE 3000
 
 CMD ["node", "dist/index.js"]
