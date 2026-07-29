@@ -76,7 +76,7 @@ reloj-checador/
 | `feature/device-auth` | 🟡 En implementación | Enrolamiento mediante código temporal, token y branding empresarial |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
 | Backend Express + PostgreSQL | 🟡 En implementación | Empresas, usuarios, logos, dispositivos y sincronización |
-| Portal Admin | ⏳ Pendiente | Integrar interfaz web de `server.zip` sin secretos ni `node_modules` |
+| Portal Admin | 🟡 Base implementada | Login inicial en `server/public/index.html`; falta panel de administración |
 
 ---
 

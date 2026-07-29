@@ -4,11 +4,13 @@ import { initDb } from './db/migrate';
 import devicesRouter from './routes/devices';
 import attendanceRouter from './routes/attendance';
 import adminRouter from './routes/admin';
+import path from 'path';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
 app.use(express.json());
+app.use(express.static(path.resolve(process.env.PUBLIC_DIR ?? 'public')));
 
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET es obligatorio en producción');
