@@ -6,6 +6,8 @@ import com.coati.checador.core.network.dto.DeviceRegisterRequest
 import com.coati.checador.core.network.dto.DeviceRegisterResponse
 import com.coati.checador.core.network.dto.DeviceTokenRefreshResponse
 import com.coati.checador.core.network.dto.DeviceTokenVerifyResponse
+import com.coati.checador.core.network.dto.DeviceBrandingResponse
+import com.coati.checador.core.network.dto.DeviceEnrollmentRequest
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -24,6 +26,11 @@ interface CoatiApiService {
         @Body request: DeviceRegisterRequest
     ): DeviceRegisterResponse
 
+    @POST("devices/enroll")
+    suspend fun enrollDevice(
+        @Body request: DeviceEnrollmentRequest
+    ): DeviceRegisterResponse
+
     /** Verifica si el token sigue siendo valido. */
     @GET("devices/verify")
     suspend fun verifyToken(
@@ -35,6 +42,11 @@ interface CoatiApiService {
     suspend fun refreshToken(
         @Header("Authorization") bearerToken: String
     ): DeviceTokenRefreshResponse
+
+    @GET("devices/branding")
+    suspend fun getDeviceBranding(
+        @Header("Authorization") bearerToken: String
+    ): DeviceBrandingResponse
 
     // ── Attendance Sync ──────────────────────────────────────────────────────
 

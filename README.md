@@ -73,10 +73,10 @@ reloj-checador/
 | `feature/face-recognition` | ✅ Completo | `FaceRecognitionEngine` (interfaz domain), `EmbeddingService` con TFLite real, `FaceRecognitionModule` Hilt |
 | `feature/settings` | ✅ Completo | URL API, GPS timeout, umbral facial, PIN admin |
 | `feature/location` | ✅ Completo | Fused Location Provider wrapper |
-| `feature/device-auth` | ⚠️ Pendiente | Autenticación del dispositivo vs backend |
+| `feature/device-auth` | 🟡 En implementación | Enrolamiento mediante código temporal, token y branding empresarial |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
-| Backend NestJS | ❌ No iniciado | — |
-| Panel Admin Next.js | ❌ No iniciado | — |
+| Backend Express + PostgreSQL | 🟡 En implementación | Empresas, usuarios, logos, dispositivos y sincronización |
+| Portal Admin | ⏳ Pendiente | Integrar interfaz web de `server.zip` sin secretos ni `node_modules` |
 
 ---
 
@@ -180,7 +180,40 @@ adb install -r android-app/app/build/outputs/apk/debug/app-debug.apk
 | Reconocimiento facial sin modelo TFLite | ✅ Resuelto | MobileFaceNet incluido en assets — reconocimiento real activo |
 | `Math.abs` overload ambiguity en Kotlin (Float) | ✅ Resuelto | Cambiado a `kotlin.math.abs` |
 | `feature/attendance` acoplado a `employee-enrollment` | ✅ Resuelto | Refactorizado a `FaceRecognitionEngine` en módulo propio |
-| `feature/device-auth` no implementado | ⚠️ Pendiente | Requerido antes de producción |
+| `feature/device-auth` no implementado | ✅ Resuelto parcialmente | Enrolamiento mediante código temporal y branding; falta prueba contra backend |
+
+## Portal administrativo y empresas
+
+El backend soporta el vínculo seguro entre empresa, usuario, sitio y celular:
+
+1. El administrador inicia sesión en `/api/admin/login`.
+2. El administrador crea una empresa y puede cargar un logo PNG/JPG de hasta 2 MB.
+3. Se genera un código temporal con `/api/admin/companies/:companyId/enrollment-codes`.
+4. El celular utiliza el código en `POST /api/devices/enroll`.
+5. El servidor asigna la empresa y sitio desde el código, no desde datos declarados por el celular.
+6. Android guarda el nombre, ID y URL del logo para utilizarlo offline.
+
+Variables obligatorias del servidor:
+
+```env
+JWT_SECRET=secreto-largo-y-aleatorio
+ADMIN_BOOTSTRAP_USERNAME=admin
+ADMIN_BOOTSTRAP_PASSWORD=contraseña-temporal-segura
+```
+
+`admin/admin` no debe configurarse en producción. La contraseña bootstrap se almacena como hash y obliga a cambiarla en el primer acceso.
+
+Endpoints principales:
+
+| Método | Endpoint | Uso |
+|---|---|---|
+| POST | `/api/admin/login` | Acceso administrativo |
+| POST | `/api/admin/change-password` | Cambio de contraseña inicial |
+| POST | `/api/admin/companies` | Crear empresa y logo |
+| POST | `/api/admin/companies/:companyId/enrollment-codes` | Generar código temporal |
+| POST | `/api/devices/enroll` | Asociar celular mediante código |
+| GET | `/api/devices/branding` | Obtener empresa del dispositivo autenticado |
+| GET | `/api/admin/companies/:companyId/attendance` | Consultar asistencias por empresa |
 
 ---
 

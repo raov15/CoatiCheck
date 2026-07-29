@@ -25,5 +25,8 @@ data class AppSettingEntity(
         const val KEY_MODEL_VERSION = "face_model_version"
         const val KEY_ADMIN_PIN_HASH = "admin_pin_hash"
         const val KEY_AUTH_TOKEN = "device_auth_token"
+        const val KEY_COMPANY_ID = "company_id"
+        const val KEY_COMPANY_NAME = "company_name"
+        const val KEY_COMPANY_LOGO_URL = "company_logo_url"
     }
 }

@@ -42,6 +42,27 @@ class DeviceAuthViewModel @Inject constructor(
         _state.update { it.copy(apiBaseUrl = value, successMessage = null, errorMessage = null) }
     }
 
+    fun updateEnrollmentCode(value: String) {
+        _state.update { it.copy(enrollmentCode = value, successMessage = null, errorMessage = null) }
+    }
+
+    fun enroll() {
+        val current = _state.value
+        if (current.enrollmentCode.isBlank()) {
+            _state.update { it.copy(errorMessage = "El código de enrolamiento es obligatorio") }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, successMessage = null, errorMessage = null) }
+            val fingerprint = android.os.Build.FINGERPRINT.take(64).ifBlank { android.os.Build.MODEL }
+            when (val result = registerDevice.enroll(current.deviceName, fingerprint, current.enrollmentCode, current.apiBaseUrl)) {
+                is Result.Success -> _state.update { it.copy(isLoading = false, device = result.data, successMessage = "Celular asociado a la empresa") }
+                is Result.Error -> _state.update { it.copy(isLoading = false, errorMessage = result.message ?: "No se pudo asociar el celular") }
+                is Result.Loading -> Unit
+            }
+        }
+    }
+
     fun register() {
         val current = _state.value
         if (current.deviceName.isBlank()) {
@@ -108,6 +129,7 @@ data class DeviceAuthUiState(
     val device: Device? = null,
     val deviceName: String = "",
     val apiBaseUrl: String = DEFAULT_SERVER_URL,
+    val enrollmentCode: String = "",
     val successMessage: String? = null,
     val errorMessage: String? = null
 )

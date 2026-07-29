@@ -14,7 +14,25 @@ data class DeviceRegisterRequest(
 data class DeviceRegisterResponse(
     @SerialName("device_id") val deviceId: String,
     @SerialName("auth_token") val authToken: String,
-    @SerialName("site_id") val siteId: String? = null
+    @SerialName("site_id") val siteId: String? = null,
+    @SerialName("company_id") val companyId: String? = null,
+    val branding: DeviceBrandingResponse? = null
+)
+
+@Serializable
+data class DeviceBrandingResponse(
+    val id: String,
+    val name: String,
+    val slug: String,
+    val logo_path: String? = null
+)
+
+@Serializable
+data class DeviceEnrollmentRequest(
+    val device_name: String,
+    val device_fingerprint: String,
+    val local_id: String,
+    val enrollment_code: String
 )
 
 @Serializable

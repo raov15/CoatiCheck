@@ -24,4 +24,15 @@ class RegisterDeviceUseCase @Inject constructor(
         }
         return repository.registerWithBackend(deviceName, deviceFingerprint, apiBaseUrl)
     }
+
+    suspend fun enroll(
+        deviceName: String,
+        deviceFingerprint: String,
+        enrollmentCode: String,
+        apiBaseUrl: String
+    ): Result<Device> {
+        val existing = repository.getCurrentDevice()
+        if (existing == null) repository.createLocalDevice(deviceName)
+        return repository.enrollWithBackend(deviceName, deviceFingerprint, enrollmentCode, apiBaseUrl)
+    }
 }

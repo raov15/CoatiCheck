@@ -29,6 +29,13 @@ interface DeviceAuthRepository {
         apiBaseUrl: String
     ): Result<Device>
 
+    suspend fun enrollWithBackend(
+        deviceName: String,
+        deviceFingerprint: String,
+        enrollmentCode: String,
+        apiBaseUrl: String
+    ): Result<Device>
+
     /**
      * Refresca el token del dispositivo contra el backend.
      */

@@ -49,8 +49,10 @@ router.post('/sync', authMiddleware, async (req: AuthRequest, res: Response): Pr
     try {
       const result = await pool.query(
         `INSERT INTO attendance_records
-          (id_local, employee_id, event_type, occurred_at, latitude, longitude, accuracy_m, altitude_m, face_confidence, device_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          (id_local, employee_id, event_type, occurred_at, latitude, longitude, accuracy_m, altitude_m, face_confidence, device_id, company_id, site_id)
+         SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, d.id_remote::TEXT, d.company_id, d.site_id
+         FROM devices d
+         WHERE d.id_remote = $10
          ON CONFLICT (id_local) DO UPDATE SET id_local = EXCLUDED.id_local
          RETURNING id_remote`,
         [
@@ -63,9 +65,13 @@ router.post('/sync', authMiddleware, async (req: AuthRequest, res: Response): Pr
           accuracy_m,
           altitude_m,
           face_confidence,
-          req.deviceId ?? null,
+          req.deviceId ?? '',
         ]
       );
+      if (result.rows.length === 0) {
+        errors.push({ id_local, error: 'El dispositivo no está registrado o no tiene empresa asignada' });
+        continue;
+      }
       synced.push({ id_local, id_remote: result.rows[0].id_remote });
     } catch (err) {
       console.error(`Error al sincronizar registro ${id_local}:`, err);

@@ -3,11 +3,16 @@ import express from 'express';
 import { initDb } from './db/migrate';
 import devicesRouter from './routes/devices';
 import attendanceRouter from './routes/attendance';
+import adminRouter from './routes/admin';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
 app.use(express.json());
+
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET es obligatorio en producción');
+}
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -17,6 +22,7 @@ app.get('/api/health', (_req, res) => {
 // Rutas
 app.use('/api/devices', devicesRouter);
 app.use('/api/attendance', attendanceRouter);
+app.use('/api/admin', adminRouter);
 
 // Arranque
 initDb()

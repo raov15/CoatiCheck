@@ -100,6 +100,15 @@ fun DeviceAuthScreen(
                 singleLine = true
             )
 
+            OutlinedTextField(
+                value = state.enrollmentCode,
+                onValueChange = viewModel::updateEnrollmentCode,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Código de enrolamiento empresarial") },
+                placeholder = { Text("Código generado por el administrador") },
+                singleLine = true
+            )
+
             state.successMessage?.let { msg ->
                 Text(text = msg, color = Color(0xFF3BAF8E), fontWeight = FontWeight.Bold)
             }
@@ -122,6 +131,14 @@ fun DeviceAuthScreen(
                 } else {
                     Text("Registrar en servidor")
                 }
+            }
+
+            OutlinedButton(
+                onClick = viewModel::enroll,
+                enabled = !state.isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Asociar celular a empresa")
             }
 
             if (state.device?.isRegistered == true) {
