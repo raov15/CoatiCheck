@@ -54,8 +54,8 @@
         <ul id="companies"></ul>
         <section id="sites-section">
           <h3>Sitios o sucursales</h3>
-          <label for="sites-company">ID de empresa</label>
-          <input id="sites-company">
+          <label for="sites-company">Empresa</label>
+          <select id="sites-company"></select>
           <label for="site-name">Nombre del sitio</label>
           <input id="site-name">
           <button id="create-site" type="button">Crear sitio</button>
@@ -64,15 +64,17 @@
         </section>
         <section id="devices-section">
           <h3>Celulares asociados</h3>
-          <label for="devices-company">ID de empresa</label>
-          <input id="devices-company">
+          <label for="devices-company">Empresa</label>
+          <select id="devices-company"></select>
           <button id="load-devices" type="button">Cargar celulares</button>
           <ul id="devices"></ul>
         </section>
         <form id="user-form">
           <h3>Agregar usuario de empresa</h3>
-          <label for="user-company">ID de empresa</label>
-          <input id="user-company" required>
+          <label for="user-company">Empresa</label>
+          <select id="user-company" required></select>
+          <label for="user-site">Sitio</label>
+          <select id="user-site"></select>
           <label for="user-username">Usuario</label>
           <input id="user-username" autocomplete="username" required>
           <label for="user-password">Contraseña temporal</label>
@@ -90,8 +92,8 @@
         </form>
         <section id="report-section">
           <h3>Asistencias de una empresa</h3>
-          <label for="report-company">ID de empresa</label>
-          <input id="report-company">
+          <label for="report-company">Empresa</label>
+          <select id="report-company"></select>
           <button id="load-report" type="button">Cargar asistencias</button>
           <ul id="attendance"></ul>
         </section>
@@ -111,6 +113,13 @@
     const attendance = document.querySelector("#attendance");
     const devices = document.querySelector("#devices");
     const sites = document.querySelector("#sites");
+    const companySelects = [
+      document.querySelector("#user-company"),
+      document.querySelector("#report-company"),
+      document.querySelector("#devices-company"),
+      document.querySelector("#sites-company")
+    ];
+    const userSite = document.querySelector("#user-site");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -203,7 +212,33 @@
         item.appendChild(codeButton);
         companies.appendChild(item);
       });
+      companySelects.forEach((select) => {
+        select.replaceChildren();
+        data.forEach((company) => {
+          const option = document.createElement("option");
+          option.value = company.id;
+          option.textContent = `${company.name} (${company.slug})`;
+          select.appendChild(option);
+        });
+      });
+      loadUserSites();
     }
+
+    async function loadUserSites() {
+      const companyId = document.querySelector("#user-company").value;
+      userSite.replaceChildren();
+      if (!companyId) return;
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/sites`);
+      const data = await response.json().catch(() => []);
+      data.forEach((site) => {
+        const option = document.createElement("option");
+        option.value = site.id;
+        option.textContent = site.name;
+        userSite.appendChild(option);
+      });
+    }
+
+    document.querySelector("#user-company").addEventListener("change", loadUserSites);
 
     async function createEnrollmentCode(companyId) {
       const response = await authorizedFetch(`/api/admin/companies/${companyId}/enrollment-codes`, {
@@ -226,6 +261,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           company_id: document.querySelector("#user-company").value,
+          site_id: document.querySelector("#user-site").value || null,
           username: document.querySelector("#user-username").value,
           password: document.querySelector("#user-password").value,
           full_name: document.querySelector("#user-name").value,
@@ -241,7 +277,7 @@
     });
 
     document.querySelector("#load-report").addEventListener("click", async () => {
-      const companyId = document.querySelector("#report-company").value.trim();
+      const companyId = document.querySelector("#report-company").value;
       if (!companyId) {
         status.textContent = "Introduce el ID de la empresa";
         return;
@@ -262,7 +298,7 @@
     });
 
     document.querySelector("#load-devices").addEventListener("click", async () => {
-      const companyId = document.querySelector("#devices-company").value.trim();
+      const companyId = document.querySelector("#devices-company").value;
       if (!companyId) {
         status.textContent = "Introduce el ID de la empresa";
         return;
@@ -283,7 +319,7 @@
     });
 
     document.querySelector("#create-site").addEventListener("click", async () => {
-      const companyId = document.querySelector("#sites-company").value.trim();
+      const companyId = document.querySelector("#sites-company").value;
       const name = document.querySelector("#site-name").value.trim();
       const response = await authorizedFetch(`/api/admin/companies/${companyId}/sites`, {
         method: "POST",
