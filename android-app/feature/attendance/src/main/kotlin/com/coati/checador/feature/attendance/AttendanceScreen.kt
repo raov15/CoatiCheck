@@ -56,7 +56,17 @@ fun AttendanceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Registro de Asistencia") },
+                title = {
+                    Column {
+                        Text(text = "Registro de Asistencia")
+                        if (state.companyName.isNotBlank()) {
+                            Text(
+                                text = state.companyName,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onRegisterEmployee) {
                         Icon(Icons.Default.Person, contentDescription = "Registrar Empleado")

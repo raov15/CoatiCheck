@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.coati.checador.core.database.dao.AttendanceRecordDao
 import com.coati.checador.core.database.dao.EmployeeDao
 import com.coati.checador.core.database.dao.EmployeeFaceProfileDao
+import com.coati.checador.core.database.dao.AppSettingDao
+import com.coati.checador.core.database.entity.AppSettingEntity
 import com.coati.checador.core.database.entity.AttendanceRecordEntity
 import com.coati.checador.core.database.entity.EmployeeEntity
 import com.coati.checador.core.database.model.EventType
@@ -29,6 +31,7 @@ class AttendanceViewModel @Inject constructor(
     private val employeeDao: EmployeeDao,
     private val attendanceRecordDao: AttendanceRecordDao,
     private val faceProfileDao: EmployeeFaceProfileDao,
+    private val appSettingDao: AppSettingDao,
     private val embeddingService: FaceRecognitionEngine,
     private val locationTracker: LocationTracker
 ) : ViewModel() {
@@ -39,6 +42,20 @@ class AttendanceViewModel @Inject constructor(
     init {
         loadEmployees()
         observeRecentRecords()
+        observeCompanyBranding()
+    }
+
+    private fun observeCompanyBranding() {
+        viewModelScope.launch {
+            appSettingDao.observeValue(AppSettingEntity.KEY_COMPANY_NAME).collect { companyName ->
+                _state.update { it.copy(companyName = companyName.orEmpty()) }
+            }
+        }
+        viewModelScope.launch {
+            appSettingDao.observeValue(AppSettingEntity.KEY_COMPANY_LOGO_URL).collect { logoUrl ->
+                _state.update { it.copy(companyLogoUrl = logoUrl) }
+            }
+        }
     }
 
     private fun observeRecentRecords() {
@@ -296,7 +313,9 @@ data class AttendanceUiState(
     // New fields for unrecognized employees
     val unrecognizedName: String = "",
     val unrecognizedPosition: String = "",
-    val unrecognizedEmployeeNumber: String = ""
+    val unrecognizedEmployeeNumber: String = "",
+    val companyName: String = "",
+    val companyLogoUrl: String? = null
 )
 
 data class AttendanceEmployee(
