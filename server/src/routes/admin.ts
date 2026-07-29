@@ -98,6 +98,42 @@ router.post('/companies/:companyId/enrollment-codes', userAuthMiddleware, requir
   res.status(201).json({ ...result.rows[0], enrollment_code: plainCode });
 });
 
+router.post('/companies/:companyId/sites', userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+  const { name } = req.body ?? {};
+  if (typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'El nombre del sitio es requerido' });
+    return;
+  }
+  const company = await pool.query('SELECT id FROM companies WHERE id = $1 AND is_active = TRUE', [req.params.companyId]);
+  if (!company.rows[0]) {
+    res.status(404).json({ error: 'Empresa no encontrada' });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO sites (company_id, name)
+       VALUES ($1, $2)
+       RETURNING id, company_id, name, created_at`,
+      [req.params.companyId, name.trim()],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch {
+    res.status(409).json({ error: 'El sitio ya existe en esta empresa' });
+  }
+});
+
+router.get('/companies/:companyId/sites', userAuthMiddleware, requirePasswordChangeComplete, async (req: UserAuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role !== 'admin' && req.user?.companyId !== req.params.companyId) {
+    res.status(403).json({ error: 'No puede consultar sitios de otra empresa' });
+    return;
+  }
+  const result = await pool.query(
+    'SELECT id, company_id, name, created_at FROM sites WHERE company_id = $1 ORDER BY name',
+    [req.params.companyId],
+  );
+  res.json(result.rows);
+});
+
 router.get('/logos/:filename', (req: Request, res: Response): void => {
   const filename = path.basename(req.params.filename);
   res.sendFile(path.join(uploadDir, filename), (error) => {

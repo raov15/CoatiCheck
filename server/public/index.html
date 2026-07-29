@@ -52,6 +52,16 @@
         </form>
         <button id="load-companies" type="button">Cargar empresas</button>
         <ul id="companies"></ul>
+        <section id="sites-section">
+          <h3>Sitios o sucursales</h3>
+          <label for="sites-company">ID de empresa</label>
+          <input id="sites-company">
+          <label for="site-name">Nombre del sitio</label>
+          <input id="site-name">
+          <button id="create-site" type="button">Crear sitio</button>
+          <button id="load-sites" type="button">Cargar sitios</button>
+          <ul id="sites"></ul>
+        </section>
         <section id="devices-section">
           <h3>Celulares asociados</h3>
           <label for="devices-company">ID de empresa</label>
@@ -100,6 +110,7 @@
     const userForm = document.querySelector("#user-form");
     const attendance = document.querySelector("#attendance");
     const devices = document.querySelector("#devices");
+    const sites = document.querySelector("#sites");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -270,6 +281,45 @@
       });
       status.textContent = `${data.length} celulares cargados`;
     });
+
+    document.querySelector("#create-site").addEventListener("click", async () => {
+      const companyId = document.querySelector("#sites-company").value.trim();
+      const name = document.querySelector("#site-name").value.trim();
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/sites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json().catch(() => ({}));
+      status.textContent = response.ok ? `Sitio creado: ${data.name}` : (data.error || "No se pudo crear el sitio");
+      if (response.ok) {
+        document.querySelector("#site-name").value = "";
+        loadSites();
+      }
+    });
+
+    document.querySelector("#load-sites").addEventListener("click", loadSites);
+
+    async function loadSites() {
+      const companyId = document.querySelector("#sites-company").value.trim();
+      if (!companyId) {
+        status.textContent = "Introduce el ID de la empresa";
+        return;
+      }
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/sites`);
+      const data = await response.json().catch(() => []);
+      sites.replaceChildren();
+      if (!response.ok) {
+        status.textContent = data.error || "No se pudieron cargar los sitios";
+        return;
+      }
+      data.forEach((site) => {
+        const item = document.createElement("li");
+        item.textContent = `${site.name} · ${site.id}`;
+        sites.appendChild(item);
+      });
+      status.textContent = `${data.length} sitios cargados`;
+    }
 
     document.querySelector("#load-companies").addEventListener("click", loadCompanies);
 
