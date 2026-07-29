@@ -31,6 +31,19 @@
     <section id="welcome" class="hidden">
       <h2>Sesión iniciada</h2>
       <p id="status"></p>
+      <form id="change-password">
+        <h3>Cambiar contraseña</h3>
+        <label for="current-password">Contraseña actual</label>
+        <input id="current-password" type="password" autocomplete="current-password" required>
+        <label for="new-password">Nueva contraseña</label>
+        <input id="new-password" type="password" minlength="8" autocomplete="new-password" required>
+        <button type="submit">Actualizar contraseña</button>
+      </form>
+      <section id="companies-section">
+        <h3>Empresas registradas</h3>
+        <button id="load-companies" type="button">Cargar empresas</button>
+        <ul id="companies"></ul>
+      </section>
       <button id="logout" type="button">Cerrar sesión</button>
     </section>
   </main>
@@ -39,7 +52,14 @@
     const welcome = document.querySelector("#welcome");
     const message = document.querySelector("#message");
     const status = document.querySelector("#status");
+    const changePassword = document.querySelector("#change-password");
+    const companies = document.querySelector("#companies");
     const tokenKey = "coati_admin_token";
+
+    async function authorizedFetch(url, options = {}) {
+      const headers = { ...(options.headers || {}), Authorization: `Bearer ${sessionStorage.getItem(tokenKey)}` };
+      return fetch(url, { ...options, headers });
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -63,7 +83,40 @@
       status.textContent = data.must_change_password
         ? "Debe cambiar la contraseña antes de administrar el portal."
         : "Sesión administrativa activa.";
+      loadCompanies();
     });
+
+    changePassword.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const response = await authorizedFetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_password: document.querySelector("#current-password").value,
+          password: document.querySelector("#new-password").value
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      status.textContent = response.ok ? "Contraseña actualizada correctamente." : (data.error || "No se pudo cambiar la contraseña");
+      if (response.ok) changePassword.reset();
+    });
+
+    async function loadCompanies() {
+      const response = await authorizedFetch("/api/admin/companies");
+      const data = await response.json().catch(() => []);
+      companies.replaceChildren();
+      if (!response.ok) {
+        companies.textContent = data.error || "No se pudieron cargar las empresas";
+        return;
+      }
+      data.forEach((company) => {
+        const item = document.createElement("li");
+        item.textContent = `${company.name} (${company.slug})`;
+        companies.appendChild(item);
+      });
+    }
+
+    document.querySelector("#load-companies").addEventListener("click", loadCompanies);
 
     document.querySelector("#logout").addEventListener("click", () => {
       sessionStorage.removeItem(tokenKey);
