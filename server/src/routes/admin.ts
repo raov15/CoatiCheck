@@ -138,7 +138,10 @@ router.get('/logos/:filename', (req: Request, res: Response): void => {
   const filename = path.basename(req.params.filename);
   res.sendFile(path.join(uploadDir, filename), (error) => {
     if (error && !res.headersSent) {
-      res.status(error.statusCode === 404 ? 404 : 500).json({ error: 'Logo no encontrado' });
+      const statusCode = 'statusCode' in error && typeof error.statusCode === 'number'
+        ? error.statusCode
+        : 500;
+      res.status(statusCode === 404 ? 404 : 500).json({ error: 'Logo no encontrado' });
     }
   });
 });
