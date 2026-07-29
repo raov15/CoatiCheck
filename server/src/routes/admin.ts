@@ -117,6 +117,21 @@ router.post('/users', userAuthMiddleware, requirePasswordChangeComplete, require
     res.status(400).json({ error: 'Rol inválido' });
     return;
   }
+  const company = await pool.query('SELECT id FROM companies WHERE id = $1 AND is_active = TRUE', [company_id]);
+  if (!company.rows[0]) {
+    res.status(404).json({ error: 'Empresa no encontrada' });
+    return;
+  }
+  if (site_id) {
+    const site = await pool.query(
+      'SELECT id FROM sites WHERE id = $1 AND company_id = $2',
+      [site_id, company_id],
+    );
+    if (!site.rows[0]) {
+      res.status(400).json({ error: 'El sitio no pertenece a la empresa' });
+      return;
+    }
+  }
   try {
     const result = await pool.query(
       `INSERT INTO users (company_id, site_id, username, password_hash, full_name, role, employee_code)

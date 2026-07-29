@@ -52,6 +52,13 @@
         </form>
         <button id="load-companies" type="button">Cargar empresas</button>
         <ul id="companies"></ul>
+        <section id="devices-section">
+          <h3>Celulares asociados</h3>
+          <label for="devices-company">ID de empresa</label>
+          <input id="devices-company">
+          <button id="load-devices" type="button">Cargar celulares</button>
+          <ul id="devices"></ul>
+        </section>
         <form id="user-form">
           <h3>Agregar usuario de empresa</h3>
           <label for="user-company">ID de empresa</label>
@@ -92,6 +99,7 @@
     const companyForm = document.querySelector("#company-form");
     const userForm = document.querySelector("#user-form");
     const attendance = document.querySelector("#attendance");
+    const devices = document.querySelector("#devices");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -240,6 +248,27 @@
         attendance.appendChild(item);
       });
       status.textContent = `${data.records.length} registros cargados`;
+    });
+
+    document.querySelector("#load-devices").addEventListener("click", async () => {
+      const companyId = document.querySelector("#devices-company").value.trim();
+      if (!companyId) {
+        status.textContent = "Introduce el ID de la empresa";
+        return;
+      }
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/devices`);
+      const data = await response.json().catch(() => ({}));
+      devices.replaceChildren();
+      if (!response.ok) {
+        status.textContent = data.error || "No se pudieron cargar los celulares";
+        return;
+      }
+      data.forEach((device) => {
+        const item = document.createElement("li");
+        item.textContent = `${device.device_name} · ${device.id_local} · ${device.created_at}`;
+        devices.appendChild(item);
+      });
+      status.textContent = `${data.length} celulares cargados`;
     });
 
     document.querySelector("#load-companies").addEventListener("click", loadCompanies);
