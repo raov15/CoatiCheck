@@ -41,6 +41,15 @@
       </form>
       <section id="companies-section">
         <h3>Empresas registradas</h3>
+        <form id="company-form" enctype="multipart/form-data">
+          <label for="company-name">Nombre de la empresa</label>
+          <input id="company-name" required>
+          <label for="company-slug">Identificador</label>
+          <input id="company-slug" pattern="[a-z0-9-]+" required>
+          <label for="company-logo">Logo PNG/JPG</label>
+          <input id="company-logo" type="file" accept="image/png,image/jpeg">
+          <button type="submit">Crear empresa</button>
+        </form>
         <button id="load-companies" type="button">Cargar empresas</button>
         <ul id="companies"></ul>
       </section>
@@ -54,6 +63,7 @@
     const status = document.querySelector("#status");
     const changePassword = document.querySelector("#change-password");
     const companies = document.querySelector("#companies");
+    const companyForm = document.querySelector("#company-form");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -101,6 +111,24 @@
       if (response.ok) changePassword.reset();
     });
 
+    companyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const body = new FormData();
+      body.append("name", document.querySelector("#company-name").value);
+      body.append("slug", document.querySelector("#company-slug").value);
+      const logo = document.querySelector("#company-logo").files[0];
+      if (logo) body.append("logo", logo);
+      const response = await authorizedFetch("/api/admin/companies", { method: "POST", body });
+      const data = await response.json().catch(() => ({}));
+      status.textContent = response.ok
+        ? `Empresa creada: ${data.name}`
+        : (data.error || "No se pudo crear la empresa");
+      if (response.ok) {
+        companyForm.reset();
+        loadCompanies();
+      }
+    });
+
     async function loadCompanies() {
       const response = await authorizedFetch("/api/admin/companies");
       const data = await response.json().catch(() => []);
@@ -112,6 +140,13 @@
       data.forEach((company) => {
         const item = document.createElement("li");
         item.textContent = `${company.name} (${company.slug})`;
+        if (company.logo_path) {
+          const logo = document.createElement("img");
+          logo.src = company.logo_path;
+          logo.alt = `Logo de ${company.name}`;
+          logo.style.cssText = "width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-left:8px";
+          item.appendChild(logo);
+        }
         companies.appendChild(item);
       });
     }
