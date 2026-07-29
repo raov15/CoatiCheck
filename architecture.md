@@ -937,9 +937,9 @@ Para alguien que inicia en Android, el orden de construcción recomendado es sec
 | `feature/face-recognition` | ✅ Implementado | `FaceRecognitionEngine.kt` (interfaz domain), `EmbeddingService.kt` (TFLite real + AES), `FaceRecognitionModule.kt` (Hilt `@Binds`) |
 | `feature/settings` | ✅ Implementado | `SettingsScreen.kt`, `SettingsViewModel.kt` |
 | `feature/location` | ✅ Implementado | `LocationTracker.kt`, `LocationSnapshot.kt` |
-| `feature/device-auth` | ⚠️ Placeholder | Autenticación de dispositivo vs backend no implementada — requerida antes de producción |
+| `feature/device-auth` | 🟡 Implementado | Enrolamiento mediante código temporal, JWT de dispositivo y branding empresarial |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. **Probado en dispositivo físico: reconocimiento exitoso al 52% de confianza con ángulo desfavorable** |
-| Backend NestJS | ❌ No iniciado | Arquitectura definida en secciones 7-9 |
+| Backend Express + PostgreSQL | 🟡 Implementado | Empresas, usuarios, logos, sitios, dispositivos y sincronización |
 | Panel Admin Next.js | ❌ No iniciado | Arquitectura definida en sección 9 |
 
 ### Arquitectura del pipeline facial (implementada)
@@ -971,7 +971,18 @@ Umbral 0.55 → Reconocido / No reconocido
 |---|---|---|
 | Pipeline facial en módulo independiente `feature/face-recognition` | ✅ Resuelto | `EmbeddingService` movido desde `employee-enrollment`. Interfaz `FaceRecognitionEngine` permite mocking y cambio de modelo sin tocar consumers |
 | Umbral inconsistente (0.4 vs 0.5) | ✅ Resuelto | `AttendanceViewModel` usa 0.55f; `EmbeddingService.esMismaPersona()` usa 0.4f para comparación directa. Umbral efectivo de asistencia: 0.55 |
-| `feature/device-auth` no implementado | ⚠️ Pendiente | Sync funciona sin JWT de dispositivo actualmente; implementar antes de producción |
+| `feature/device-auth` no implementado | ✅ Resuelto parcialmente | El celular se enrola con código de un solo uso; falta validar despliegue productivo |
+
+### Flujo multiempresa y branding
+
+1. El administrador crea una empresa y carga su logo desde el portal administrativo.
+2. El servidor genera un código de enrolamiento temporal asociado a empresa y sitio.
+3. El celular envía el código a `POST /api/devices/enroll`; nunca declara libremente su empresa.
+4. El backend devuelve el token de dispositivo y la información de branding autorizada.
+5. Android almacena el nombre, ID y URL del logo para operación offline.
+6. La sincronización obtiene empresa y sitio desde el dispositivo autenticado y los aplica a cada asistencia.
+
+Los registros administrativos y de asistencia se consultan con aislamiento por `company_id`. El portal utiliza autenticación de usuario con roles y obliga a cambiar la contraseña bootstrap antes de acceder a operaciones administrativas.
 | Kiosk mode no configurado | ⚠️ Pendiente | Lock Task Mode de Android pendiente de implementar |
 
 ### Resultados de prueba en dispositivo (junio 2026)
