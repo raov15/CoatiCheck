@@ -203,6 +203,23 @@ ADMIN_BOOTSTRAP_PASSWORD=contraseña-temporal-segura
 
 `admin/admin` no debe configurarse en producción. La contraseña bootstrap se almacena como hash y obliga a cambiarla en el primer acceso.
 
+Para desplegar el backend:
+
+```bash
+cd server
+cp .env.example .env
+docker compose up -d --build
+```
+
+En Windows PowerShell se puede usar:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d --build
+```
+
+Antes de iniciar, reemplaza `JWT_SECRET` y `ADMIN_BOOTSTRAP_PASSWORD` en `.env`. El archivo `.env` no debe subirse al repositorio.
+
 Endpoints principales:
 
 | Método | Endpoint | Uso |
