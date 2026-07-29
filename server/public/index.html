@@ -52,6 +52,25 @@
         </form>
         <button id="load-companies" type="button">Cargar empresas</button>
         <ul id="companies"></ul>
+        <form id="user-form">
+          <h3>Agregar usuario de empresa</h3>
+          <label for="user-company">ID de empresa</label>
+          <input id="user-company" required>
+          <label for="user-username">Usuario</label>
+          <input id="user-username" autocomplete="username" required>
+          <label for="user-password">Contraseña temporal</label>
+          <input id="user-password" type="password" minlength="8" required>
+          <label for="user-name">Nombre completo</label>
+          <input id="user-name" required>
+          <label for="user-role">Rol</label>
+          <select id="user-role">
+            <option value="operator">Operador</option>
+            <option value="administrator">Administrador de empresa</option>
+          </select>
+          <label for="user-code">Código de empleado</label>
+          <input id="user-code">
+          <button type="submit">Crear usuario</button>
+        </form>
       </section>
       <button id="logout" type="button">Cerrar sesión</button>
     </section>
@@ -64,6 +83,7 @@
     const changePassword = document.querySelector("#change-password");
     const companies = document.querySelector("#companies");
     const companyForm = document.querySelector("#company-form");
+    const userForm = document.querySelector("#user-form");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -171,6 +191,27 @@
       }
       status.textContent = `Código de enrolamiento: ${data.enrollment_code}. Expira: ${data.expires_at}`;
     }
+
+    userForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const response = await authorizedFetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_id: document.querySelector("#user-company").value,
+          username: document.querySelector("#user-username").value,
+          password: document.querySelector("#user-password").value,
+          full_name: document.querySelector("#user-name").value,
+          role: document.querySelector("#user-role").value,
+          employee_code: document.querySelector("#user-code").value || null
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      status.textContent = response.ok
+        ? `Usuario creado: ${data.username}. Debe cambiar su contraseña al iniciar sesión.`
+        : (data.error || "No se pudo crear el usuario");
+      if (response.ok) userForm.reset();
+    });
 
     document.querySelector("#load-companies").addEventListener("click", loadCompanies);
 
