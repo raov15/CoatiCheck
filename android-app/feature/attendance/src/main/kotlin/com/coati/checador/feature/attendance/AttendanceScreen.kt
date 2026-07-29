@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,6 +27,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -57,13 +59,26 @@ fun AttendanceScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(text = "Registro de Asistencia")
-                        if (state.companyName.isNotBlank()) {
-                            Text(
-                                text = state.companyName,
-                                style = MaterialTheme.typography.labelSmall
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (state.companyLogoUrl != null) {
+                            AsyncImage(
+                                model = state.companyLogoUrl,
+                                contentDescription = "Logo de ${state.companyName}",
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Fit
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Column {
+                            Text(text = "Registro de Asistencia")
+                            if (state.companyName.isNotBlank()) {
+                                Text(
+                                    text = state.companyName,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                 },
