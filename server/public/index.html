@@ -71,6 +71,13 @@
           <input id="user-code">
           <button type="submit">Crear usuario</button>
         </form>
+        <section id="report-section">
+          <h3>Asistencias de una empresa</h3>
+          <label for="report-company">ID de empresa</label>
+          <input id="report-company">
+          <button id="load-report" type="button">Cargar asistencias</button>
+          <ul id="attendance"></ul>
+        </section>
       </section>
       <button id="logout" type="button">Cerrar sesión</button>
     </section>
@@ -84,6 +91,7 @@
     const companies = document.querySelector("#companies");
     const companyForm = document.querySelector("#company-form");
     const userForm = document.querySelector("#user-form");
+    const attendance = document.querySelector("#attendance");
     const tokenKey = "coati_admin_token";
 
     async function authorizedFetch(url, options = {}) {
@@ -211,6 +219,27 @@
         ? `Usuario creado: ${data.username}. Debe cambiar su contraseña al iniciar sesión.`
         : (data.error || "No se pudo crear el usuario");
       if (response.ok) userForm.reset();
+    });
+
+    document.querySelector("#load-report").addEventListener("click", async () => {
+      const companyId = document.querySelector("#report-company").value.trim();
+      if (!companyId) {
+        status.textContent = "Introduce el ID de la empresa";
+        return;
+      }
+      const response = await authorizedFetch(`/api/admin/companies/${companyId}/attendance`);
+      const data = await response.json().catch(() => ({}));
+      attendance.replaceChildren();
+      if (!response.ok) {
+        status.textContent = data.error || "No se pudieron cargar las asistencias";
+        return;
+      }
+      data.records.forEach((record) => {
+        const item = document.createElement("li");
+        item.textContent = `${record.employee_id} · ${record.event_type} · ${new Date(Number(record.occurred_at)).toLocaleString()}`;
+        attendance.appendChild(item);
+      });
+      status.textContent = `${data.records.length} registros cargados`;
     });
 
     document.querySelector("#load-companies").addEventListener("click", loadCompanies);
