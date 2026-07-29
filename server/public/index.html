@@ -13,6 +13,7 @@
     input { box-sizing: border-box; width: 100%; margin-top: 8px; padding: 12px; border: 1px solid #c7d2df; border-radius: 8px; font-size: 16px; }
     button { width: 100%; margin-top: 24px; padding: 13px; border: 0; border-radius: 8px; background: #1b2a4a; color: white; font-size: 16px; font-weight: 700; cursor: pointer; }
     #message { min-height: 24px; margin-top: 16px; color: #b3261e; }
+    .code { padding: 8px; background: #e8f5e9; border-radius: 6px; user-select: all; }
     .hidden { display: none; }
   </style>
 </head>
@@ -276,7 +277,25 @@
         status.textContent = data.error || "No se pudo generar el código";
         return;
       }
-      status.textContent = `Código de enrolamiento: ${data.enrollment_code}. Expira: ${data.expires_at}`;
+      status.replaceChildren();
+      const label = document.createElement("span");
+      label.textContent = "Código de enrolamiento: ";
+      const code = document.createElement("strong");
+      code.className = "code";
+      code.textContent = data.enrollment_code;
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "Copiar";
+      copy.style.width = "auto";
+      copy.style.margin = "8px";
+      copy.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(data.enrollment_code);
+        copy.textContent = "Copiado";
+      });
+      status.append(label, code, copy);
+      const expiry = document.createElement("div");
+      expiry.textContent = `Expira: ${data.expires_at}`;
+      status.appendChild(expiry);
     }
 
     userForm.addEventListener("submit", async (event) => {
