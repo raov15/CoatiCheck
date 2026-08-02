@@ -1029,4 +1029,79 @@ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
 
 ---
 
-*Última actualización: junio 2026 — Implementación Android completa (sin backend ni panel admin).*
+*Última actualización: agosto 2026 — Android compilable y backend/portal Docker implementados; validación productiva de login y HTTPS pendiente.*
+
+---
+
+## 15. Estado operativo y despliegue actual
+
+### Arquitectura desplegada
+
+La implementación actual del servidor es Express + TypeScript + PostgreSQL, no NestJS + Prisma. La estructura operativa es:
+
+```mermaid
+flowchart LR
+    U[Usuario web] --> CF[Cloudflare]
+    CF --> NPM[Nginx Proxy Manager]
+    NPM --> W[coati-web:80]
+    W -->|archivos estáticos| P[server/public]
+    W -->|/api/*| API[coati-api:3000]
+    API --> DB[(coati-db PostgreSQL 16)]
+    API --> UP[(uploads_data)]
+```
+
+`coati-web` y `coati-api` están conectados a la red externa `nginx-proxy`. La API no publica el puerto 3000 al host; el acceso público se realiza a través de Nginx Proxy Manager y el proxy interno de `coati-web`.
+
+### Servicios Docker
+
+| Servicio | Tecnología | Persistencia | Estado esperado |
+|---|---|---|---|
+| `coati-web` | Nginx 1.27 Alpine | Archivos del repositorio | `Up` |
+| `coati-api` | Node.js 20 Alpine + Express | `uploads_data` | `Healthy` |
+| `coati-db` | PostgreSQL 16 Alpine | `db_data` | `Healthy` |
+
+Variables obligatorias:
+
+```env
+JWT_SECRET=secreto-largo-y-aleatorio
+ADMIN_BOOTSTRAP_USERNAME=admin
+ADMIN_BOOTSTRAP_PASSWORD=contraseña-temporal-segura
+```
+
+El archivo `.env` se mantiene fuera del repositorio. La contraseña bootstrap solo se aplica al crear el usuario inicial; modificarla después no reemplaza el hash de un usuario `admin` existente.
+
+### Flujo multiempresa implementado
+
+1. El administrador inicia sesión mediante `/api/admin/login`.
+2. Crea una empresa, sitios y usuarios, y puede cargar un logo PNG/JPG validado.
+3. Genera un código temporal asociado a una empresa y opcionalmente a un sitio.
+4. Android envía el código a `/api/devices/enroll`.
+5. El servidor asigna la empresa y el sitio desde el código, genera el token del dispositivo y devuelve el branding autorizado.
+6. Las asistencias sincronizadas derivan empresa y sitio del dispositivo autenticado, no de valores arbitrarios del cliente.
+7. Android conserva el branding para mostrarlo sin conexión.
+
+### Verificación operativa
+
+```powershell
+docker compose ps
+docker run --rm --network nginx-proxy curlimages/curl:8.10.1 http://coati-web:80/api/health
+docker logs coati-api --tail 100
+```
+
+El portal debe probarse desde el dominio publicado o desde un proxy que reenvíe `/api` al backend. Un preview de archivos estáticos no valida el login real. Si HTTP funciona y Cloudflare devuelve `525` por HTTPS, el problema está en el handshake TLS entre Cloudflare y el certificado/configuración del origen.
+
+### Estado de entrega — 2 de agosto de 2026
+
+| Área | Estado | Observación |
+|---|---|---|
+| Android modular | ✅ | Compila `:app:assembleDebug`; reconocimiento facial local operativo |
+| Face Recognition | ✅ | ML Kit + MobileFaceNet TFLite + Hilt |
+| Offline/sync | ✅ | Persistencia local y cola de sincronización implementadas |
+| Backend multiempresa | ✅ | Empresas, sitios, usuarios, dispositivos, logos y asistencias |
+| Portal administrativo | ✅ | Login, cambio de contraseña y operaciones administrativas principales |
+| Docker | ✅ | `web`, `api` y `db` con redes y volúmenes persistentes |
+| Login en producción | ⚠️ | Confirmar usuario bootstrap existente y ruta pública `/api` |
+| HTTPS público | ⚠️ | Confirmar certificado de origen y modo SSL de Cloudflare |
+| Kiosk Lock Task | ⚠️ | Pendiente de endurecimiento productivo del dispositivo |
+
+*La documentación anterior describe la arquitectura objetivo; esta sección registra la implementación y las diferencias vigentes.*

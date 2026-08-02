@@ -73,10 +73,10 @@ reloj-checador/
 | `feature/face-recognition` | ✅ Completo | `FaceRecognitionEngine` (interfaz domain), `EmbeddingService` con TFLite real, `FaceRecognitionModule` Hilt |
 | `feature/settings` | ✅ Completo | URL API, GPS timeout, umbral facial, PIN admin |
 | `feature/location` | ✅ Completo | Fused Location Provider wrapper |
-| `feature/device-auth` | 🟡 En implementación | Enrolamiento mediante código temporal, token y branding empresarial |
+| `feature/device-auth` | 🟡 Implementado | Enrolamiento mediante código temporal, token y branding empresarial; falta validación productiva completa |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
-| Backend Express + PostgreSQL | 🟡 En implementación | Empresas, usuarios, logos, dispositivos y sincronización |
-| Portal Admin | 🟡 Base implementada | Login inicial en `server/public/index.html`; falta panel de administración |
+| Backend Express + PostgreSQL | 🟡 Implementado | Empresas, usuarios, sitios, logos, dispositivos, enrolamiento y sincronización |
+| Portal Admin | 🟡 Implementado | Portal estático con login, cambio de contraseña, empresas, sitios, usuarios, códigos, celulares y asistencias |
 
 ---
 
@@ -231,6 +231,56 @@ Endpoints principales:
 | POST | `/api/devices/enroll` | Asociar celular mediante código |
 | GET | `/api/devices/branding` | Obtener empresa del dispositivo autenticado |
 | GET | `/api/admin/companies/:companyId/attendance` | Consultar asistencias por empresa |
+
+### Despliegue Docker
+
+El despliegue actual utiliza tres servicios:
+
+| Servicio | Función | Exposición |
+|---|---|---|
+| `coati-web` | Nginx, archivos estáticos y proxy `/api` | Puerto 80 dentro de Docker |
+| `coati-api` | API Express/TypeScript | Solo red interna, puerto 3000 |
+| `coati-db` | PostgreSQL 16 | Solo red interna |
+
+`coati-web` y `coati-api` se conectan a la red externa `nginx-proxy` para que Nginx Proxy Manager pueda publicar el portal sin exponer directamente el puerto 3000.
+
+```powershell
+cd server
+Copy-Item .env.example .env
+# Editar .env y reemplazar los secretos
+docker compose up -d --build
+docker compose ps
+```
+
+Comprobaciones desde el servidor:
+
+```powershell
+docker run --rm --network nginx-proxy curlimages/curl:8.10.1 http://coati-web:80/api/health
+docker logs coati-api --tail 100
+```
+
+En Nginx Proxy Manager, el upstream debe ser `coati-web`, puerto `80` y esquema `http`. Cloudflare debe apuntar al servidor y el certificado del origen debe estar correctamente configurado antes de usar `Full (strict)`. Un error HTTP `525` indica un problema de handshake TLS entre Cloudflare y el origen, no una credencial incorrecta del portal.
+
+### Contraseña administrativa
+
+`ADMIN_BOOTSTRAP_PASSWORD` solo se utiliza al crear inicialmente el usuario bootstrap. Si `admin` ya existe en la base de datos, cambiar `.env` no cambia su hash. Para restablecer una contraseña existente debe realizarse una operación administrativa controlada sobre PostgreSQL; no se deben borrar volúmenes ni ejecutar `docker compose down -v` en producción.
+
+El login real debe abrirse desde el dominio publicado o desde una URL que tenga acceso al proxy `/api`. Una copia estática servida por un servidor de preview puede mostrar el formulario, pero no garantiza que las peticiones de autenticación lleguen a `coati-api`.
+
+## Estado de validación — 2 de agosto de 2026
+
+| Verificación | Estado | Resultado |
+|---|---|---|
+| Repositorio | ✅ | `master` sincronizado con GitHub |
+| Backend Docker | ✅ | Imagen construida con `npm run build` exitoso |
+| PostgreSQL | ✅ | `coati-db` saludable con volumen persistente |
+| API | ✅ | `coati-api` saludable |
+| Frontend | ✅ | `coati-web` activo y conectado a `nginx-proxy` |
+| APK Android debug | ✅ | `:app:assembleDebug` exitoso |
+| Login administrativo productivo | ⚠️ | Requiere confirmar contraseña existente y URL con proxy |
+| HTTPS público | ⚠️ | Requiere validar certificado/origen si Cloudflare devuelve 525 |
+
+No se versionan `.env`, secretos, cargas de logos ni volúmenes Docker.
 
 ---
 
