@@ -1105,3 +1105,33 @@ El portal debe probarse desde el dominio publicado o desde un proxy que reenvíe
 | Kiosk Lock Task | ⚠️ | Pendiente de endurecimiento productivo del dispositivo |
 
 *La documentación anterior describe la arquitectura objetivo; esta sección registra la implementación y las diferencias vigentes.*
+
+### Criterio de prueba de sincronización
+
+La presencia de asistencias en el portal no demuestra automáticamente que el celular haya sincronizado información. Deben distinguirse los registros manuales de los registros generados por Android. Como referencia, los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha `29/06/2026` corresponden a datos manuales de prueba y deben excluirse de la evidencia de integración.
+
+La prueba de extremo a extremo debe seguir esta secuencia:
+
+```text
+Android enrolado
+→ asistencia nueva con fecha actual
+→ Room / cola pending
+→ WorkManager y Retrofit por HTTPS
+→ coati-web /api
+→ coati-api
+→ PostgreSQL
+→ consulta del portal
+```
+
+### Evidencia mínima de aceptación
+
+| Evidencia | Validación |
+|---|---|
+| Dispositivo enrolado | Android tiene token y empresa/sitio autorizados |
+| Asistencia nueva | El registro tiene fecha/hora de la prueba |
+| Logs de API | `coati-api` recibe la petición sin error |
+| Base de datos | Existe un identificador nuevo, no uno de los registros manuales |
+| Portal | El registro aparece después de **Cargar asistencias** |
+| Reintento | Una segunda sincronización no duplica el registro |
+
+La selección de una empresa en el portal solo filtra los datos autorizados; no existe una clave adicional de empresa para consultar asistencias. La asociación se obtiene del token del dispositivo y de su relación persistida con empresa y sitio.

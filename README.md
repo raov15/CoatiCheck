@@ -282,6 +282,27 @@ El login real debe abrirse desde el dominio publicado o desde una URL que tenga 
 
 No se versionan `.env`, secretos, cargas de logos ni volúmenes Docker.
 
+### Validación de sincronización Android
+
+Los registros que aparecen inicialmente en el portal pueden corresponder a datos de prueba insertados manualmente en PostgreSQL. Por ejemplo, los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha `29/06/2026` no prueban por sí mismos una sincronización originada en Android.
+
+Para validar el flujo completo:
+
+1. Configurar Android con `https://cooatii.com`.
+2. Confirmar que el dispositivo esté enrolado y no aparezca como “Solo local”.
+3. Registrar una asistencia nueva desde la pantalla principal.
+4. Mantener el celular conectado a internet y esperar la sincronización.
+5. Revisar los logs de `coati-api` durante la prueba.
+6. En el portal seleccionar la empresa y presionar **Cargar asistencias**.
+7. Confirmar un identificador nuevo y una fecha/hora actual, diferente de los registros manuales existentes.
+
+```powershell
+docker logs -f coati-api
+docker compose ps
+```
+
+La prueba se considera aprobada únicamente cuando una asistencia creada en Android aparece posteriormente en PostgreSQL y en el portal. No se requiere una contraseña adicional de la empresa: la empresa se determina por el dispositivo enrolado y el token autorizado.
+
 ---
 
 ## Repositorio
