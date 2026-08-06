@@ -1090,7 +1090,7 @@ docker logs coati-api --tail 100
 
 El portal debe probarse desde el dominio publicado o desde un proxy que reenvíe `/api` al backend. Un preview de archivos estáticos no valida el login real. Si HTTP funciona y Cloudflare devuelve `525` por HTTPS, el problema está en el handshake TLS entre Cloudflare y el certificado/configuración del origen.
 
-### Estado de entrega — 2 de agosto de 2026
+### Estado de entrega — 5 de agosto de 2026
 
 | Área | Estado | Observación |
 |---|---|---|
@@ -1100,8 +1100,8 @@ El portal debe probarse desde el dominio publicado o desde un proxy que reenvíe
 | Backend multiempresa | ✅ | Empresas, sitios, usuarios, dispositivos, logos y asistencias |
 | Portal administrativo | ✅ | Login, cambio de contraseña y operaciones administrativas principales |
 | Docker | ✅ | `web`, `api` y `db` con redes y volúmenes persistentes |
-| Login en producción | ⚠️ | Confirmar usuario bootstrap existente y ruta pública `/api` |
-| HTTPS público | ⚠️ | Confirmar certificado de origen y modo SSL de Cloudflare |
+| Login en producción | ✅ | Portal autenticado y consulta de asistencias validada |
+| HTTPS público | ✅ | `https://cooatii.com/api/health` respondió `200 OK` |
 | Kiosk Lock Task | ⚠️ | Pendiente de endurecimiento productivo del dispositivo |
 
 *La documentación anterior describe la arquitectura objetivo; esta sección registra la implementación y las diferencias vigentes.*
@@ -1135,3 +1135,27 @@ Android enrolado
 | Reintento | Una segunda sincronización no duplica el registro |
 
 La selección de una empresa en el portal solo filtra los datos autorizados; no existe una clave adicional de empresa para consultar asistencias. La asociación se obtiene del token del dispositivo y de su relación persistida con empresa y sitio.
+
+### Resultado de integración Android-servidor
+
+La validación funcional del 05/08/2026 confirmó el flujo completo usando `Celular-Roberto`, asociado a `COATI Pruebas`:
+
+```text
+Android
+→ Room / SQLCipher
+→ WorkManager
+→ Retrofit + HTTPS
+→ https://cooatii.com/api/
+→ coati-web
+→ coati-api
+→ PostgreSQL
+→ Portal administrativo
+```
+
+La aplicación utilizó como URL predeterminada `https://cooatii.com`; `normalizeApiBaseUrl` transforma esa dirección en `https://cooatii.com/api/`. El endpoint público `/api/health` respondió `200 OK`.
+
+Se generaron desde Android registros actuales del 05/08/2026 con eventos `CLOCK_IN`, `MEAL_START` y `MEAL_END`, visibles posteriormente en el portal bajo la empresa autorizada. El identificador observado para esa prueba fue `d48fdcfe-5bde-4232-a1fc-eae11a858ded`.
+
+Los registros insertados manualmente con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha 29/06/2026 no constituyen evidencia de esta prueba. La aceptación de sincronización requiere un identificador nuevo, fecha actual, recepción por la API y aparición en el portal sin duplicación al reintentar.
+
+La compilación debug fue exitosa y el APK actualizado se instaló en un `moto g86 power 5G`. La publicación en Play Store permanece pendiente de verificar el AAB release, la clave oficial de firma y la carga en una pista de prueba interna.

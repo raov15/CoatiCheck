@@ -73,10 +73,10 @@ reloj-checador/
 | `feature/face-recognition` | ✅ Completo | `FaceRecognitionEngine` (interfaz domain), `EmbeddingService` con TFLite real, `FaceRecognitionModule` Hilt |
 | `feature/settings` | ✅ Completo | URL API, GPS timeout, umbral facial, PIN admin |
 | `feature/location` | ✅ Completo | Fused Location Provider wrapper |
-| `feature/device-auth` | 🟡 Implementado | Enrolamiento mediante código temporal, token y branding empresarial; falta validación productiva completa |
+| `feature/device-auth` | ✅ Validado | Enrolamiento mediante código temporal, token y branding empresarial probado con servidor público |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
-| Backend Express + PostgreSQL | 🟡 Implementado | Empresas, usuarios, sitios, logos, dispositivos, enrolamiento y sincronización |
-| Portal Admin | 🟡 Implementado | Portal estático con login, cambio de contraseña, empresas, sitios, usuarios, códigos, celulares y asistencias |
+| Backend Express + PostgreSQL | ✅ Validado | Empresas, usuarios, sitios, logos, dispositivos, enrolamiento y sincronización |
+| Portal Admin | ✅ Validado | Login, empresas, sitios, usuarios, códigos, celulares y asistencias |
 
 ---
 
@@ -267,18 +267,22 @@ En Nginx Proxy Manager, el upstream debe ser `coati-web`, puerto `80` y esquema 
 
 El login real debe abrirse desde el dominio publicado o desde una URL que tenga acceso al proxy `/api`. Una copia estática servida por un servidor de preview puede mostrar el formulario, pero no garantiza que las peticiones de autenticación lleguen a `coati-api`.
 
-## Estado de validación — 2 de agosto de 2026
+## Estado de validación — 5 de agosto de 2026
 
 | Verificación | Estado | Resultado |
 |---|---|---|
 | Repositorio | ✅ | `master` sincronizado con GitHub |
 | Backend Docker | ✅ | Imagen construida con `npm run build` exitoso |
 | PostgreSQL | ✅ | `coati-db` saludable con volumen persistente |
-| API | ✅ | `coati-api` saludable |
+| API | ✅ | `https://cooatii.com/api/health` respondió `200 OK` |
 | Frontend | ✅ | `coati-web` activo y conectado a `nginx-proxy` |
-| APK Android debug | ✅ | `:app:assembleDebug` exitoso |
-| Login administrativo productivo | ⚠️ | Requiere confirmar contraseña existente y URL con proxy |
-| HTTPS público | ⚠️ | Requiere validar certificado/origen si Cloudflare devuelve 525 |
+| APK Android debug | ✅ | Compilado e instalado en moto g86 power 5G |
+| URL Android | ✅ | Predeterminada a `https://cooatii.com`; la app agrega `/api/` |
+| Enrolamiento empresarial | ✅ | Celular asociado a `COATI Pruebas` |
+| Sincronización Android→PostgreSQL | ✅ | Registros del 05/08/2026 visibles en el portal |
+| Login administrativo productivo | ✅ | Portal autenticado y consulta de asistencias validada |
+| HTTPS público | ✅ | Dominio y API accesibles por HTTPS |
+| Publicación Play Store | ⚠️ | Falta verificar AAB, clave oficial y cargar prueba interna |
 
 No se versionan `.env`, secretos, cargas de logos ni volúmenes Docker.
 
@@ -302,6 +306,19 @@ docker compose ps
 ```
 
 La prueba se considera aprobada únicamente cuando una asistencia creada en Android aparece posteriormente en PostgreSQL y en el portal. No se requiere una contraseña adicional de la empresa: la empresa se determina por el dispositivo enrolado y el token autorizado.
+
+### Resultado de la prueba funcional del 05/08/2026
+
+Se validó el flujo completo con el dispositivo `Celular-Roberto` y la empresa `COATI Pruebas`. Los registros generados desde Android llegaron al portal con el identificador de dispositivo `d48fdcfe-5bde-4232-a1fc-eae11a858ded` y eventos `CLOCK_IN`, `MEAL_START` y `MEAL_END` del 05/08/2026.
+
+Los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` del 29/06/2026 y los registros previos del 04/08/2026 se consideran datos de pruebas anteriores; no deben utilizarse como única evidencia de una nueva sincronización.
+
+```text
+Android → Room → WorkManager → HTTPS
+→ coati-web → coati-api → PostgreSQL → Portal
+```
+
+La aplicación también fue recompilada e instalada en un `moto g86 power 5G`. El servidor público respondió correctamente en `/api/health`.
 
 ---
 
