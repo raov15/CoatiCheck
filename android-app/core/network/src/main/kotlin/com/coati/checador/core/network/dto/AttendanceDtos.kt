@@ -13,7 +13,8 @@ data class AttendanceRecordDto(
     @SerialName("longitude") val longitude: Double? = null,
     @SerialName("accuracy_m") val accuracyM: Float? = null,
     @SerialName("altitude_m") val altitudeM: Double? = null,
-    @SerialName("face_confidence") val faceConfidence: Float? = null
+    @SerialName("face_confidence") val faceConfidence: Float? = null,
+     @SerialName("site_id") val siteId: String? = null
 )
 
 @Serializable

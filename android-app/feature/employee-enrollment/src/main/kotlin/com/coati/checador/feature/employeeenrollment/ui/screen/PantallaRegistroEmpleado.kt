@@ -1,5 +1,8 @@
 package com.coati.checador.feature.employeeenrollment.ui.screen
 
+
+
+
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedContent
@@ -27,12 +30,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -46,6 +47,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -83,6 +85,12 @@ import com.coati.checador.feature.employeeenrollment.ui.component.CamaraFacialCo
 import com.coati.checador.feature.employeeenrollment.ui.viewmodel.EstadoRegistro
 import com.coati.checador.feature.employeeenrollment.ui.viewmodel.RegistroEmpleadoViewModel
 import timber.log.Timber
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * Pantalla principal del flujo de registro de empleado.
@@ -154,6 +162,7 @@ fun PantallaRegistroEmpleado(
     }
 
     Scaffold(
+        containerColor = CoatiBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (!estado.mostrarCamara) {
@@ -185,10 +194,12 @@ fun PantallaRegistroEmpleado(
             estado = estado,
             paddingValues = paddingValues,
             onNombreChange = viewModel::actualizarNombre,
-            onCodigoChange = viewModel::actualizarCodigo,
+            onApellidoPaternoChange = viewModel::actualizarApellidoPaterno,
+            onApellidoMaternoChange = viewModel::actualizarApellidoMaterno,
+            onRfcChange = viewModel::actualizarRfc,
+            onCurpChange = viewModel::actualizarCurp,
+            onNssChange = viewModel::actualizarNss,
             onDepartamentoChange = viewModel::actualizarDepartamento,
-            onHorarioEntradaChange = viewModel::actualizarHorarioEntrada,
-            onHorarioSalidaChange = viewModel::actualizarHorarioSalida,
             onCapturarRostro = viewModel::iniciarCapturaCamara,
             onCancelarCapturaCamara = viewModel::cancelarCapturaCamara,
             onResultadoCaptura = viewModel::procesarResultadoCaptura,
@@ -203,10 +214,12 @@ private fun ContenidoRegistroEmpleado(
     estado: EstadoRegistro,
     paddingValues: androidx.compose.foundation.layout.PaddingValues,
     onNombreChange: (String) -> Unit,
-    onCodigoChange: (String) -> Unit,
+    onApellidoPaternoChange: (String) -> Unit,
+    onApellidoMaternoChange: (String) -> Unit,
+    onRfcChange: (String) -> Unit,
+    onCurpChange: (String) -> Unit,
+    onNssChange: (String) -> Unit,
     onDepartamentoChange: (String) -> Unit,
-    onHorarioEntradaChange: (String) -> Unit,
-    onHorarioSalidaChange: (String) -> Unit,
     onCapturarRostro: () -> Unit,
     onCancelarCapturaCamara: () -> Unit,
     onResultadoCaptura: (com.coati.checador.feature.employeeenrollment.domain.model.ResultadoValidacionRostro, Bitmap?) -> Unit,
@@ -296,10 +309,12 @@ private fun ContenidoRegistroEmpleado(
                 estado = estado,
                 paddingModifier = Modifier.padding(paddingValues),
                 onNombreChange = onNombreChange,
-                onCodigoChange = onCodigoChange,
+                onApellidoPaternoChange = onApellidoPaternoChange,
+                onApellidoMaternoChange = onApellidoMaternoChange,
+                onRfcChange = onRfcChange,
+                onCurpChange = onCurpChange,
+                onNssChange = onNssChange,
                 onDepartamentoChange = onDepartamentoChange,
-                onHorarioEntradaChange = onHorarioEntradaChange,
-                onHorarioSalidaChange = onHorarioSalidaChange,
                 onCapturarRostro = {
                     onCapturarRostro()
                     if (!cameraPermissionState.status.isGranted) {
@@ -314,15 +329,18 @@ private fun ContenidoRegistroEmpleado(
 
 // ─── Sub-componente: Formulario de Registro ──────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FormularioRegistro(
     estado: EstadoRegistro,
     paddingModifier: Modifier,
     onNombreChange: (String) -> Unit,
-    onCodigoChange: (String) -> Unit,
+    onApellidoPaternoChange: (String) -> Unit,
+    onApellidoMaternoChange: (String) -> Unit,
+    onRfcChange: (String) -> Unit,
+    onCurpChange: (String) -> Unit,
+    onNssChange: (String) -> Unit,
     onDepartamentoChange: (String) -> Unit,
-    onHorarioEntradaChange: (String) -> Unit,
-    onHorarioSalidaChange: (String) -> Unit,
     onCapturarRostro: () -> Unit,
     onGuardar: () -> Unit
 ) {
@@ -374,12 +392,12 @@ private fun FormularioRegistro(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // ─── Sección: Datos personales ───────────────────────────────────────
-            SeccionTitulo(texto = "Datos Personales")
+            SeccionTitulo(texto = "Datos personales")
 
             CampoTexto(
-                valor = estado.nombreCompleto,
+                valor = estado.nombre,
                 onCambio = onNombreChange,
-                etiqueta = "Nombre completo",
+                etiqueta = "Nombre",
                 icono = Icons.Default.Person,
                 error = estado.errorNombre,
                 teclado = KeyboardOptions(
@@ -389,65 +407,153 @@ private fun FormularioRegistro(
             )
 
             CampoTexto(
-                valor = estado.codigoEmpleado,
-                onCambio = onCodigoChange,
-                etiqueta = "ID / Código de empleado",
-                icono = Icons.Default.Badge,
-                error = estado.errorCodigo,
-                teclado = KeyboardOptions(
-                    keyboardType = KeyboardType.Text,
-                    imeAction = ImeAction.Next
-                )
-            )
-
-            CampoTexto(
-                valor = estado.departamento,
-                onCambio = onDepartamentoChange,
-                etiqueta = "Departamento",
-                icono = Icons.Default.Business,
-                error = estado.errorDepartamento,
+                valor = estado.apellidoPaterno,
+                onCambio = onApellidoPaternoChange,
+                etiqueta = "Apellido paterno",
+                icono = Icons.Default.Person,
+                error = estado.errorApellidoPaterno,
                 teclado = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
                     imeAction = ImeAction.Next
                 )
             )
 
-            // ─── Sección: Horario ────────────────────────────────────────────────
-            SeccionTitulo(texto = "Horario Laboral")
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CampoTexto(
-                    valor = estado.horarioEntrada,
-                    onCambio = onHorarioEntradaChange,
-                    etiqueta = "Hora entrada",
-                    icono = Icons.Default.Schedule,
-                    placeholder = "08:00",
-                    teclado = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Next
-                    ),
-                    modifier = Modifier.weight(1f)
+            CampoTexto(
+                valor = estado.apellidoMaterno,
+                onCambio = onApellidoMaternoChange,
+                etiqueta = "Apellido materno",
+                icono = Icons.Default.Person,
+                error = estado.errorApellidoMaterno,
+                teclado = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
                 )
+            )
 
-                CampoTexto(
-                    valor = estado.horarioSalida,
-                    onCambio = onHorarioSalidaChange,
-                    etiqueta = "Hora salida",
-                    icono = Icons.Default.Schedule,
-                    placeholder = "17:00",
-                    teclado = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Done
-                    ),
-                    modifier = Modifier.weight(1f)
+            CampoTexto(
+                valor = estado.rfc,
+                onCambio = { onRfcChange(it.uppercase()) },
+                etiqueta = "RFC",
+                icono = Icons.Default.Business,
+                error = estado.errorRfc,
+                teclado = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
                 )
-            }
+            )
+
+            CampoTexto(
+                valor = estado.curp,
+                onCambio = { onCurpChange(it.uppercase()) },
+                etiqueta = "CURP",
+                icono = Icons.Default.Person,
+                error = estado.errorCurp,
+                teclado = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Next
+                )
+            )
+
+            CampoTexto(
+                valor = estado.nss,
+                onCambio = onNssChange,
+                etiqueta = "NSS",
+                icono = Icons.Default.Business,
+                error = estado.errorNss,
+                teclado = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+            )
+
+            Text(
+                text = "Código de empleado: se asigna automáticamente",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+         var expandirCargo by remember { mutableStateOf(false) }
+
+val cargos = listOf(
+    "Desarrollador web",
+    "Programador",
+    "Contador"
+)
+
+ExposedDropdownMenuBox(
+    expanded = expandirCargo,
+    onExpandedChange = {
+        expandirCargo = !expandirCargo
+    },
+    modifier = Modifier.fillMaxWidth()
+) {
+
+    OutlinedTextField(
+    value = estado.departamento,
+    onValueChange = {},
+    readOnly = true,
+    singleLine = true,
+    label = {
+        Text("Cargo")
+    },
+    placeholder = {
+        Text(
+            text = "Selecciona un cargo",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    },
+    trailingIcon = {
+        ExposedDropdownMenuDefaults.TrailingIcon(
+            expanded = expandirCargo
+        )
+    },
+    colors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+        focusedBorderColor = CoatiBlue,
+        unfocusedBorderColor = Color.LightGray,
+        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ),
+    modifier = Modifier
+        .menuAnchor()
+        .fillMaxWidth()
+)
+
+    DropdownMenu(
+    expanded = expandirCargo,
+    onDismissRequest = {
+        expandirCargo = false
+    },
+    modifier = Modifier.fillMaxWidth(0.90f)
+) {
+
+        cargos.forEach { cargo ->
+
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = cargo,
+                        color = Color.Black
+                    )
+                },
+                onClick = {
+                    onDepartamentoChange(cargo)
+                    expandirCargo = false
+                }
+            )
+        }
+    }
+}
+
 
             // ─── Sección: Captura facial ─────────────────────────────────────────
-            SeccionTitulo(texto = "Reconocimiento Facial")
+            SeccionTitulo(texto = "Reconocimiento facial")
 
             TarjetaCapturaDeFoto(
                 bitmapRostro = estado.bitmapRostro,
@@ -533,7 +639,33 @@ private fun CampoTexto(
         keyboardOptions = teclado,
         singleLine = true,
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(10.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            disabledContainerColor = Color.White,
+            errorContainerColor = Color.White,
+            focusedTextColor = Color.Black,
+            unfocusedTextColor = Color.Black,
+            disabledTextColor = Color.DarkGray,
+            errorTextColor = Color.Black,
+            cursorColor = CoatiBlue,
+            errorCursorColor = Color.Red,
+            focusedBorderColor = CoatiBlue,
+            unfocusedBorderColor = Color.LightGray,
+            disabledBorderColor = Color.LightGray,
+            errorBorderColor = Color.Red,
+            focusedLabelColor = CoatiBlue,
+            unfocusedLabelColor = Color.DarkGray,
+            disabledLabelColor = Color.Gray,
+            errorLabelColor = Color.Red,
+            focusedPlaceholderColor = Color.Gray,
+            unfocusedPlaceholderColor = Color.Gray,
+            focusedLeadingIconColor = CoatiBlue,
+            unfocusedLeadingIconColor = CoatiBlue,
+            disabledLeadingIconColor = Color.Gray,
+            errorLeadingIconColor = Color.Red
+        )
     )
 }
 

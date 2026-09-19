@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
 
+    implementation("com.google.mlkit:face-detection:16.1.7")
+
     // Timber logging
     implementation(libs.timber)
 

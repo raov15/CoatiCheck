@@ -13,11 +13,24 @@ class CoatiApiServiceFactory @Inject constructor(
     private val client: OkHttpClient,
     private val json: Json
 ) {
-    fun create(rawBaseUrl: String?): CoatiApiService =
-        Retrofit.Builder()
-            .baseUrl(normalizeApiBaseUrl(rawBaseUrl))
+
+    fun create(
+        rawBaseUrl: String?
+    ): CoatiApiService {
+
+        return Retrofit.Builder()
+            .baseUrl(
+                normalizeApiBaseUrl(rawBaseUrl)
+            )
             .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .addConverterFactory(
+                json.asConverterFactory(
+                    "application/json".toMediaType()
+                )
+            )
             .build()
-            .create(CoatiApiService::class.java)
+            .create(
+                CoatiApiService::class.java
+            )
+    }
 }

@@ -48,6 +48,7 @@ import com.coati.checador.feature.employeeenrollment.domain.model.ResultadoValid
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import androidx.compose.foundation.layout.offset
 import timber.log.Timber
 
 /**
@@ -194,19 +195,16 @@ fun CamaraFacialCompose(
                     }
                 )
             },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-                .size(72.dp)
-                .background(CoatiTeal, CircleShape)
-                .border(3.dp, Color.White, CircleShape)
+         
+    modifier = Modifier
+        .align(Alignment.Center)
+        .offset(y = 160.dp)
+        .size(68.dp)
+        .background(CoatiTeal, CircleShape)
+        .border(3.dp, Color.White, CircleShape)
+
         ) {
-            Icon(
-                imageVector = Icons.Default.Camera,
-                contentDescription = "Capturar rostro",
-                tint = Color.White,
-                modifier = Modifier.size(36.dp)
-            )
+            
         }
     }
 }

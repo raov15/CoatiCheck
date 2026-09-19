@@ -2,8 +2,8 @@ package com.coati.checador.core.network
 
 private val IP_ADDRESS_REGEX = Regex("""^\d{1,3}(\.\d{1,3}){3}(:\d+)?$""")
 
-const val DEFAULT_SERVER_URL = "https://checador.cooatii.com/Checador/"
-const val DEFAULT_API_BASE_URL = "https://checador.cooatii.com/Checador/api/"
+const val DEFAULT_SERVER_URL = "https://cooatii.com"
+const val DEFAULT_API_BASE_URL = "https://cooatii.com/api/"
 const val DEFAULT_API_IP_FALLBACK = "http://148.230.222.13:3000/api/"
 
 fun normalizeApiBaseUrl(rawValue: String?): String {

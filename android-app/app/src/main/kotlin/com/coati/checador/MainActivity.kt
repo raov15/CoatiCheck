@@ -45,7 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.coati.checador.core.ui.theme.CoatiCheckTheme
 import com.coati.checador.feature.attendance.AttendanceScreen
 import com.coati.checador.feature.attendance.HistoryScreen
-import com.coati.checador.feature.attendance.EmployeeListScreen
+
 import com.coati.checador.feature.employeeenrollment.ui.screen.PantallaRegistroEmpleado
 import com.coati.checador.feature.deviceauth.ui.DeviceAuthScreen
 import com.coati.checador.feature.settings.SettingsScreen
@@ -100,10 +100,8 @@ class MainActivity : ComponentActivity() {
                             },
                             onViewHistory = {
                                 navController.navigate("history")
-                            },
-                            onViewEmployees = {
-                                navController.navigate("employees")
                             }
+                            
                         )
                     }
                     composable("history") {
@@ -111,14 +109,7 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
-                    composable("employees") {
-                        EmployeeListScreen(
-                            onBack = { navController.popBackStack() },
-                            onAddEmployee = {
-                                navController.navigate("registro_empleado")
-                            }
-                        )
-                    }
+                    
                     // Pantalla de registro de empleado — accesible desde el menú de asistencia
                     composable("registro_empleado") {
                         PantallaRegistroEmpleado(

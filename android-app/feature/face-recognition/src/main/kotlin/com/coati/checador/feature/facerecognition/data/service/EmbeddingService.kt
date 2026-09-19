@@ -3,7 +3,7 @@ package com.coati.checador.feature.facerecognition.data.service
 import android.content.Context
 import android.graphics.Bitmap
 import com.coati.checador.core.security.KeystoreHelper
-import com.coati.checador.feature.facerecognition.domain.FaceRecognitionEngine
+import com.coati.checador.core.common.facerecognition.FaceRecognitionEngine
 import dagger.hilt.android.qualifiers.ApplicationContext
 import timber.log.Timber
 import java.io.ByteArrayOutputStream

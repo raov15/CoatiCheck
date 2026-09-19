@@ -67,16 +67,17 @@ class AttendanceSyncWorker @AssistedInject constructor(
     }
 
     private fun AttendanceRecordEntity.toDto() = AttendanceRecordDto(
-        idLocal = idLocal,
-        employeeId = employeeId,
-        eventType = eventType,
-        occurredAt = occurredAt,
-        latitude = latitude,
-        longitude = longitude,
-        accuracyM = accuracyM,
-        altitudeM = altitudeM,
-        faceConfidence = faceConfidence
-    )
+    idLocal = idLocal,
+    employeeId = employeeId,
+    eventType = eventType,
+    occurredAt = occurredAt,
+    latitude = latitude,
+    longitude = longitude,
+    accuracyM = accuracyM,
+    altitudeM = altitudeM,
+    faceConfidence = faceConfidence,
+    siteId = siteId
+)
 
     companion object {
         private const val BATCH_SIZE = 50

@@ -2,34 +2,96 @@ package com.coati.checador.feature.employeeenrollment.domain.model
 
 /**
  * Modelo de dominio para un empleado registrado en el sistema.
- * Representa la información personal y laboral que se captura
- * durante el proceso de alta en la aplicación.
  */
 data class Empleado(
-    /** Identificador local único generado en dispositivo (UUID) */
+
+    /**
+     * Identificador local único generado en el dispositivo.
+     */
     val idLocal: String,
 
-    /** Código o número de empleado asignado por la empresa */
+    /**
+     * Código asignado por la empresa.
+     */
     val codigoEmpleado: String,
 
-    /** Nombre completo del empleado */
+    /**
+     * Nombre.
+     */
+    val nombre: String,
+
+    /**
+     * Apellido paterno.
+     */
+    val apellidoPaterno: String,
+
+    /**
+     * Apellido materno.
+     */
+    val apellidoMaterno: String,
+
+    /**
+     * Nombre completo.
+     */
     val nombreCompleto: String,
 
-    /** Departamento al que pertenece */
+    /**
+     * RFC.
+     */
+    val rfc: String,
+
+    /**
+     * CURP.
+     */
+    val curp: String,
+
+    /**
+     * NSS.
+     */
+    val nss: String,
+
+    /**
+     * Departamento.
+     */
     val departamento: String,
 
-    /** Hora de entrada esperada en formato "HH:mm" */
-    val horarioEntrada: String,
+    /**
+     * Hora de entrada configurada.
+     */
+    val horarioEntrada: String = "08:00",
 
-    /** Hora de salida esperada en formato "HH:mm" */
-    val horarioSalida: String,
+    /**
+     * Hora de salida configurada.
+     */
+    val horarioSalida: String = "17:00",
 
-    /** Indica si el empleado está activo en el sistema */
+    /**
+     * Minutos permitidos antes de considerar un retardo.
+     */
+    val toleranciaRetardo: Int = 10,
+
+    /**
+     * Número total de retardos.
+     */
+    val totalRetardos: Int = 0,
+
+    /**
+     * Número total de ausentismos.
+     */
+    val totalAusentismos: Int = 0,
+
+    /**
+     * Indica si el empleado está activo.
+     */
     val activo: Boolean = true,
 
-    /** Timestamp de creación (epoch ms UTC) */
+    /**
+     * Fecha de creación.
+     */
     val creadoEn: Long,
 
-    /** Estado de sincronización con el servidor */
+    /**
+     * Estado de sincronización.
+     */
     val estadoSync: String
 )

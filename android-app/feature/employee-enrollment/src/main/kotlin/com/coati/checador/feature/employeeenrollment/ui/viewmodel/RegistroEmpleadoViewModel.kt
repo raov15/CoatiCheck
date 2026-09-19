@@ -41,25 +41,77 @@ class RegistroEmpleadoViewModel @Inject constructor(
     // ─── Actualización de campos del formulario ─────────────────────────────────
 
     fun actualizarNombre(valor: String) {
-        _estado.update { it.copy(nombreCompleto = valor, errorNombre = null) }
+        _estado.update {
+            it.copy(
+                nombre = valor,
+                errorNombre = null
+            )
+        }
+    }
+
+    fun actualizarApellidoPaterno(valor: String) {
+        _estado.update {
+            it.copy(
+                apellidoPaterno = valor,
+                errorApellidoPaterno = null
+            )
+        }
+    }
+
+    fun actualizarApellidoMaterno(valor: String) {
+        _estado.update {
+            it.copy(
+                apellidoMaterno = valor,
+                errorApellidoMaterno = null
+            )
+        }
+    }
+
+    fun actualizarRfc(valor: String) {
+        _estado.update {
+            it.copy(
+                rfc = valor.uppercase().trim(),
+                errorRfc = null
+            )
+        }
+    }
+
+    fun actualizarCurp(valor: String) {
+        _estado.update {
+            it.copy(
+                curp = valor.uppercase().trim(),
+                errorCurp = null
+            )
+        }
+    }
+
+    fun actualizarNss(valor: String) {
+        _estado.update {
+            it.copy(
+                nss = valor.filter { c -> c.isDigit() }.take(11),
+                errorNss = null
+            )
+        }
     }
 
     fun actualizarCodigo(valor: String) {
-        _estado.update { it.copy(codigoEmpleado = valor, errorCodigo = null) }
+        _estado.update {
+            it.copy(
+                codigoEmpleado = valor,
+                errorCodigo = null
+            )
+        }
     }
 
     fun actualizarDepartamento(valor: String) {
-        _estado.update { it.copy(departamento = valor, errorDepartamento = null) }
+        _estado.update {
+            it.copy(
+                departamento = valor,
+                errorDepartamento = null
+            )
+        }
     }
-
-    fun actualizarHorarioEntrada(valor: String) {
-        _estado.update { it.copy(horarioEntrada = valor) }
-    }
-
-    fun actualizarHorarioSalida(valor: String) {
-        _estado.update { it.copy(horarioSalida = valor) }
-    }
-
+    
     // ─── Flujo de captura facial ─────────────────────────────────────────────────
 
     fun iniciarCapturaCamara() {
@@ -178,7 +230,12 @@ class RegistroEmpleadoViewModel @Inject constructor(
             _estado.update {
                 it.copy(
                     errorNombre = errores["nombre"],
-                    errorCodigo = errores["codigo"],
+                    errorApellidoPaterno = errores["apellidoPaterno"],
+                    errorApellidoMaterno = errores["apellidoMaterno"],
+                    errorRfc = errores["rfc"],
+                    errorCurp = errores["curp"],
+                    errorNss = errores["nss"],
+                    errorCodigo = null,
                     errorDepartamento = errores["departamento"],
                     errorCaptura = errores["rostro"]
                 )
@@ -187,16 +244,55 @@ class RegistroEmpleadoViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            Timber.i("RegistroEmpleadoViewModel: iniciando registro de ${estadoActual.nombreCompleto}")
-            _estado.update { it.copy(cargando = true, errorGeneral = null) }
+            val nombreCompleto = listOf(
+                estadoActual.nombre.trim(),
+                estadoActual.apellidoPaterno.trim(),
+                estadoActual.apellidoMaterno.trim()
+            )
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
 
+            Timber.i(
+                "RegistroEmpleadoViewModel: iniciando registro de $nombreCompleto"
+            )
+
+            _estado.update {
+                it.copy(
+                    cargando = true,
+                    errorGeneral = null
+                )
+            }
+
+            /*
+             * IMPORTANTE:
+             * Empleado.kt todavía usa nombreCompleto.
+             * Por eso aquí armamos el nombre completo con los tres campos.
+             *
+             * RFC, CURP y NSS ya quedan capturados y validados en EstadoRegistro,
+             * pero para persistirlos en Room/servidor también hay que agregar
+             * esos campos a Empleado.kt, EmployeeEntity.kt y EmployeeDto.kt.
+             */
             val empleado = Empleado(
                 idLocal = UUID.randomUUID().toString(),
-                codigoEmpleado = estadoActual.codigoEmpleado.trim(),
-                nombreCompleto = estadoActual.nombreCompleto.trim(),
+                codigoEmpleado = "AUTO",
+
+                nombre = estadoActual.nombre.trim(),
+                apellidoPaterno = estadoActual.apellidoPaterno.trim(),
+                apellidoMaterno = estadoActual.apellidoMaterno.trim(),
+                nombreCompleto = nombreCompleto,
+
+                rfc = estadoActual.rfc.trim().uppercase(),
+                curp = estadoActual.curp.trim().uppercase(),
+                nss = estadoActual.nss.trim(),
+
                 departamento = estadoActual.departamento.trim(),
-                horarioEntrada = estadoActual.horarioEntrada,
-                horarioSalida = estadoActual.horarioSalida,
+                // El horario ya NO lo captura el trabajador.
+                // Debe resolverse desde la configuración asignada en servidor.
+                // Se dejan vacíos temporalmente para mantener compatibilidad
+                // si Empleado.kt todavía exige estos parámetros.
+                horarioEntrada = "",
+                horarioSalida = "",
+
                 activo = true,
                 creadoEn = System.currentTimeMillis(),
                 estadoSync = SyncStatus.PENDING
@@ -239,25 +335,80 @@ class RegistroEmpleadoViewModel @Inject constructor(
 
     // ─── Validación del formulario ───────────────────────────────────────────────
 
-    private fun validarFormulario(estado: EstadoRegistro): Map<String, String> {
-        val errores = mutableMapOf<String, String>()
+    private fun validarFormulario(
+        estado: EstadoRegistro
+    ): Map<String, String> {
 
-        if (estado.nombreCompleto.isBlank()) {
-            errores["nombre"] = "El nombre completo es requerido"
-        } else if (estado.nombreCompleto.trim().length < 3) {
-            errores["nombre"] = "El nombre debe tener al menos 3 caracteres"
+        val errores =
+            mutableMapOf<String, String>()
+
+        if (estado.nombre.isBlank()) {
+            errores["nombre"] =
+                "El nombre es requerido"
+        } else if (estado.nombre.trim().length < 2) {
+            errores["nombre"] =
+                "El nombre debe tener al menos 2 caracteres"
         }
 
-        if (estado.codigoEmpleado.isBlank()) {
-            errores["codigo"] = "El código de empleado es requerido"
+        if (estado.apellidoPaterno.isBlank()) {
+            errores["apellidoPaterno"] =
+                "El apellido paterno es requerido"
+        }
+
+        if (estado.apellidoMaterno.isBlank()) {
+            errores["apellidoMaterno"] =
+                "El apellido materno es requerido"
+        }
+
+        val rfcLimpio =
+            estado.rfc
+                .uppercase()
+                .trim()
+
+        if (rfcLimpio.isBlank()) {
+            errores["rfc"] =
+                "El RFC es requerido"
+        } else if (rfcLimpio.length !in 12..13) {
+            errores["rfc"] =
+                "El RFC debe tener 12 o 13 caracteres"
+        }
+
+        val curpLimpia =
+            estado.curp
+                .uppercase()
+                .trim()
+
+        if (curpLimpia.isBlank()) {
+            errores["curp"] =
+                "La CURP es requerida"
+        } else if (curpLimpia.length != 18) {
+            errores["curp"] =
+                "La CURP debe tener 18 caracteres"
+        }
+
+        val nssLimpio =
+            estado.nss
+                .filter { it.isDigit() }
+
+        if (nssLimpio.isBlank()) {
+            errores["nss"] =
+                "El NSS es requerido"
+        } else if (nssLimpio.length != 11) {
+            errores["nss"] =
+                "El NSS debe tener 11 dígitos"
         }
 
         if (estado.departamento.isBlank()) {
-            errores["departamento"] = "El departamento es requerido"
+            errores["departamento"] =
+                "El departamento es requerido"
         }
 
-        if (!estado.rostroCapturado || estado.bitmapRostro == null) {
-            errores["rostro"] = "Debes capturar la imagen facial del empleado"
+        if (
+            !estado.rostroCapturado ||
+            estado.bitmapRostro == null
+        ) {
+            errores["rostro"] =
+                "Debes capturar la imagen facial del empleado"
         }
 
         return errores
@@ -269,14 +420,20 @@ class RegistroEmpleadoViewModel @Inject constructor(
  * Expuesto como StateFlow para las pantallas Compose.
  */
 data class EstadoRegistro(
-    // ─── Campos del formulario ──────────────────────────────────────────────────
-    val nombreCompleto: String = "",
+
+    // ─── Datos personales ────────────────────────────────────────────────────
+    val nombre: String = "",
+    val apellidoPaterno: String = "",
+    val apellidoMaterno: String = "",
+    val rfc: String = "",
+    val curp: String = "",
+    val nss: String = "",
+
+    // ─── Datos laborales ─────────────────────────────────────────────────────
     val codigoEmpleado: String = "",
     val departamento: String = "",
-    val horarioEntrada: String = "08:00",
-    val horarioSalida: String = "17:00",
 
-    // ─── Captura facial ─────────────────────────────────────────────────────────
+    // ─── Captura facial ──────────────────────────────────────────────────────
     val mostrarCamara: Boolean = false,
     val bitmapRostro: Bitmap? = null,
     val rostroCapturado: Boolean = false,
@@ -284,14 +441,19 @@ data class EstadoRegistro(
     val verificandoIdentidad: Boolean = false,
     val advertenciaDuplicado: String? = null,
 
-    // ─── Errores de validación ──────────────────────────────────────────────────
+    // ─── Errores de validación ───────────────────────────────────────────────
     val errorNombre: String? = null,
+    val errorApellidoPaterno: String? = null,
+    val errorApellidoMaterno: String? = null,
+    val errorRfc: String? = null,
+    val errorCurp: String? = null,
+    val errorNss: String? = null,
     val errorCodigo: String? = null,
     val errorDepartamento: String? = null,
     val errorCaptura: String? = null,
     val errorGeneral: String? = null,
 
-    // ─── Estado de proceso ──────────────────────────────────────────────────────
+    // ─── Estado de proceso ───────────────────────────────────────────────────
     val cargando: Boolean = false,
     val registroExitoso: Boolean = false
 )

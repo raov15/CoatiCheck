@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 1,
-    "identityHash": "787af124ea6404093a823b030d6f0786",
+    "version": 2,
+    "identityHash": "1af597b5cb952a4b3095a48cdcd2ea92",
     "entities": [
       {
         "tableName": "employees",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id_local` TEXT NOT NULL, `id_remote` TEXT, `employee_code` TEXT NOT NULL, `full_name` TEXT NOT NULL, `department` TEXT NOT NULL, `is_active` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `sync_status` TEXT NOT NULL, PRIMARY KEY(`id_local`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id_local` TEXT NOT NULL, `id_remote` TEXT, `employee_code` TEXT NOT NULL, `first_name` TEXT NOT NULL, `last_name_paternal` TEXT NOT NULL, `last_name_maternal` TEXT NOT NULL, `full_name` TEXT NOT NULL, `rfc` TEXT NOT NULL, `curp` TEXT NOT NULL, `nss` TEXT NOT NULL, `department` TEXT NOT NULL, `is_active` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `sync_status` TEXT NOT NULL, PRIMARY KEY(`id_local`))",
         "fields": [
           {
             "fieldPath": "idLocal",
@@ -27,8 +27,44 @@
             "notNull": true
           },
           {
+            "fieldPath": "firstName",
+            "columnName": "first_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastNamePaternal",
+            "columnName": "last_name_paternal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastNameMaternal",
+            "columnName": "last_name_maternal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
             "fieldPath": "fullName",
             "columnName": "full_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rfc",
+            "columnName": "rfc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "curp",
+            "columnName": "curp",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nss",
+            "columnName": "nss",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -163,7 +199,7 @@
       },
       {
         "tableName": "attendance_records",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id_local` TEXT NOT NULL, `id_remote` TEXT, `employee_id` TEXT NOT NULL, `event_type` TEXT NOT NULL, `occurred_at` INTEGER NOT NULL, `latitude` REAL, `longitude` REAL, `accuracy_m` REAL, `altitude_m` REAL, `face_confidence` REAL, `device_id` TEXT, `sync_status` TEXT NOT NULL, `sync_attempts` INTEGER NOT NULL, `last_error` TEXT, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id_local`), FOREIGN KEY(`employee_id`) REFERENCES `employees`(`id_local`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id_local` TEXT NOT NULL, `id_remote` TEXT, `employee_id` TEXT NOT NULL, `event_type` TEXT NOT NULL, `occurred_at` INTEGER NOT NULL, `latitude` REAL, `longitude` REAL, `accuracy_m` REAL, `altitude_m` REAL, `face_confidence` REAL, `device_id` TEXT, `site_id` TEXT, `sync_status` TEXT NOT NULL, `sync_attempts` INTEGER NOT NULL, `last_error` TEXT, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id_local`), FOREIGN KEY(`employee_id`) REFERENCES `employees`(`id_local`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "idLocal",
@@ -228,6 +264,12 @@
           {
             "fieldPath": "deviceId",
             "columnName": "device_id",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "siteId",
+            "columnName": "site_id",
             "affinity": "TEXT",
             "notNull": false
           },
@@ -463,7 +505,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '787af124ea6404093a823b030d6f0786')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1af597b5cb952a4b3095a48cdcd2ea92')"
     ]
   }
 }

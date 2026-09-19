@@ -1,7 +1,7 @@
 package com.coati.checador.feature.facerecognition.data.di
 
 import com.coati.checador.feature.facerecognition.data.service.EmbeddingService
-import com.coati.checador.feature.facerecognition.domain.FaceRecognitionEngine
+import com.coati.checador.core.common.facerecognition.FaceRecognitionEngine
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

@@ -29,8 +29,12 @@ object DatabaseModule {
         @ApplicationContext context: Context,
         passphraseManager: DatabasePassphraseManager
     ): CoatiDatabase {
-        val passphrase = passphraseManager.getOrCreatePassphrase()
-        val factory = SupportFactory(passphrase)
+
+        val passphrase =
+            passphraseManager.getOrCreatePassphrase()
+
+        val factory =
+            SupportFactory(passphrase)
 
         return Room.databaseBuilder(
             context,
@@ -38,27 +42,51 @@ object DatabaseModule {
             Constants.DATABASE_NAME
         )
             .openHelperFactory(factory)
+
+            .addMigrations(
+                CoatiDatabase.MIGRATION_1_2,
+                CoatiDatabase.MIGRATION_2_3,
+                CoatiDatabase.MIGRATION_3_4
+            )
+
             .fallbackToDestructiveMigration()
+
             .build()
     }
 
     @Provides
-    fun provideEmployeeDao(db: CoatiDatabase): EmployeeDao = db.employeeDao()
+    fun provideEmployeeDao(
+        db: CoatiDatabase
+    ): EmployeeDao =
+        db.employeeDao()
 
     @Provides
-    fun provideEmployeeFaceProfileDao(db: CoatiDatabase): EmployeeFaceProfileDao =
+    fun provideEmployeeFaceProfileDao(
+        db: CoatiDatabase
+    ): EmployeeFaceProfileDao =
         db.employeeFaceProfileDao()
 
     @Provides
-    fun provideAttendanceRecordDao(db: CoatiDatabase): AttendanceRecordDao =
+    fun provideAttendanceRecordDao(
+        db: CoatiDatabase
+    ): AttendanceRecordDao =
         db.attendanceRecordDao()
 
     @Provides
-    fun provideSyncQueueDao(db: CoatiDatabase): SyncQueueDao = db.syncQueueDao()
+    fun provideSyncQueueDao(
+        db: CoatiDatabase
+    ): SyncQueueDao =
+        db.syncQueueDao()
 
     @Provides
-    fun provideAppSettingDao(db: CoatiDatabase): AppSettingDao = db.appSettingDao()
+    fun provideAppSettingDao(
+        db: CoatiDatabase
+    ): AppSettingDao =
+        db.appSettingDao()
 
     @Provides
-    fun provideDeviceDao(db: CoatiDatabase): DeviceDao = db.deviceDao()
+    fun provideDeviceDao(
+        db: CoatiDatabase
+    ): DeviceDao =
+        db.deviceDao()
 }
