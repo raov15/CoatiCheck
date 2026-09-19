@@ -1029,4 +1029,133 @@ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
 
 ---
 
-*Última actualización: junio 2026 — Implementación Android completa (sin backend ni panel admin).*
+*Última actualización: agosto 2026 — Android compilable y backend/portal Docker implementados; validación productiva de login y HTTPS pendiente.*
+
+---
+
+## 15. Estado operativo y despliegue actual
+
+### Arquitectura desplegada
+
+La implementación actual del servidor es Express + TypeScript + PostgreSQL, no NestJS + Prisma. La estructura operativa es:
+
+```mermaid
+flowchart LR
+    U[Usuario web] --> CF[Cloudflare]
+    CF --> NPM[Nginx Proxy Manager]
+    NPM --> W[coati-web:80]
+    W -->|archivos estáticos| P[server/public]
+    W -->|/api/*| API[coati-api:3000]
+    API --> DB[(coati-db PostgreSQL 16)]
+    API --> UP[(uploads_data)]
+```
+
+`coati-web` y `coati-api` están conectados a la red externa `nginx-proxy`. La API no publica el puerto 3000 al host; el acceso público se realiza a través de Nginx Proxy Manager y el proxy interno de `coati-web`.
+
+### Servicios Docker
+
+| Servicio | Tecnología | Persistencia | Estado esperado |
+|---|---|---|---|
+| `coati-web` | Nginx 1.27 Alpine | Archivos del repositorio | `Up` |
+| `coati-api` | Node.js 20 Alpine + Express | `uploads_data` | `Healthy` |
+| `coati-db` | PostgreSQL 16 Alpine | `db_data` | `Healthy` |
+
+Variables obligatorias:
+
+```env
+JWT_SECRET=secreto-largo-y-aleatorio
+ADMIN_BOOTSTRAP_USERNAME=admin
+ADMIN_BOOTSTRAP_PASSWORD=contraseña-temporal-segura
+```
+
+El archivo `.env` se mantiene fuera del repositorio. La contraseña bootstrap solo se aplica al crear el usuario inicial; modificarla después no reemplaza el hash de un usuario `admin` existente.
+
+### Flujo multiempresa implementado
+
+1. El administrador inicia sesión mediante `/api/admin/login`.
+2. Crea una empresa, sitios y usuarios, y puede cargar un logo PNG/JPG validado.
+3. Genera un código temporal asociado a una empresa y opcionalmente a un sitio.
+4. Android envía el código a `/api/devices/enroll`.
+5. El servidor asigna la empresa y el sitio desde el código, genera el token del dispositivo y devuelve el branding autorizado.
+6. Las asistencias sincronizadas derivan empresa y sitio del dispositivo autenticado, no de valores arbitrarios del cliente.
+7. Android conserva el branding para mostrarlo sin conexión.
+
+### Verificación operativa
+
+```powershell
+docker compose ps
+docker run --rm --network nginx-proxy curlimages/curl:8.10.1 http://coati-web:80/api/health
+docker logs coati-api --tail 100
+```
+
+El portal debe probarse desde el dominio publicado o desde un proxy que reenvíe `/api` al backend. Un preview de archivos estáticos no valida el login real. Si HTTP funciona y Cloudflare devuelve `525` por HTTPS, el problema está en el handshake TLS entre Cloudflare y el certificado/configuración del origen.
+
+### Estado de entrega — 5 de agosto de 2026
+
+| Área | Estado | Observación |
+|---|---|---|
+| Android modular | ✅ | Compila `:app:assembleDebug`; reconocimiento facial local operativo |
+| Face Recognition | ✅ | ML Kit + MobileFaceNet TFLite + Hilt |
+| Offline/sync | ✅ | Persistencia local y cola de sincronización implementadas |
+| Backend multiempresa | ✅ | Empresas, sitios, usuarios, dispositivos, logos y asistencias |
+| Portal administrativo | ✅ | Login, cambio de contraseña y operaciones administrativas principales |
+| Docker | ✅ | `web`, `api` y `db` con redes y volúmenes persistentes |
+| Login en producción | ✅ | Portal autenticado y consulta de asistencias validada |
+| HTTPS público | ✅ | `https://cooatii.com/api/health` respondió `200 OK` |
+| Kiosk Lock Task | ⚠️ | Pendiente de endurecimiento productivo del dispositivo |
+
+*La documentación anterior describe la arquitectura objetivo; esta sección registra la implementación y las diferencias vigentes.*
+
+### Criterio de prueba de sincronización
+
+La presencia de asistencias en el portal no demuestra automáticamente que el celular haya sincronizado información. Deben distinguirse los registros manuales de los registros generados por Android. Como referencia, los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha `29/06/2026` corresponden a datos manuales de prueba y deben excluirse de la evidencia de integración.
+
+La prueba de extremo a extremo debe seguir esta secuencia:
+
+```text
+Android enrolado
+→ asistencia nueva con fecha actual
+→ Room / cola pending
+→ WorkManager y Retrofit por HTTPS
+→ coati-web /api
+→ coati-api
+→ PostgreSQL
+→ consulta del portal
+```
+
+### Evidencia mínima de aceptación
+
+| Evidencia | Validación |
+|---|---|
+| Dispositivo enrolado | Android tiene token y empresa/sitio autorizados |
+| Asistencia nueva | El registro tiene fecha/hora de la prueba |
+| Logs de API | `coati-api` recibe la petición sin error |
+| Base de datos | Existe un identificador nuevo, no uno de los registros manuales |
+| Portal | El registro aparece después de **Cargar asistencias** |
+| Reintento | Una segunda sincronización no duplica el registro |
+
+La selección de una empresa en el portal solo filtra los datos autorizados; no existe una clave adicional de empresa para consultar asistencias. La asociación se obtiene del token del dispositivo y de su relación persistida con empresa y sitio.
+
+### Resultado de integración Android-servidor
+
+La validación funcional del 05/08/2026 confirmó el flujo completo usando `Celular-Roberto`, asociado a `COATI Pruebas`:
+
+```text
+Android
+→ Room / SQLCipher
+→ WorkManager
+→ Retrofit + HTTPS
+→ https://cooatii.com/api/
+→ coati-web
+→ coati-api
+→ PostgreSQL
+→ Portal administrativo
+```
+
+La aplicación utilizó como URL predeterminada `https://cooatii.com`; `normalizeApiBaseUrl` transforma esa dirección en `https://cooatii.com/api/`. El endpoint público `/api/health` respondió `200 OK`.
+
+Se generaron desde Android registros actuales del 05/08/2026 con eventos `CLOCK_IN`, `MEAL_START` y `MEAL_END`, visibles posteriormente en el portal bajo la empresa autorizada. El identificador observado para esa prueba fue `d48fdcfe-5bde-4232-a1fc-eae11a858ded`.
+
+Los registros insertados manualmente con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha 29/06/2026 no constituyen evidencia de esta prueba. La aceptación de sincronización requiere un identificador nuevo, fecha actual, recepción por la API y aparición en el portal sin duplicación al reintentar.
+
+La compilación debug fue exitosa y el APK actualizado se instaló en un `moto g86 power 5G`. La publicación en Play Store permanece pendiente de verificar el AAB release, la clave oficial de firma y la carga en una pista de prueba interna.

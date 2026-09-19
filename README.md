@@ -73,10 +73,10 @@ reloj-checador/
 | `feature/face-recognition` | ✅ Completo | `FaceRecognitionEngine` (interfaz domain), `EmbeddingService` con TFLite real, `FaceRecognitionModule` Hilt |
 | `feature/settings` | ✅ Completo | URL API, GPS timeout, umbral facial, PIN admin |
 | `feature/location` | ✅ Completo | Fused Location Provider wrapper |
-| `feature/device-auth` | 🟡 En implementación | Enrolamiento mediante código temporal, token y branding empresarial |
+| `feature/device-auth` | ✅ Validado | Enrolamiento mediante código temporal, token y branding empresarial probado con servidor público |
 | Modelo `mobilefacenet.tflite` | ✅ Incluido | 5.2 MB en `feature/face-recognition/src/main/assets/`. Probado en dispositivo: **"Reconocido: Roberto (52%)"** |
-| Backend Express + PostgreSQL | 🟡 En implementación | Empresas, usuarios, logos, dispositivos y sincronización |
-| Portal Admin | 🟡 Base implementada | Login inicial en `server/public/index.html`; falta panel de administración |
+| Backend Express + PostgreSQL | ✅ Validado | Empresas, usuarios, sitios, logos, dispositivos, enrolamiento y sincronización |
+| Portal Admin | ✅ Validado | Login, empresas, sitios, usuarios, códigos, celulares y asistencias |
 
 ---
 
@@ -231,6 +231,94 @@ Endpoints principales:
 | POST | `/api/devices/enroll` | Asociar celular mediante código |
 | GET | `/api/devices/branding` | Obtener empresa del dispositivo autenticado |
 | GET | `/api/admin/companies/:companyId/attendance` | Consultar asistencias por empresa |
+
+### Despliegue Docker
+
+El despliegue actual utiliza tres servicios:
+
+| Servicio | Función | Exposición |
+|---|---|---|
+| `coati-web` | Nginx, archivos estáticos y proxy `/api` | Puerto 80 dentro de Docker |
+| `coati-api` | API Express/TypeScript | Solo red interna, puerto 3000 |
+| `coati-db` | PostgreSQL 16 | Solo red interna |
+
+`coati-web` y `coati-api` se conectan a la red externa `nginx-proxy` para que Nginx Proxy Manager pueda publicar el portal sin exponer directamente el puerto 3000.
+
+```powershell
+cd server
+Copy-Item .env.example .env
+# Editar .env y reemplazar los secretos
+docker compose up -d --build
+docker compose ps
+```
+
+Comprobaciones desde el servidor:
+
+```powershell
+docker run --rm --network nginx-proxy curlimages/curl:8.10.1 http://coati-web:80/api/health
+docker logs coati-api --tail 100
+```
+
+En Nginx Proxy Manager, el upstream debe ser `coati-web`, puerto `80` y esquema `http`. Cloudflare debe apuntar al servidor y el certificado del origen debe estar correctamente configurado antes de usar `Full (strict)`. Un error HTTP `525` indica un problema de handshake TLS entre Cloudflare y el origen, no una credencial incorrecta del portal.
+
+### Contraseña administrativa
+
+`ADMIN_BOOTSTRAP_PASSWORD` solo se utiliza al crear inicialmente el usuario bootstrap. Si `admin` ya existe en la base de datos, cambiar `.env` no cambia su hash. Para restablecer una contraseña existente debe realizarse una operación administrativa controlada sobre PostgreSQL; no se deben borrar volúmenes ni ejecutar `docker compose down -v` en producción.
+
+El login real debe abrirse desde el dominio publicado o desde una URL que tenga acceso al proxy `/api`. Una copia estática servida por un servidor de preview puede mostrar el formulario, pero no garantiza que las peticiones de autenticación lleguen a `coati-api`.
+
+## Estado de validación — 5 de agosto de 2026
+
+| Verificación | Estado | Resultado |
+|---|---|---|
+| Repositorio | ✅ | `master` sincronizado con GitHub |
+| Backend Docker | ✅ | Imagen construida con `npm run build` exitoso |
+| PostgreSQL | ✅ | `coati-db` saludable con volumen persistente |
+| API | ✅ | `https://cooatii.com/api/health` respondió `200 OK` |
+| Frontend | ✅ | `coati-web` activo y conectado a `nginx-proxy` |
+| APK Android debug | ✅ | Compilado e instalado en moto g86 power 5G |
+| URL Android | ✅ | Predeterminada a `https://cooatii.com`; la app agrega `/api/` |
+| Enrolamiento empresarial | ✅ | Celular asociado a `COATI Pruebas` |
+| Sincronización Android→PostgreSQL | ✅ | Registros del 05/08/2026 visibles en el portal |
+| Login administrativo productivo | ✅ | Portal autenticado y consulta de asistencias validada |
+| HTTPS público | ✅ | Dominio y API accesibles por HTTPS |
+| Publicación Play Store | ⚠️ | Falta verificar AAB, clave oficial y cargar prueba interna |
+
+No se versionan `.env`, secretos, cargas de logos ni volúmenes Docker.
+
+### Validación de sincronización Android
+
+Los registros que aparecen inicialmente en el portal pueden corresponder a datos de prueba insertados manualmente en PostgreSQL. Por ejemplo, los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` y fecha `29/06/2026` no prueban por sí mismos una sincronización originada en Android.
+
+Para validar el flujo completo:
+
+1. Configurar Android con `https://cooatii.com`.
+2. Confirmar que el dispositivo esté enrolado y no aparezca como “Solo local”.
+3. Registrar una asistencia nueva desde la pantalla principal.
+4. Mantener el celular conectado a internet y esperar la sincronización.
+5. Revisar los logs de `coati-api` durante la prueba.
+6. En el portal seleccionar la empresa y presionar **Cargar asistencias**.
+7. Confirmar un identificador nuevo y una fecha/hora actual, diferente de los registros manuales existentes.
+
+```powershell
+docker logs -f coati-api
+docker compose ps
+```
+
+La prueba se considera aprobada únicamente cuando una asistencia creada en Android aparece posteriormente en PostgreSQL y en el portal. No se requiere una contraseña adicional de la empresa: la empresa se determina por el dispositivo enrolado y el token autorizado.
+
+### Resultado de la prueba funcional del 05/08/2026
+
+Se validó el flujo completo con el dispositivo `Celular-Roberto` y la empresa `COATI Pruebas`. Los registros generados desde Android llegaron al portal con el identificador de dispositivo `d48fdcfe-5bde-4232-a1fc-eae11a858ded` y eventos `CLOCK_IN`, `MEAL_START` y `MEAL_END` del 05/08/2026.
+
+Los registros con identificador `06f0d426-c456-4d05-b1bf-a966d71b9601` del 29/06/2026 y los registros previos del 04/08/2026 se consideran datos de pruebas anteriores; no deben utilizarse como única evidencia de una nueva sincronización.
+
+```text
+Android → Room → WorkManager → HTTPS
+→ coati-web → coati-api → PostgreSQL → Portal
+```
+
+La aplicación también fue recompilada e instalada en un `moto g86 power 5G`. El servidor público respondió correctamente en `/api/health`.
 
 ---
 
