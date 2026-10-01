@@ -79,7 +79,11 @@ kotlin {
                 implementation(libs.androidx.lifecycle.runtime.ktx)
             }
         }
-        val androidUnitTest by getting
+        val androidUnitTest by getting {
+            dependencies {
+                implementation(libs.sqldelight.jvm.driver)
+            }
+        }
 
         val iosMain by getting {
             dependencies {

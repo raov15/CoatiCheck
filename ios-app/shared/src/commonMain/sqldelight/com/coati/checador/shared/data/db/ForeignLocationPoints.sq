@@ -1,0 +1,64 @@
+CREATE TABLE foreign_location_points (
+    id_local TEXT NOT NULL PRIMARY KEY,
+    id_remote TEXT,
+    employee_id TEXT NOT NULL,
+    work_date TEXT NOT NULL,
+    occurred_at INTEGER NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    accuracy_m REAL,
+    altitude_m REAL,
+    device_id TEXT,
+    sync_status TEXT NOT NULL DEFAULT 'PENDING',
+    sync_attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(employee_id)
+        REFERENCES employees(id_local)
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+);
+
+CREATE INDEX index_foreign_location_points_employee_id_occurred_at
+ON foreign_location_points(employee_id, occurred_at);
+
+CREATE INDEX index_foreign_location_points_sync_status_sync_attempts
+ON foreign_location_points(sync_status, sync_attempts);
+
+CREATE INDEX index_foreign_location_points_work_date
+ON foreign_location_points(work_date);
+
+insertOrReplace:
+INSERT OR REPLACE INTO foreign_location_points
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getPendingForSync:
+SELECT * FROM foreign_location_points
+WHERE sync_status IN ('PENDING', 'ERROR') AND sync_attempts < 10
+ORDER BY occurred_at ASC;
+
+observeByEmployeeAndDate:
+SELECT * FROM foreign_location_points
+WHERE employee_id = ? AND work_date = ?
+ORDER BY occurred_at ASC;
+
+updateSyncResult:
+UPDATE foreign_location_points
+SET sync_status = ?, id_remote = ?, last_error = NULL
+WHERE id_local = ?;
+
+-- Con límite de intentos al contabilizar (sync_attempts + 1), a diferencia
+-- del Android original que reintentaba sin tope.
+updateSyncError:
+UPDATE foreign_location_points
+SET sync_status = ?,
+    sync_attempts = sync_attempts + 1,
+    last_error = ?
+WHERE id_local = ?;
+
+countPending:
+SELECT COUNT(*) FROM foreign_location_points
+WHERE sync_status IN ('PENDING', 'ERROR') AND sync_attempts < 10;
+
+deleteByEmployee:
+DELETE FROM foreign_location_points WHERE employee_id = ?;

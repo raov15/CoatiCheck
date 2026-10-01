@@ -10,9 +10,23 @@ SELECT * FROM app_settings;
 selectByKey:
 SELECT * FROM app_settings WHERE `key` = ?;
 
+getValue:
+SELECT value FROM app_settings WHERE `key` = ?;
+
+observeValue:
+SELECT value FROM app_settings WHERE `key` = ?;
+
+getAll:
+SELECT * FROM app_settings;
+
 upsert:
 INSERT OR REPLACE INTO app_settings(`key`, value, updated_at)
 VALUES (?, ?, ?);
+
+updateValue:
+UPDATE app_settings
+SET value = ?, updated_at = ?
+WHERE `key` = ?;
 
 deleteByKey:
 DELETE FROM app_settings WHERE `key` = ?;
