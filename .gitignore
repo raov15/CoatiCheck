@@ -28,6 +28,10 @@ android-app/keystore.properties
 # VS Code
 .vscode/
 
+# Local JDK / Android SDK used by CI/scripts
+.jdk/
+.android-sdk/
+
 # OS files
 .DS_Store
 Thumbs.db
