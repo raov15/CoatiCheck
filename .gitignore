@@ -18,6 +18,7 @@ android-app/**/*.ap_
 # Local test artifacts
 logcat_dump.txt
 screen_test*.png
+build-log.txt
 
 # keystore
 android-app/**/*.jks

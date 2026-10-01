@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.coati.checador.feature.deviceauth"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
