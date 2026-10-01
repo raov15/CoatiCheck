@@ -16,7 +16,7 @@ import javax.crypto.spec.GCMParameterSpec
  */
 actual class EmbeddingCipher actual constructor(
     @Suppress("UNUSED_PARAMETER") store: KeyValueStore
-) {
+) : EmbeddingCrypto {
 
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -40,14 +40,14 @@ actual class EmbeddingCipher actual constructor(
         return generator.generateKey()
     }
 
-    actual fun encrypt(plain: ByteArray): ByteArray {
+    actual override fun encrypt(plain: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val ciphertext = cipher.doFinal(plain)
         return cipher.iv + ciphertext
     }
 
-    actual fun decrypt(blob: ByteArray): ByteArray {
+    actual override fun decrypt(blob: ByteArray): ByteArray {
         require(blob.size > IV_SIZE) { "Blob de embedding inválido" }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(

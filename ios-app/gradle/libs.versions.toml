@@ -34,6 +34,7 @@ sqldelight-coroutines = { module = "app.cash.sqldelight:coroutines-extensions", 
 # Koin
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version = "2.14.0" }
 
 # Android
 androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.12.0" }

@@ -35,7 +35,7 @@ import platform.CoreCrypto.kCCSuccess
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
 actual class EmbeddingCipher actual constructor(
     private val store: KeyValueStore
-) {
+) : EmbeddingCrypto {
 
     private fun masterKey(): ByteArray {
         val existing = store.getString(KEY_MASTER)
@@ -47,7 +47,7 @@ actual class EmbeddingCipher actual constructor(
         return fresh
     }
 
-    actual fun encrypt(plain: ByteArray): ByteArray = memScoped {
+    actual override fun encrypt(plain: ByteArray): ByteArray = memScoped {
         val master = masterKey()
         val encKey = master.copyOfRange(0, AES_KEY_BYTES)
         val macKey = master.copyOfRange(AES_KEY_BYTES, MASTER_KEY_BYTES)
@@ -87,7 +87,7 @@ actual class EmbeddingCipher actual constructor(
         iv + out + mac
     }
 
-    actual fun decrypt(blob: ByteArray): ByteArray = memScoped {
+    actual override fun decrypt(blob: ByteArray): ByteArray = memScoped {
         require(blob.size > BLOCK_SIZE + HMAC_SIZE) { "Blob de embedding inválido" }
 
         val master = masterKey()

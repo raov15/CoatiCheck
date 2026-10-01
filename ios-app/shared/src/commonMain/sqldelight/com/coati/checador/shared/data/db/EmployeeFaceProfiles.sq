@@ -33,6 +33,14 @@ SELECT efp.* FROM employee_face_profiles efp
 INNER JOIN employees e ON e.id_local = efp.employee_id
 WHERE e.is_active = 1 AND efp.is_active = 1;
 
+-- Igual que getAllActiveProfiles pero incluye el nombre del empleado,
+-- necesario para mostrar el resultado del reconocimiento 1:N.
+getAllActiveProfilesWithEmployee:
+SELECT efp.*, e.full_name AS employee_full_name
+FROM employee_face_profiles efp
+INNER JOIN employees e ON e.id_local = efp.employee_id
+WHERE e.is_active = 1 AND efp.is_active = 1;
+
 countActiveByEmployee:
 SELECT COUNT(*) FROM employee_face_profiles
 WHERE employee_id = ? AND is_active = 1;

@@ -9,7 +9,7 @@ package com.coati.checador.shared.security
  *
  * Formato del blob: plataforma-specific; en iOS = IV(16) + ciphertext + HMAC(32).
  */
-expect class EmbeddingCipher(store: KeyValueStore) {
-    fun encrypt(plain: ByteArray): ByteArray
-    fun decrypt(blob: ByteArray): ByteArray
+expect class EmbeddingCipher(store: KeyValueStore) : EmbeddingCrypto {
+    override fun encrypt(plain: ByteArray): ByteArray
+    override fun decrypt(blob: ByteArray): ByteArray
 }
