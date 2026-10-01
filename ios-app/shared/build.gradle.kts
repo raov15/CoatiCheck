@@ -79,6 +79,8 @@ kotlin {
                 implementation(libs.androidx.lifecycle.runtime.ktx)
                 implementation(libs.androidx.security.crypto)
                 implementation(libs.tensorflow.lite)
+                implementation(libs.play.services.location)
+                implementation(libs.kotlinx.coroutines.play.services)
             }
         }
         val androidUnitTest by getting {
