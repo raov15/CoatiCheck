@@ -77,6 +77,7 @@ kotlin {
                 implementation(libs.sqldelight.android.driver)
                 implementation(libs.androidx.core.ktx)
                 implementation(libs.androidx.lifecycle.runtime.ktx)
+                implementation(libs.androidx.security.crypto)
             }
         }
         val androidUnitTest by getting {
