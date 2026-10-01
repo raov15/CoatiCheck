@@ -10,6 +10,9 @@ import com.coati.checador.core.network.dto.DeviceTokenRefreshResponse
 import com.coati.checador.core.network.dto.DeviceTokenVerifyResponse
 import com.coati.checador.core.network.dto.EmployeeSyncRequest
 import com.coati.checador.core.network.dto.EmployeeSyncResponse
+import com.coati.checador.core.network.dto.EmployeeWorkAssignmentsResponse
+import com.coati.checador.core.network.dto.ForeignLocationSyncRequest
+import com.coati.checador.core.network.dto.ForeignLocationSyncResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -61,25 +64,6 @@ interface CoatiApiService {
     // EMPLEADOS
     // =========================================================
 
-    /**
-     * Sincroniza los empleados registrados localmente.
-     *
-     * EmployeeSyncRequest ya debe enviar:
-     *
-     * - employee_code
-     * - first_name
-     * - last_name_paternal
-     * - last_name_maternal
-     * - full_name
-     * - rfc
-     * - curp
-     * - nss
-     * - department
-     * - is_active
-     *
-     * El centro de trabajo NO se envía aquí.
-     * Se asigna posteriormente desde la configuración web.
-     */
     @POST("employees/sync")
     suspend fun syncEmployees(
         @Header("Authorization")
@@ -90,13 +74,29 @@ interface CoatiApiService {
     ): EmployeeSyncResponse
 
     // =========================================================
-    // ASISTENCIAS
+    // CONFIGURACIÓN SITE / FOREIGN
     // =========================================================
 
     /**
-     * Sincroniza entradas, salidas, comidas y demás
-     * registros de asistencia.
+     * Descarga la configuración laboral por día.
+     *
+     * SITE:
+     * tiene un centro fijo.
+     *
+     * FOREIGN:
+     * no tiene centro fijo y Android puede activar
+     * el seguimiento de ubicación durante la jornada.
      */
+    @GET("employees/work-assignments")
+    suspend fun getEmployeeWorkAssignments(
+        @Header("Authorization")
+        bearerToken: String
+    ): EmployeeWorkAssignmentsResponse
+
+    // =========================================================
+    // ASISTENCIAS
+    // =========================================================
+
     @POST("attendance/sync")
     suspend fun syncAttendance(
         @Header("Authorization")
@@ -105,4 +105,21 @@ interface CoatiApiService {
         @Body
         request: AttendanceSyncRequest
     ): AttendanceSyncResponse
+
+    // =========================================================
+    // RECORRIDO FORÁNEO
+    // =========================================================
+
+    /**
+     * Sincroniza los puntos GPS capturados durante
+     * la jornada de un trabajador Foráneo.
+     */
+    @POST("attendance/location/sync")
+    suspend fun syncForeignLocations(
+        @Header("Authorization")
+        bearerToken: String,
+
+        @Body
+        request: ForeignLocationSyncRequest
+    ): ForeignLocationSyncResponse
 }

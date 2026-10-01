@@ -27,18 +27,24 @@ class SyncManager @Inject constructor(
         const val EMPLOYEE_PERIODIC_SYNC_WORK_NAME =
             "coati_employee_periodic_sync"
 
+        const val WORK_ASSIGNMENT_PERIODIC_SYNC_WORK_NAME =
+            "coati_work_assignment_periodic_sync"
+
         const val ATTENDANCE_PERIODIC_SYNC_WORK_NAME =
             "coati_attendance_periodic_sync"
+
+        const val FOREIGN_LOCATION_PERIODIC_SYNC_WORK_NAME =
+            "coati_foreign_location_periodic_sync"
     }
 
     /**
      * Sincronización inmediata.
      *
-     * 1. Empleados.
-     * 2. Asistencias.
-     *
-     * APPEND_OR_REPLACE evita cancelar una sincronización
-     * que ya esté ejecutándose.
+     * Orden:
+     * 1. Subir empleados.
+     * 2. Descargar configuración SITE / FOREIGN.
+     * 3. Subir asistencias.
+     * 4. Subir ubicaciones Foráneo.
      */
     fun syncNow() {
 
@@ -57,8 +63,24 @@ class SyncManager @Inject constructor(
                 )
                 .build()
 
+        val workAssignmentSync =
+            OneTimeWorkRequestBuilder<EmployeeWorkAssignmentSyncWorker>()
+                .setConstraints(constraints)
+                .setExpedited(
+                    OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
+                )
+                .build()
+
         val attendanceSync =
             OneTimeWorkRequestBuilder<AttendanceSyncWorker>()
+                .setConstraints(constraints)
+                .setExpedited(
+                    OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
+                )
+                .build()
+
+        val foreignLocationSync =
+            OneTimeWorkRequestBuilder<ForeignLocationSyncWorker>()
                 .setConstraints(constraints)
                 .setExpedited(
                     OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
@@ -72,17 +94,57 @@ class SyncManager @Inject constructor(
                 ExistingWorkPolicy.APPEND_OR_REPLACE,
                 employeeSync
             )
+            .then(workAssignmentSync)
             .then(attendanceSync)
+            .then(foreignLocationSync)
             .enqueue()
     }
 
     /**
      * Sincronización periódica de respaldo.
      *
-     * Se programan empleados Y asistencias.
-     * Así, si algo falla en la sincronización inmediata,
-     * vuelve a intentarse automáticamente.
+     * Cada proceso requiere conexión.
+     *
+     * IMPORTANTE:
+     * Esto sincroniza información.
+     * NO realiza la captura GPS cada 30 minutos.
+     *
+     * La captura GPS del trabajador Foráneo se realizará
+     * mediante el servicio de ubicación.
      */
+
+fun syncForeignLocationsNow() {
+
+    val constraints =
+        Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+    val foreignLocationSync =
+        OneTimeWorkRequestBuilder<ForeignLocationSyncWorker>()
+            .setConstraints(constraints)
+            .setExpedited(
+                OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
+            )
+            .build()
+
+    WorkManager
+        .getInstance(context)
+        .enqueueUniqueWork(
+            "coati_foreign_location_immediate_sync",
+            ExistingWorkPolicy.REPLACE,
+            foreignLocationSync
+        )
+}
+
+
+
+
+
+
+
+
+
     fun schedulePeriodicSync() {
 
         val constraints =
@@ -100,8 +162,24 @@ class SyncManager @Inject constructor(
                 .setConstraints(constraints)
                 .build()
 
+        val workAssignmentSyncRequest =
+            PeriodicWorkRequestBuilder<EmployeeWorkAssignmentSyncWorker>(
+                15L,
+                TimeUnit.MINUTES
+            )
+                .setConstraints(constraints)
+                .build()
+
         val attendanceSyncRequest =
             PeriodicWorkRequestBuilder<AttendanceSyncWorker>(
+                15L,
+                TimeUnit.MINUTES
+            )
+                .setConstraints(constraints)
+                .build()
+
+        val foreignLocationSyncRequest =
+            PeriodicWorkRequestBuilder<ForeignLocationSyncWorker>(
                 15L,
                 TimeUnit.MINUTES
             )
@@ -119,9 +197,25 @@ class SyncManager @Inject constructor(
         WorkManager
             .getInstance(context)
             .enqueueUniquePeriodicWork(
+                WORK_ASSIGNMENT_PERIODIC_SYNC_WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                workAssignmentSyncRequest
+            )
+
+        WorkManager
+            .getInstance(context)
+            .enqueueUniquePeriodicWork(
                 ATTENDANCE_PERIODIC_SYNC_WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
                 attendanceSyncRequest
+            )
+
+        WorkManager
+            .getInstance(context)
+            .enqueueUniquePeriodicWork(
+                FOREIGN_LOCATION_PERIODIC_SYNC_WORK_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                foreignLocationSyncRequest
             )
     }
 }

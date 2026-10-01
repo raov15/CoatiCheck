@@ -19,7 +19,7 @@ interface AttendanceRecordDao {
 
     @Query("""
         SELECT * FROM attendance_records
-        WHERE sync_status IN ('pending', 'error') AND sync_attempts < 10
+        WHERE sync_status IN ('PENDING', 'ERROR') AND sync_attempts < 10
         ORDER BY occurred_at ASC
         LIMIT :limit
     """)
@@ -27,7 +27,7 @@ interface AttendanceRecordDao {
 
     @Query("""
         SELECT * FROM attendance_records
-        WHERE sync_status IN ('pending', 'error')
+        WHERE sync_status IN ('PENDING', 'ERROR')
         ORDER BY occurred_at ASC
     """)
     fun observePending(): Flow<List<AttendanceRecordEntity>>
@@ -63,7 +63,11 @@ interface AttendanceRecordDao {
         SET sync_status = :status, id_remote = :idRemote, last_error = NULL
         WHERE id_local = :idLocal
     """)
-    suspend fun markSynced(idLocal: String, status: String, idRemote: String?)
+    suspend fun markSynced(
+        idLocal: String,
+        status: String,
+        idRemote: String?
+    )
 
     @Query("""
         UPDATE attendance_records
@@ -72,19 +76,33 @@ interface AttendanceRecordDao {
             last_error = :error
         WHERE id_local = :idLocal
     """)
-    suspend fun markSyncFailed(idLocal: String, status: String, error: String?)
+    suspend fun markSyncFailed(
+        idLocal: String,
+        status: String,
+        error: String?
+    )
 
     @Query("""
         UPDATE attendance_records
-        SET sync_status = 'syncing'
+        SET sync_status = 'SYNCING'
         WHERE id_local IN (:ids)
     """)
     suspend fun markAsSyncing(ids: List<String>)
 
-    @Query("SELECT COUNT(*) FROM attendance_records WHERE sync_status IN ('pending', 'error') AND sync_attempts < 10")
+    @Query("""
+        SELECT COUNT(*)
+        FROM attendance_records
+        WHERE sync_status IN ('PENDING', 'ERROR')
+        AND sync_attempts < 10
+    """)
     suspend fun countPending(): Int
 
-    @Query("SELECT COUNT(*) FROM attendance_records WHERE sync_status = 'error' AND sync_attempts >= 10")
+    @Query("""
+        SELECT COUNT(*)
+        FROM attendance_records
+        WHERE sync_status = 'ERROR'
+        AND sync_attempts >= 10
+    """)
     suspend fun countPermanentErrors(): Int
 
     @Query("""
@@ -93,5 +111,7 @@ interface AttendanceRecordDao {
         ORDER BY occurred_at DESC
         LIMIT 1
     """)
-    suspend fun getLastEventForEmployee(employeeId: String): AttendanceRecordEntity?
+    suspend fun getLastEventForEmployee(
+        employeeId: String
+    ): AttendanceRecordEntity?
 }

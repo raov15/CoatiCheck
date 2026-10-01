@@ -355,10 +355,7 @@ class RegistroEmpleadoViewModel @Inject constructor(
                 "El apellido paterno es requerido"
         }
 
-        if (estado.apellidoMaterno.isBlank()) {
-            errores["apellidoMaterno"] =
-                "El apellido materno es requerido"
-        }
+       
 
         val rfcLimpio =
             estado.rfc

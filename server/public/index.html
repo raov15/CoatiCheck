@@ -317,6 +317,34 @@ aside {
     font-size:14px;
 }
 
+.sync-controls {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+}
+
+.manual-refresh-btn {
+    border:0;
+    border-radius:999px;
+    padding:10px 18px;
+    background:var(--blue-700);
+    color:#fff;
+    font:inherit;
+    font-weight:800;
+    cursor:pointer;
+}
+
+.manual-refresh-btn:hover {
+    filter:brightness(.96);
+}
+
+.manual-refresh-btn:disabled {
+    opacity:.65;
+    cursor:wait;
+}
+
 .sync-pill {
     display:flex;
     align-items:center;
@@ -2221,6 +2249,54 @@ select{
   .worker-days-toolbar{grid-template-columns:1fr!important;}
 }
 
+
+/* V15 - COMIDA, DESCANSO, AUSENTISMO Y RETARDOS */
+.meal-duration-box,.absence-auto-box,.late-week-box{display:grid;grid-template-columns:minmax(110px,150px) minmax(0,1fr);gap:10px;align-items:center}.meal-duration-box .input-unit,.absence-auto-box input,.late-week-box input{width:100%}.rest-time-row{display:grid;grid-template-columns:minmax(180px,1fr) 150px auto;gap:10px;align-items:end}.rest-time-row .rest-select-wrap{min-width:0}.rest-time-row .bmc-rest-time{min-height:44px}.formula-note{display:block;margin-top:6px;color:var(--muted);font-size:11px;line-height:1.45}.formula-preview{display:inline-flex;margin-top:6px;padding:6px 9px;border-radius:9px;background:var(--blue-50);border:1px solid var(--blue-200);color:var(--blue-800);font-size:11px;font-weight:900}@media(max-width:700px){.meal-duration-box,.absence-auto-box,.late-week-box,.rest-time-row{grid-template-columns:1fr}}
+
+/* Ajustes COOATII: descansos, comida e incidencias */
+.rest-duration-label{margin-top:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.absence-formula-simple{margin-top:5px;font-size:12px;font-weight:800;color:var(--blue-700)}
+[data-days-for="rest"]{margin-bottom:0}
+
+
+/* V4 - REPORTE DE TIEMPO EXTRA E INCIDENCIAS ACUMULADAS */
+.overtime-report-card{margin:18px 0}.overtime-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;align-items:end}.overtime-filter-grid label{display:block;font-size:12px;font-weight:850;color:var(--blue-800);margin-bottom:5px}.overtime-summary{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.overtime-total-chip{padding:8px 12px;border:1px solid var(--blue-200);border-radius:999px;background:var(--blue-50);font-size:12px;font-weight:900;color:var(--blue-800)}.overtime-table{width:100%;border-collapse:collapse;min-width:850px}.overtime-table th,.overtime-table td{padding:10px;border-bottom:1px solid var(--blue-100);text-align:left;font-size:12px}.overtime-table th{color:var(--blue-800);background:var(--blue-50)}.incidence-auto-detail{margin-top:8px;padding-top:8px;border-top:1px solid var(--blue-100);font-size:11px;color:var(--muted);line-height:1.5}@media(max-width:1000px){.overtime-filter-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.overtime-filter-grid{grid-template-columns:1fr}}
+
+
+
+.vacation-actions-inline{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    margin-left:3px;
+}
+
+.vacation-btn{
+    width:auto !important;
+    min-height:30px;
+    padding:5px 10px;
+    border-radius:8px;
+    font-size:11px;
+    font-weight:800;
+    white-space:nowrap;
+    cursor:pointer;
+}
+
+.vacation-btn-primary{
+    border:0;
+    color:#fff;
+    background:linear-gradient(
+        135deg,
+        var(--blue-800),
+        var(--blue-500)
+    );
+}
+
+.vacation-btn-soft{
+    color:var(--blue-800);
+    background:#fff;
+    border:1px solid var(--blue-200);
+}
 </style>
 </head>
 
@@ -2385,9 +2461,12 @@ select{
         <h2 id="page-title">Panel general</h2>
     </div>
 
-    <div class="sync-pill">
-        <span class="sync-dot"></span>
-        <span id="last-sync">Sincronizando...</span>
+    <div class="sync-controls">
+        <button type="button" id="manual-refresh-btn" class="manual-refresh-btn">Actualizar</button>
+        <div class="sync-pill">
+            <span class="sync-dot"></span>
+            <span id="last-sync">Sincronizando...</span>
+        </div>
     </div>
 
 </header>
@@ -2714,6 +2793,8 @@ select{
         <label>Cargo</label>
         <select id="code-site">
             <option value="">Selecciona un cargo</option>
+            <option value="Programador">Programador</option>
+            <option value="Contador">Contador</option>
         </select>
 
         <button id="generate-code" class="primary-btn" type="button">
@@ -2921,11 +3002,7 @@ select{
 
         <div class="compact-filter">
             <span>Cargo</span>
-            <select id="attendance-role">
-                <option value="">Todos</option>
-                <option value="Contador">Contador</option>
-                <option value="Desarrollador web">Desarrollador web</option>
-            </select>
+            <select id="attendance-role"><option value="">Todos</option></select>
         </div>
 
         <div class="compact-filter">
@@ -2962,7 +3039,7 @@ select{
 
     <div class="incidence-view-tabs" role="tablist" aria-label="Estado de incidencias">
         <button id="incidence-tab-pending" class="incidence-view-tab active" type="button">Pendientes</button>
-        <button id="incidence-tab-justified" class="incidence-view-tab" type="button">Justificadas</button>
+        <button id="incidence-tab-justified" class="incidence-view-tab" type="button">Calificadas</button>
     </div>
 
     <div id="attendance-count" class="history-count compact-count"></div>
@@ -3025,7 +3102,7 @@ select{
             <div class="modal-field"><label>NSS</label><input id="worker-edit-nss"></div>
             <div class="modal-field"><label>Teléfono</label><input id="worker-edit-phone"></div>
             <div class="modal-field"><label>Fecha de ingreso a la empresa</label><input id="worker-edit-hire-date" type="date"></div>
-            <div class="modal-field"><label>Categoría</label><select id="worker-edit-category"><option value="">Selecciona categoría</option><option value="1">Categoría 1</option><option value="2">Categoría 2</option><option value="3">Categoría 3</option></select></div>
+            <div class="modal-field"><label>Categoría</label><select id="worker-edit-category"><option value="">Selecciona categoría</option></select></div>
             <div class="modal-field full"><label>Centros de trabajo por día</label><div id="worker-edit-worksites-by-day" class="worker-day-sites"></div><div class="mini-note">Puedes asignar un centro distinto a cada día laboral del trabajador.</div></div>
         </div>
         <div id="worker-save-state" class="worker-save-state hidden">✓ Datos guardados</div>
@@ -3284,6 +3361,16 @@ document.querySelectorAll(".menu button").forEach(button => {
 
         document.querySelector("#page-title").textContent =
             titles[pageId] || "COATI Check";
+
+        /*
+         * Al entrar a Incidencias, consultar de nuevo al servidor.
+         * No reutilizar únicamente attendanceRecords ya cargado.
+         */
+        if(pageId === "attendance-page"){
+            loadAttendance().catch(error=>{
+                console.error("No se pudieron actualizar las incidencias al entrar:",error);
+            });
+        }
     });
 
 });
@@ -4107,12 +4194,14 @@ const WEEKDAYS=[
 ];
 
 function renderWeekdayPickers(){
-    document.querySelectorAll('.weekday-picker[data-days-for="entry"]').forEach(box=>{
+    document.querySelectorAll('.weekday-picker[data-days-for]').forEach(box=>{
         if(box.dataset.ready==="1") return;
+        const group=box.dataset.daysFor||"entry";
+        const defaults=group==="entry"?["L","M","X","J","V"]:[];
         WEEKDAYS.forEach(([value,label])=>{
             const wrap=document.createElement("label");
             wrap.className="weekday-option";
-            wrap.innerHTML=`<input type="checkbox" value="${value}" data-day-group="entry" ${["L","M","X","J","V"].includes(value)?"checked":""}> ${label}`;
+            wrap.innerHTML=`<input type="checkbox" value="${value}" data-day-group="${group}" ${defaults.includes(value)?"checked":""}> ${label}`;
             box.appendChild(wrap);
         });
         box.dataset.ready="1";
@@ -4419,48 +4508,25 @@ document.querySelector("#worker-config-form")?.addEventListener("submit",event=>
 
 async function loadUserSites() {
 
-    const companyId =
-        document.querySelector("#user-company").value;
+    const userSite = document.querySelector("#user-site");
+    if (!userSite) return;
 
-    const userSite =
-        document.querySelector("#user-site");
+    const current = userSite.value;
 
     userSite.replaceChildren();
 
-    const placeholder =
-        document.createElement("option");
-
+    const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "Selecciona un cargo";
     placeholder.disabled = true;
-    placeholder.selected = true;
-
+    placeholder.selected = !current;
     userSite.appendChild(placeholder);
 
-    if (!companyId) {
-        return;
-    }
-
-    const response =
-        await authorizedFetch(
-            `/api/admin/companies/${companyId}/sites`
-        );
-
-    const data =
-        await response.json().catch(() => []);
-
-    if (!response.ok) {
-        return;
-    }
-
-    data.forEach(site => {
-
-        const option =
-            document.createElement("option");
-
-        option.value = site.id;
-        option.textContent = site.name;
-
+    ["Programador", "Contador"].forEach(cargo => {
+        const option = document.createElement("option");
+        option.value = cargo;
+        option.textContent = cargo;
+        if (cargo === current) option.selected = true;
         userSite.appendChild(option);
     });
 }
@@ -4475,51 +4541,20 @@ document.querySelector("#user-company")
 
 async function loadCodeSites() {
 
-    const companyId =
-        document.querySelector("#code-company").value;
+    const codeSite = document.querySelector("#code-site");
+    if (!codeSite) return;
 
-    const codeSite =
-        document.querySelector("#code-site");
+    const current = codeSite.value;
 
-    codeSite.replaceChildren();
+    codeSite.innerHTML = `
+        <option value="">Selecciona un cargo</option>
+        <option value="Programador">Programador</option>
+        <option value="Contador">Contador</option>
+    `;
 
-    const placeholder =
-        document.createElement("option");
-
-    placeholder.value = "";
-    placeholder.textContent = "Selecciona un cargo";
-    placeholder.disabled = true;
-    placeholder.selected = true;
-
-    codeSite.appendChild(placeholder);
-
-    if (!companyId) {
-        return;
+    if ([...codeSite.options].some(option => option.value === current)) {
+        codeSite.value = current;
     }
-
-    const response =
-        await authorizedFetch(
-            `/api/admin/companies/${companyId}/sites`
-        );
-
-    const data =
-        await response.json().catch(() => []);
-
-    if (!response.ok) {
-        setStatus("No se pudieron cargar los cargos de la empresa.");
-        return;
-    }
-
-    data.forEach(site => {
-
-        const option =
-            document.createElement("option");
-
-        option.value = site.id;
-        option.textContent = site.name;
-
-        codeSite.appendChild(option);
-    });
 }
 
 document.querySelector("#code-company")
@@ -4905,33 +4940,61 @@ async function loadAttendance(){
         return;
     }
 
-    const response =
-        await authorizedFetch(
-            `/api/admin/companies/${companyId}/attendance`
-        );
+    try{
+        /*
+         * Fuente de verdad de Incidencias:
+         * PostgreSQL -> GET /api/admin/companies/:companyId/incidents?status=all
+         *
+         * "all" trae pendientes y calificadas.
+         */
+        const response =
+            await authorizedFetch(
+                `/api/admin/companies/${encodeURIComponent(companyId)}/incidents?status=${incidenceView === "justified" ? "qualified" : "pending"}&limit=500&_=${Date.now()}`,
+                {
+                    cache:"no-store",
+                    headers:{
+                        "Cache-Control":"no-cache",
+                        "Pragma":"no-cache"
+                    }
+                }
+            );
 
-    const data =
-        await response.json().catch(()=>({}));
+        const data =
+            await response.json().catch(()=>({}));
 
-    if(!response.ok){
+        if(!response.ok){
+            throw new Error(
+                data.error ||
+                "No se pudieron cargar las incidencias."
+            );
+        }
+
+        attendanceRecords =
+            Array.isArray(data.records)
+                ? data.records
+                : [];
+
+        fillWorksiteFilter();
+        renderAttendance();
+        await checkAutomaticLateAlerts();
+
+    }catch(error){
+
+        console.error("Error cargando incidencias:", error);
+
+        attendanceRecords = [];
 
         attendance.innerHTML=`
             <div class="empty">
-                No se pudo cargar el historial.
+                ${escapeHtml(error?.message || "No se pudieron cargar las incidencias.")}
             </div>
         `;
 
-        return;
+        const count=document.querySelector("#attendance-count");
+        if(count){
+            count.textContent="0 incidencias";
+        }
     }
-
-    attendanceRecords =
-        Array.isArray(data.records)
-            ? data.records
-            : [];
-
-    fillWorksiteFilter();
-    renderAttendance();
-    await checkAutomaticLateAlerts();
 }
 
 document.querySelector("#report-company")
@@ -5120,7 +5183,14 @@ async function loadWorksitesFromBackend(companyId){
     const data=await response.json().catch(()=>[]);
     if(!response.ok)throw new Error(data.error||"No se pudieron cargar los centros de trabajo");
     const companyName=companyNameFromSelect(document.querySelector("#devices-company"),companyId);
-    const normalized=(Array.isArray(data)?data:[]).map(s=>({
+    const legacyGhostNames=new Set(["contador","desarrollador web","programador"]);
+    const normalized=(Array.isArray(data)?data:[])
+      .filter(s=>{
+        const ghost=legacyGhostNames.has(normalizeSiteName(s.name));
+        const hasAddress=Boolean(s.street||s.postal_code||s.neighborhood||s.locality||s.municipality||s.state);
+        return !(ghost && !hasAddress);
+      })
+      .map(s=>({
         ...s,
         key:s.site_key||s.key||"",
         number:s.street_number||s.number||"",
@@ -5132,43 +5202,11 @@ async function loadWorksitesFromBackend(companyId){
     return normalized;
 }
 async function ensureRealWorksiteIds(companyId){
+    // PostgreSQL is authoritative. Never create sites from localStorage.
     if(!companyId)return [];
-    let remote=await loadWorksitesFromBackend(companyId);
-    const byName=new Map(remote.map(s=>[normalizeSiteName(s.name),s]));
-    const locals=getWorksites().filter(s=>String(s.company_id)===String(companyId) && !isUuid(s.id));
-
-    for(const local of locals){
-        let db=byName.get(normalizeSiteName(local.name));
-        if(!db){
-            const body={
-                name:local.name,
-                site_key:local.key||null,
-                postal_code:local.postal_code||null,
-                road_type:local.road_type||null,
-                street:local.street||null,
-                street_number:local.number||null,
-                interior_number:local.interior_number||null,
-                neighborhood:local.neighborhood||null,
-                locality:local.locality||null,
-                municipality:local.municipality||null,
-                state:local.state||null,
-                between_streets:local.between_streets||null,
-                reference_street:local.reference_street||null,
-                observations:local.observations||null,
-                latitude:local.latitude??null,
-                longitude:local.longitude??null
-            };
-            const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/sites`,{
-                method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)
-            });
-            const data=await response.json().catch(()=>({}));
-            if(!response.ok)throw new Error(data.detail?`${data.error}: ${data.detail}`:(data.error||"No se pudo migrar un centro de trabajo"));
-            db=data;
-            byName.set(normalizeSiteName(db.name),db);
-        }
-    }
     return await loadWorksitesFromBackend(companyId);
 }
+
 
 function companyNameFromSelect(select,id){
     const op=[...(select?.options||[])].find(o=>String(o.value)===String(id));
@@ -5671,7 +5709,7 @@ function renderDevicesTable(){
    INCIDENCIAS
 ------------------------- */
 function qualificationRows(){
-    return readJsonStorage(incidenceQualificationKey,[]);
+    return [];
 }
 function incidentRecordKey(record){
     const parts=[
@@ -5747,10 +5785,10 @@ function configuredIncidenceValue(record,type){
     const defaults={
         "late-value":0.25,
         "absence":1,
-        "medical-justified":1,
-        "medical-unjustified":1,
-        "leave":1,
-        "justified-absence":1,
+        "medical-justified":0,
+        "medical-unjustified":0,
+        "leave":0,
+        "justified-absence":0,
         "vacation":1,
         "valuation":1
     };
@@ -5824,21 +5862,55 @@ function isJustifiedType(type){
            key.includes("vacacion");
 }
 function effectiveIncidentState(record){
-    const saved=savedQualificationFor(record);
-    if(saved){
+    /*
+     * PostgreSQL manda qualified_incident_id cuando ya fue calificada.
+     * Esto tiene prioridad sobre cualquier dato viejo de localStorage.
+     */
+    if(record?.qualified_incident_id){
+        const type =
+            record.concept ||
+            record.incidence_type ||
+            record.incidence ||
+            record.qualification_type ||
+            eventLabels[record.event_type] ||
+            record.event_type ||
+            "Sin clasificar";
+
         return {
-            type:saved.type||incidenceTypeOf(record),
-            justified:Boolean(saved.justified),
+            type,
+            justified:isJustifiedType(type),
             reviewed:true,
             automatic:false,
-            saved
+            saved:{
+                type,
+                applied_value:record.applied_value,
+                notes:record.notes,
+                qualified_at:record.qualified_at
+            }
         };
     }
+
+   
+
     if(isRecordDuringVacation(record)){
-        return {type:"Vacaciones",justified:true,reviewed:true,automatic:true,saved:null};
+        return {
+            type:"Vacaciones",
+            justified:true,
+            reviewed:true,
+            automatic:true,
+            saved:null
+        };
     }
+
     const type=incidenceTypeOf(record);
-    return {type,justified:false,reviewed:false,automatic:false,saved:null};
+
+    return {
+        type,
+        justified:false,
+        reviewed:false,
+        automatic:false,
+        saved:null
+    };
 }
 
 function fillWorksiteFilter(){
@@ -5874,8 +5946,20 @@ function setIncidenceView(view){
     document.querySelector("#incidence-tab-justified")?.classList.toggle("active",incidenceView==="justified");
     renderAttendance();
 }
-document.querySelector("#incidence-tab-pending")?.addEventListener("click",()=>setIncidenceView("pending"));
-document.querySelector("#incidence-tab-justified")?.addEventListener("click",()=>setIncidenceView("justified"));
+document.querySelector("#incidence-tab-pending")?.addEventListener("click", async ()=>{
+    incidenceView="pending";
+    document.querySelector("#incidence-tab-pending")?.classList.add("active");
+    document.querySelector("#incidence-tab-justified")?.classList.remove("active");
+    await loadAttendance();
+});
+
+document.querySelector("#incidence-tab-justified")?.addEventListener("click", async ()=>{
+    incidenceView="justified";
+    document.querySelector("#incidence-tab-justified")?.classList.add("active");
+    document.querySelector("#incidence-tab-pending")?.classList.remove("active");
+    await loadAttendance();
+});
+
 
 function renderAttendance(){
     const paternal=normalizeSearchText(document.querySelector("#attendance-paternal")?.value);
@@ -5890,8 +5974,8 @@ function renderAttendance(){
 
     let filtered=attendanceRecords.filter(record=>{
         const state=effectiveIncidentState(record);
-        if(incidenceView==="pending" && state.justified) return false;
-        if(incidenceView==="justified" && !state.justified) return false;
+        if(incidenceView==="pending" && state.reviewed) return false;
+        if(incidenceView==="justified" && !state.reviewed) return false;
         const m=workerMetaForAttendance(record);
         const d=recordDate(record);
         const type=state.type;
@@ -5912,11 +5996,11 @@ function renderAttendance(){
     });
 
     if(count){
-        const label=incidenceView==="justified"?"justificada":"pendiente";
+        const label=incidenceView==="justified"?"calificada":"pendiente";
         count.textContent=`${filtered.length} incidencia${filtered.length===1?"":"s"} ${label}${filtered.length===1?"":"s"}`;
     }
     if(!filtered.length){
-        attendance.innerHTML=`<div class="empty">No hay incidencias ${incidenceView==="justified"?"justificadas":"pendientes"} que coincidan con los filtros.</div>`;
+        attendance.innerHTML=`<div class="empty">No hay incidencias ${incidenceView==="justified"?"calificadas":"pendientes"} que coincidan con los filtros.</div>`;
         return;
     }
 
@@ -5969,9 +6053,9 @@ function updateIncidenceModalStatus(){
     const out=document.querySelector("#incidence-modal-status");
     if(!out) return;
     if(isJustifiedType(type)){
-        out.innerHTML='<span class="justified-badge">Justificada</span> Esta incidencia se moverá a Justificadas.';
+        out.innerHTML='<span class="justified-badge">Justificada</span> Esta incidencia se moverá a Calificadas.';
     }else{
-        out.innerHTML='<span class="pending-badge reviewed-badge">Revisada · No justificada</span> Permanecerá en Pendientes, pero quedará marcada como revisada.';
+        out.innerHTML='<span class="pending-badge reviewed-badge">Revisada · No justificada</span> Esta incidencia se moverá a Calificadas como no justificada.';
     }
 }
 function openIncidenceQualification(workerName,record,preset=""){
@@ -6054,39 +6138,8 @@ async function checkAutomaticLateAlerts(){
     }
 }
 
-document.querySelector("#incidence-modal-save")?.addEventListener("click",async()=>{
-    if(!incidenceQualificationContext) return;
-    const {record}=incidenceQualificationContext;
-    const selectedType=document.querySelector("#incidence-modal-type")?.value||"Ausentismo";
-    const justified=isJustifiedType(selectedType);
-    const worker=workerForAttendance(record);
-    const m=workerMetaForAttendance(record);
-    const originalType=record.incidence_type || record.incidence || record.qualification_type || eventLabels[record.event_type] || record.event_type || "Sin clasificar";
 
-    let rows=qualificationRows().filter(q=>q.record_key!==incidentRecordKey(record));
-    rows.push({
-        record_key:incidentRecordKey(record),
-        worker_id:workerIdentity(worker)||String(record.employee_id||record.employee_code||m.name),
-        worker_name:m.name,
-        paternal:m.paternal,
-        cargo:m.role,
-        curp:m.curp,
-        type:selectedType,
-        original_type:originalType,
-        has_permission:justified,
-        justified,
-        occurred_at:record.occurred_at||new Date().toISOString(),
-        saved_at:new Date().toISOString()
-    });
-    writeJsonStorage(incidenceQualificationKey,rows);
-
-    closeIncidenceQualification();
-    if(justified) incidenceView="justified";
-    renderAttendance();
-    document.querySelector("#incidence-tab-pending")?.classList.toggle("active",incidenceView==="pending");
-    document.querySelector("#incidence-tab-justified")?.classList.toggle("active",incidenceView==="justified");
-    setStatus(justified?`Incidencia guardada como ${selectedType} y movida a Justificadas.`:`Incidencia guardada como ${selectedType}.`);
-});
+   
 
 /* Los filtros visibles; cargo y centro son cosas distintas. */
 ["#attendance-paternal","#attendance-role","#attendance-date-from","#attendance-date-to","#attendance-worksite","#attendance-incidence-type"]
@@ -6131,7 +6184,9 @@ document.querySelector("#user-form")
                     company_id:
                         document.querySelector("#user-company").value,
 
-                    site_id:
+                    site_id: null,
+
+                    cargo:
                         document.querySelector("#user-site").value || null,
 
                     username:
@@ -6241,14 +6296,27 @@ async function refreshAll(){
 
     try{
 
+        // Datos generales
         await loadCompanies();
+        await loadDevices();
 
-        await Promise.all([
-            loadDevices(),
-            loadAttendance()
-        ]);
+        // Incidencias / asistencias
+        await loadAttendance();
 
-        const now=new Date();
+        // Si está visible el reporte de tiempo extraordinario,
+        // lo vuelve a calcular inmediatamente.
+        const overtimePage =
+            document.querySelector("#overtime-page");
+
+        if(
+            overtimePage &&
+            overtimePage.classList.contains("active") &&
+            typeof bmcLoadOvertimeReport === "function"
+        ){
+            await bmcLoadOvertimeReport();
+        }
+
+        const now = new Date();
 
         document.querySelector("#last-sync").textContent =
             `Actualizado ${
@@ -6256,7 +6324,8 @@ async function refreshAll(){
                     "es-MX",
                     {
                         hour:"2-digit",
-                        minute:"2-digit"
+                        minute:"2-digit",
+                        second:"2-digit"
                     }
                 )
             }`;
@@ -6270,7 +6339,6 @@ async function refreshAll(){
     }
 }
 
-
 function startAutomaticRefresh(){
 
     if(refreshTimer){
@@ -6280,9 +6348,31 @@ function startAutomaticRefresh(){
     refreshTimer =
         setInterval(
             refreshAll,
-            10000
+            10 * 60 * 1000
         );
 }
+
+
+const manualRefreshBtn=document.querySelector("#manual-refresh-btn");
+
+manualRefreshBtn?.addEventListener("click",async()=>{
+    if(manualRefreshBtn.disabled) return;
+
+    const originalText=manualRefreshBtn.textContent;
+    manualRefreshBtn.disabled=true;
+    manualRefreshBtn.textContent="Actualizando...";
+
+    try{
+        await refreshAll();
+
+        // Reinicia el contador: la próxima actualización automática
+        // ocurrirá 10 minutos después de esta actualización manual.
+        startAutomaticRefresh();
+    }finally{
+        manualRefreshBtn.disabled=false;
+        manualRefreshBtn.textContent=originalText || "Actualizar";
+    }
+});
 
 
 /* =========================
@@ -6470,7 +6560,16 @@ function bmcKeyToWeekday(key){return BMC_DAYS.find(x=>x[0]===key)?.[2]||null;}
 function bmcShortToWeekday(short){return BMC_DAYS.find(x=>x[3]===short)?.[2]||null;}
 
 function bmcSiteOptions(selected=""){
-  return ['<option value="">Sin asignar</option>',...getWorksites().map(s=>`<option value="${escapeHtml(s.id)}" ${String(s.id)===String(selected)?"selected":""}>${escapeHtml(s.name||s.key||"Centro")}</option>`)].join("");
+  const sites=[...getWorksites()];
+  const companyText=[...document.querySelectorAll("#devices-company option,#report-company option,#worksite-company option,#user-company option")].find(o=>o.selected)?.textContent||"";
+  if(/cdmx|ciudad de méxico|ciudad de mexico/i.test(companyText) && !sites.some(s=>/cdmx|ciudad de méxico|ciudad de mexico/i.test(String(s.name||"")))){
+    sites.push({id:"cdmx-default",name:"Centro de trabajo CDMX",key:"CDMX"});
+  }
+  return [
+    `<option value="" ${String(selected)===""?"selected":""}>Sin asignar</option>`,
+    `<option value="__FOREIGN__" ${String(selected)==="__FOREIGN__"?"selected":""}>Foráneo</option>`,
+    ...sites.map(s=>`<option value="${escapeHtml(s.id)}" ${String(s.id)===String(selected)?"selected":""}>${escapeHtml(s.name||s.key||"Centro")}</option>`)
+  ].join("");
 }
 
 function bmcInjectConfigUI(){
@@ -6485,16 +6584,21 @@ function bmcInjectConfigUI(){
   if(incidenceHeader){let r=incidenceHeader;while(r&&!(r.classList.contains("config-section-row")&&r!==incidenceHeader)){const n=r.nextElementSibling;r.remove();r=n;}}
   const generalHeader=table.querySelector("tr.config-section-row");
   generalHeader?.insertAdjacentHTML("afterend",`<tr id="bmc-category-row"><td>Categoría</td><td><strong id="bmc-category-display">—</strong></td><td>La configuración se aplica a todos los trabajadores de esta categoría.</td></tr><tr><td>Rango permitido</td><td><strong>300 m</strong></td><td>Radio fijo para validar la ubicación del registro.</td></tr>`);
-  const horario=[...table.querySelectorAll("tr.config-section-row")].find(r=>r.textContent.includes("Horario"));
-  if(horario)horario.insertAdjacentHTML("afterend",`<tr><td>Tolerancia de entrada</td><td><div class="input-unit"><input id="bmc-tolerance" type="number" min="0" step="1" value="10"><span>min</span></div></td><td>Minutos permitidos después de la hora de entrada.</td></tr>`);
-  const breakRow=[...table.querySelectorAll("tr")].find(r=>r.cells?.[0]?.textContent.trim()==="Descanso");
-  if(breakRow)breakRow.innerHTML=`<td>Descansos</td><td colspan="2"><div id="bmc-rest-list" class="dynamic-rest-list"></div><div class="rest-actions-line"><button id="bmc-add-rest" class="btn btn-soft btn-small" type="button">＋ Agregar descanso</button><span class="mini-note">Puede tener uno, varios o ningún día de descanso.</span></div></td>`;
-  const lastHorario=[...table.querySelectorAll("tr")].find(r=>r.querySelector("#bmc-add-rest"));
+  const entryRow=document.querySelector("#cfg-entry")?.closest("tr");
+  if(entryRow && !document.querySelector("#bmc-tolerance-row")) entryRow.insertAdjacentHTML("afterend",`<tr id="bmc-tolerance-row"><td>Tiempo de tolerancia</td><td><div class="input-unit"><input id="bmc-tolerance-minutes" type="number" min="0" step="1" value="10"><span>min</span></div></td><td></td></tr>`);
+  const mealRow=document.querySelector("#cfg-meal")?.closest("tr");
+  if(mealRow) mealRow.cells[2].innerHTML=`<div class="input-unit"><input id="bmc-meal-minutes" type="number" min="0" step="5" value="60"><span>min</span></div><div class="rest-duration-label">Tiempo de comida</div>`;
+  const breakRow=[...table.querySelectorAll("tr")].find(r=>["Descanso","Descansos"].includes(r.cells?.[0]?.textContent.trim()));
+  if(breakRow){
+    breakRow.innerHTML=`<td>Descansos</td><td><input id="bmc-rest-start" type="time" value="12:00"></td><td><div class="weekday-picker" data-days-for="rest"></div></td>`;
+    if(!document.querySelector("#bmc-rest-duration-row")) breakRow.insertAdjacentHTML("afterend",`<tr id="bmc-rest-duration-row"><td>Tiempo de descanso</td><td><div class="input-unit"><input id="bmc-rest-minutes" type="number" min="0" step="5" value="30"><span>min</span></div></td><td></td></tr>`);
+  }
+  renderWeekdayPickers();
+  const lastHorario=document.querySelector("#bmc-rest-duration-row")||breakRow;
   if(lastHorario){
     const normal=BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario");
-    lastHorario.insertAdjacentHTML("afterend",`<tr class="config-section-row"><td colspan="3">Incidencias</td></tr><tr><td colspan="3"><div class="incidence-values-grid bmc-concept-value-grid"><div class="incidence-values-head">Concepto</div><div class="incidence-values-head">Valor</div>${normal.map(n=>{const i=BMC_INCIDENCES.indexOf(n);return `<div>${escapeHtml(n)}</div><input id="bmc-inc-${i}" type="number" min="0" step="0.01" value="1">`;}).join("")}<div>Tiempo extraordinario</div><div class="bmc-overtime-cell"><select id="bmc-overtime-enabled"><option value="si">Sí</option><option value="no">No</option></select><div id="bmc-overtime-value-wrap" class="hidden" style="margin-top:8px"><input id="bmc-inc-${BMC_INCIDENCES.indexOf("Tiempo extraordinario")}" type="number" min="0" step="0.01" value="0" placeholder="Valor"></div></div></div></td></tr>`);
+    lastHorario.insertAdjacentHTML("afterend",`<tr class="config-section-row"><td colspan="3">Incidencias</td></tr><tr><td colspan="3"><div class="incidence-values-grid bmc-concept-value-grid"><div class="incidence-values-head">Concepto</div><div class="incidence-values-head">Valor</div>${normal.map(n=>{const i=BMC_INCIDENCES.indexOf(n);return `<div>${escapeHtml(n)}</div><input id="bmc-inc-${i}" type="number" min="0" step="0.01" value="1">`;}).join("")}<div>Tiempo extraordinario</div><div class="bmc-overtime-cell"><select id="bmc-overtime-enabled"><option value="si">Sí</option><option value="no">No</option></select></div></div></td></tr>`);
   }
-  document.querySelector("#bmc-add-rest")?.addEventListener("click",()=>bmcAddRest());
   document.querySelector("#bmc-overtime-enabled")?.addEventListener("change",bmcToggleOvertimeValue);
   bmcToggleOvertimeValue();
 }
@@ -6509,8 +6613,7 @@ function bmcAddRest(value=""){
   row.querySelector("button").onclick=()=>row.remove(); box.appendChild(row);
 }
 function bmcToggleOvertimeValue(){
-  const enabled=document.querySelector("#bmc-overtime-enabled")?.value||"si";
-  document.querySelector("#bmc-overtime-value-wrap")?.classList.toggle("hidden",enabled!=="no");
+  // Solo Sí/No: no existe campo de valoración manual.
 }
 function bmcReadFormExtras(){
   const overtimeAllowed=(document.querySelector("#bmc-overtime-enabled")?.value||"si")==="si";
@@ -6520,10 +6623,13 @@ function bmcReadFormExtras(){
     end_time:document.querySelector("#cfg-exit")?.value||null,
     meal_start_time:document.querySelector("#cfg-meal")?.value||null,
     meal_end_time:document.querySelector("#cfg-meal-end")?.value||null,
-    tolerance_minutes:Number(document.querySelector("#bmc-tolerance")?.value||10),
+    tolerance_minutes:Number(document.querySelector("#bmc-tolerance-minutes")?.value||10),
     overtime_allowed:overtimeAllowed,
-    overtime_value:overtimeAllowed?null:Number(document.querySelector(`#bmc-inc-${BMC_INCIDENCES.indexOf("Tiempo extraordinario")}`)?.value||0),
-    rest_days:[...document.querySelectorAll(".bmc-rest-day")].map(x=>bmcKeyToWeekday(x.value)).filter(Boolean),
+    overtime_value:null,
+    rest_days:selectedDays("rest").map(short=>bmcShortToWeekday(short)).filter(Boolean),
+    rest_start_time:document.querySelector("#bmc-rest-start")?.value||null,
+    rest_duration_minutes:Number(document.querySelector("#bmc-rest-minutes")?.value||30),
+    meal_duration_minutes:Number(document.querySelector("#bmc-meal-minutes")?.value||60),
     workdays:selectedDays("entry").map(short=>({weekday:bmcShortToWeekday(short),is_workday:true,start_time:document.querySelector("#cfg-entry")?.value||null,end_time:document.querySelector("#cfg-exit")?.value||null})).filter(x=>x.weekday),
     incidence_values
   };
@@ -6534,14 +6640,16 @@ function bmcFillFormExtras(cfg={}){
   const exit=document.querySelector("#cfg-exit"); if(exit)exit.value=cfg.end_time||"17:00";
   const meal=document.querySelector("#cfg-meal"); if(meal)meal.value=cfg.meal_start_time||"13:00";
   const mealEnd=document.querySelector("#cfg-meal-end"); if(mealEnd)mealEnd.value=cfg.meal_end_time||addMinutesToTime(cfg.meal_start_time||"13:00",60);
-  const tol=document.querySelector("#bmc-tolerance"); if(tol)tol.value=cfg.tolerance_minutes??10;
   const isConfigured=Boolean(cfg.configured_at);
   const work=Array.isArray(cfg.workdays)?cfg.workdays.filter(x=>x.is_workday!==false).map(x=>bmcWeekdayToShort(x.weekday)).filter(Boolean):[];
   setSelectedDays("entry",isConfigured?work:(work.length?work:["L","M","X","J","V"]));
-  const rest=document.querySelector("#bmc-rest-list"); if(rest)rest.innerHTML="";
-  (cfg.rest_days||[]).forEach(n=>bmcAddRest(bmcWeekdayToKey(n)));
+  setSelectedDays("rest",(cfg.rest_days||[]).map(n=>bmcWeekdayToShort(n)).filter(Boolean));
+  const restStart=document.querySelector("#bmc-rest-start"); if(restStart)restStart.value=cfg.rest_start_time||"12:00";
+  const restMinutes=document.querySelector("#bmc-rest-minutes"); if(restMinutes)restMinutes.value=cfg.rest_duration_minutes??30;
+  const mealMinutes=document.querySelector("#bmc-meal-minutes"); if(mealMinutes)mealMinutes.value=cfg.meal_duration_minutes??60;
+  const tolerance=document.querySelector("#bmc-tolerance-minutes"); if(tolerance)tolerance.value=cfg.tolerance_minutes??10;
   const values=Object.fromEntries((cfg.incidence_values||[]).map(x=>[x.concept,Number(x.value)]));
-  BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario").forEach((name,i)=>{const input=document.querySelector(`#bmc-inc-${i}`);if(input)input.value=values[name]??1;});
+  BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario").forEach((name,i)=>{const input=document.querySelector(`#bmc-inc-${i}`);if(input){const zero=["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].includes(name);input.value=values[name]??(zero?0:1);}});
   const overtime=document.querySelector("#bmc-overtime-enabled"); if(overtime)overtime.value=cfg.overtime_allowed===false?"no":"si";
   const overtimeValue=document.querySelector(`#bmc-inc-${BMC_INCIDENCES.indexOf("Tiempo extraordinario")}`); if(overtimeValue)overtimeValue.value=cfg.overtime_value??0;
   bmcToggleOvertimeValue(); updateCalculatedWorkday?.(); syncInheritedDays?.();
@@ -6692,7 +6800,7 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
   const savedRows=Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[];
   const savedMap=Object.fromEntries(
     savedRows
-      .map(x=>[Number(x.weekday),x.site_id||""])
+      .map(x=>[Number(x.weekday),String(x.work_mode||"SITE").toUpperCase()==="FOREIGN" ? "__FOREIGN__" : (x.site_id||"")])
       .filter(([n])=>Number.isInteger(n)&&n>=1&&n<=7)
   );
 
@@ -6723,7 +6831,7 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
 
     <div class="worker-apply-all">
       <div>
-        <label>Aplicar el mismo centro a todos los días</label>
+        <label>Aplicar el mismo centro o modalidad foránea a todos los días</label>
         <select id="worker-all-sites-select">${bmcSiteOptions("")}</select>
       </div>
       <button id="worker-apply-all-btn" class="btn btn-soft" type="button">Aplicar a todos</button>
@@ -6809,7 +6917,7 @@ openWorkerEdit=async function(worker){
 
   const setValue=(selector,value)=>{const el=document.querySelector(selector);if(el)el.value=value??"";};
   setValue("#worker-edit-hire-date",cfg.hire_date?String(cfg.hire_date).slice(0,10):"");
-  setValue("#worker-edit-category",[1,2,3].includes(Number(cfg.category_number))?String(cfg.category_number):"");
+  setValue("#worker-edit-category",(Number.isInteger(Number(cfg.category_number))&&Number(cfg.category_number)>0)?String(cfg.category_number):"");
   setValue("#worker-edit-phone",cfg.phone||"");
   setValue("#worker-edit-name",cfg.first_name||"");
   setValue("#worker-edit-paternal",cfg.last_name_paternal||"");
@@ -6841,8 +6949,15 @@ async function bmcPersistWorkerConfig(){
   if(!worker)return;
   const companyId=String(worker.company_id||bmcCompanyId()), code=bmcEmployeeCode(worker), category=Number(document.querySelector("#worker-edit-category")?.value||0);
   if(!companyId||!code)return;
-  if(![1,2,3].includes(category)){setStatus("Selecciona Categoría 1, 2 o 3.");return;}
-  let work_sites_by_day=[...document.querySelectorAll("[data-worker-day-site]")].map(el=>({weekday:Number(el.dataset.workerDaySite),site_id:el.value||null}));
+  if(!Number.isInteger(category)||category<1){setStatus("Selecciona una categoría válida.");return;}
+  let work_sites_by_day=[...document.querySelectorAll("[data-worker-day-site]")].map(el=>{
+    const value=String(el.value||"");
+    return {
+      weekday:Number(el.dataset.workerDaySite),
+      work_mode:value==="__FOREIGN__"?"FOREIGN":"SITE",
+      site_id:value==="__FOREIGN__"?null:(value||null)
+    };
+  });
   const invalidSite=work_sites_by_day.find(x=>x.site_id && !isUuid(x.site_id));
   if(invalidSite){
     try{
@@ -6968,15 +7083,634 @@ document.querySelector("#worker-edit-category")?.addEventListener("change",()=>{
   bmcRenderDaySitesFromConfig(cfg,true);
 });
 
-function bmcRenderVacationSummary(){
-  const box=document.querySelector("#worker-vacation-summary"); if(!box)return;
-  const workers=mergedWorkers(); if(!workers.length){box.innerHTML='<div class="empty">No hay trabajadores para calcular.</div>';return;}
-  box.innerHTML=workers.map(w=>{
-    const cfg=bmcWorkerConfigCache[bmcEmployeeCode(w)]||w; const hire=cfg.hire_date?String(cfg.hire_date).slice(0,10):""; const years=bmcYearsBetween(hire); const current=bmcLegalVacationDays(years); const eligible=years>=1;
-    return `<div class="vacation-worker ${eligible?"eligible":"pending"}"><div class="vacation-worker-top"><div><div class="vacation-worker-name">${escapeHtml(fullWorkerName(w))}</div><div class="worker-select-meta">Categoría ${escapeHtml(bmcCategoryOf(w))} · Ingreso: ${hire?new Date(hire+'T00:00:00').toLocaleDateString('es-MX'):"sin capturar"}</div></div><span class="${eligible?"eligibility-badge":"not-yet-badge"}">${eligible?"Ya generó vacaciones":"Aún no cumple 1 año"}</span></div><div class="vacation-stats"><span class="vacation-stat">Antigüedad: ${years} año${years===1?"":"s"}</span><span class="vacation-stat">Días legales del periodo: ${current}</span></div></div>`;
-  }).join("");
+
+async function bmcRenderVacationSummary(){
+
+  const box = document.querySelector("#worker-vacation-summary");
+  if(!box) return;
+
+  const workers = mergedWorkers();
+
+  if(!workers.length){
+    box.innerHTML =
+      '<div class="empty">No hay trabajadores para calcular.</div>';
+    return;
+  }
+
+  box.innerHTML =
+    '<div class="empty">Cargando vacaciones...</div>';
+
+  const cards = await Promise.all(
+
+    workers.map(async w => {
+
+      const cfg =
+        bmcWorkerConfigCache[bmcEmployeeCode(w)] || w;
+
+      const code = bmcEmployeeCode(w);
+
+      const hire =
+        cfg.hire_date
+          ? String(cfg.hire_date).slice(0,10)
+          : "";
+
+      const years = bmcYearsBetween(hire);
+
+      const eligible = years >= 1;
+
+      /* =========================
+         DÍAS GENERADOS ACUMULADOS
+      ========================= */
+
+      let generated = 0;
+
+      for(let year = 1; year <= years; year++){
+        generated += Number(
+          bmcLegalVacationDays(year) || 0
+        );
+      }
+
+      /* =========================
+         VACACIONES TOMADAS
+      ========================= */
+
+      let taken = 0;
+      let history = [];
+
+      try{
+
+        if(code && eligible){
+
+          const companyId = bmcCompanyId();
+
+const response = await authorizedFetch(
+  `/api/admin/companies/${encodeURIComponent(companyId)}` +
+  `/employees/${encodeURIComponent(code)}/vacations`
+);
+
+const data = await response.json().catch(() => ({}));
+
+if(!response.ok){
+  throw new Error(
+    data.error || "No se pudieron consultar las vacaciones."
+  );
 }
 
+taken = Number(
+  data?.total_taken || 0
+);
+
+          history =
+            Array.isArray(data?.vacations)
+              ? data.vacations
+              : [];
+        }
+
+      }catch(error){
+
+        console.error(
+          `Error cargando vacaciones de ${code}:`,
+          error
+        );
+
+      }
+
+      const available =
+        Math.max(0, generated - taken);
+
+      /* =========================
+         HISTORIAL
+      ========================= */
+
+      const historyHtml =
+        history.length
+          ? history.map(v => {
+
+              const start =
+                v.start_date
+                  ? new Date(
+                      String(v.start_date)
+                        .slice(0,10) +
+                      "T00:00:00"
+                    ).toLocaleDateString("es-MX")
+                  : "";
+
+              const end =
+                v.end_date
+                  ? new Date(
+                      String(v.end_date)
+                        .slice(0,10) +
+                      "T00:00:00"
+                    ).toLocaleDateString("es-MX")
+                  : "";
+
+              return `
+                <div class="vacation-history-row">
+
+                  <strong>
+                    ${Number(v.days_taken)}
+                    día${
+                      Number(v.days_taken) === 1
+                        ? ""
+                        : "s"
+                    }
+                  </strong>
+
+                  <span>
+                    ${escapeHtml(start)}
+                    ${
+                      end && end !== start
+                        ? ` al ${escapeHtml(end)}`
+                        : ""
+                    }
+                  </span>
+
+                  ${
+                    v.notes
+                      ? `<span>${escapeHtml(v.notes)}</span>`
+                      : ""
+                  }
+
+                </div>
+              `;
+
+            }).join("")
+
+          : `
+              <div class="vacation-history-empty">
+                No hay vacaciones tomadas registradas.
+              </div>
+            `;
+
+      /* =========================
+         TARJETA
+      ========================= */
+
+      return `
+
+        <div class="vacation-worker ${
+          eligible ? "eligible" : "pending"
+        }">
+
+          <div class="vacation-worker-top">
+
+            <div>
+
+              <div class="vacation-worker-name">
+                ${escapeHtml(fullWorkerName(w))}
+              </div>
+
+              <div class="worker-select-meta">
+
+                Categoría ${escapeHtml(bmcCategoryOf(w))}
+                · Ingreso:
+
+                ${
+                  hire
+                    ? new Date(
+                        hire + "T00:00:00"
+                      ).toLocaleDateString("es-MX")
+                    : "sin capturar"
+                }
+
+              </div>
+
+            </div>
+
+            <span class="${
+              eligible
+                ? "eligibility-badge"
+                : "not-yet-badge"
+            }">
+
+              ${
+                eligible
+                  ? "Ya generó vacaciones"
+                  : "Aún no cumple 1 año"
+              }
+
+            </span>
+
+          </div>
+
+          <!-- DATOS + BOTONES EN LA MISMA FILA -->
+
+          <div class="vacation-stats">
+
+            <span class="vacation-stat">
+              Antigüedad:
+              ${years} año${years === 1 ? "" : "s"}
+            </span>
+
+            <span class="vacation-stat">
+              Días generados:
+              <strong>${generated}</strong>
+            </span>
+
+            <span class="vacation-stat">
+              Días tomados:
+              <strong>${taken}</strong>
+            </span>
+
+            <span class="vacation-stat">
+              Días disponibles:
+              <strong>${available}</strong>
+            </span>
+
+            ${
+              eligible
+                ? `
+
+                  <div class="vacation-actions vacation-actions-inline">
+
+                    <button
+                      type="button"
+                      class="vacation-btn vacation-btn-primary"
+                      onclick="bmcOpenVacationModal(
+                        '${escapeHtml(code)}',
+                        '${escapeHtml(fullWorkerName(w))}',
+                        ${available}
+                      )"
+                    >
+                      + Registrar vacaciones
+                    </button>
+
+                    <button
+                      type="button"
+                      class="vacation-btn vacation-btn-soft"
+                      onclick="
+                        document
+                          .querySelector(
+                            '#vacation-history-${escapeHtml(code)}'
+                          )
+                          ?.classList.toggle('hidden')
+                      "
+                    >
+                      Ver historial
+                    </button>
+
+                  </div>
+
+                `
+                : ""
+            }
+
+          </div>
+
+          ${
+            eligible
+              ? `
+
+                <div
+                  id="vacation-history-${escapeHtml(code)}"
+                  class="vacation-history hidden"
+                >
+                  ${historyHtml}
+                </div>
+
+              `
+              : ""
+          }
+
+        </div>
+      `;
+
+    })
+
+  );
+
+  box.innerHTML = cards.join("");
+}
+function bmcOpenVacationModal(
+  employeeCode,
+  employeeName,
+  availableDays
+){
+
+  document
+    .querySelector("#vacation-register-modal")
+    ?.remove();
+
+  const modal = document.createElement("div");
+
+  modal.id = "vacation-register-modal";
+  modal.className = "modal-backdrop";
+
+  modal.innerHTML = `
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <h3>Registrar vacaciones</h3>
+
+          <span>
+            ${escapeHtml(employeeName)}
+            · ${availableDays} días disponibles
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="modal-close"
+          id="vacation-modal-close"
+        >
+          ×
+        </button>
+
+      </div>
+
+      <div class="modal-grid">
+
+        <div class="modal-field">
+
+          <label>Días tomados</label>
+
+          <input
+            id="vacation-modal-days"
+            type="number"
+            min="1"
+            step="1"
+            max="${availableDays}"
+            placeholder="Ej. 6"
+          >
+
+        </div>
+
+        <div class="modal-field">
+
+          <label>Fecha de inicio</label>
+
+          <input
+            id="vacation-modal-start"
+            type="date"
+          >
+
+        </div>
+
+        <div class="modal-field">
+
+          <label>Fecha de término</label>
+
+          <input
+            id="vacation-modal-end"
+            type="date"
+          >
+
+        </div>
+
+        <div class="modal-field full">
+
+          <label>Notas</label>
+
+          <input
+            id="vacation-modal-notes"
+            type="text"
+            placeholder="Opcional"
+          >
+
+        </div>
+
+      </div>
+
+      <div class="modal-actions">
+
+        <button
+          type="button"
+          class="btn btn-soft"
+          id="vacation-modal-cancel"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="vacation-modal-save"
+        >
+          Guardar vacaciones
+        </button>
+
+      </div>
+
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeModal = () => {
+    modal.remove();
+  };
+
+  document
+    .querySelector("#vacation-modal-close")
+    ?.addEventListener(
+      "click",
+      closeModal
+    );
+
+  document
+    .querySelector("#vacation-modal-cancel")
+    ?.addEventListener(
+      "click",
+      closeModal
+    );
+
+  modal.addEventListener("click", event => {
+
+    if(event.target === modal){
+      closeModal();
+    }
+
+  });
+
+  const startInput =
+    document.querySelector(
+      "#vacation-modal-start"
+    );
+
+  const endInput =
+    document.querySelector(
+      "#vacation-modal-end"
+    );
+
+  startInput?.addEventListener(
+    "change",
+    () => {
+
+      if(!startInput.value) return;
+
+      endInput.min =
+        startInput.value;
+
+      if(
+        !endInput.value ||
+        endInput.value < startInput.value
+      ){
+        endInput.value =
+          startInput.value;
+      }
+
+    }
+  );
+
+  document
+    .querySelector("#vacation-modal-save")
+    ?.addEventListener(
+      "click",
+      async () => {
+
+        const days =
+          Number(
+            document.querySelector(
+              "#vacation-modal-days"
+            )?.value
+          );
+
+        const startDate =
+          document.querySelector(
+            "#vacation-modal-start"
+          )?.value || "";
+
+        const endDate =
+          document.querySelector(
+            "#vacation-modal-end"
+          )?.value || "";
+
+        const notes =
+          document.querySelector(
+            "#vacation-modal-notes"
+          )?.value?.trim() || null;
+
+        if(
+          !Number.isFinite(days) ||
+          days <= 0
+        ){
+          alert(
+            "Ingresa una cantidad válida de días."
+          );
+          return;
+        }
+
+        if(days > availableDays){
+          alert(
+            `Solo tiene ${availableDays} días disponibles.`
+          );
+          return;
+        }
+
+        if(!startDate){
+          alert(
+            "Selecciona la fecha de inicio."
+          );
+          return;
+        }
+
+        if(!endDate){
+          alert(
+            "Selecciona la fecha de término."
+          );
+          return;
+        }
+
+        if(endDate < startDate){
+          alert(
+            "La fecha de término no puede ser anterior a la fecha de inicio."
+          );
+          return;
+        }
+
+        const saveButton =
+          document.querySelector(
+            "#vacation-modal-save"
+          );
+
+        try{
+
+          if(saveButton){
+            saveButton.disabled = true;
+            saveButton.textContent =
+              "Guardando...";
+          }
+
+          const companyId =
+            bmcCompanyId();
+
+          if(!companyId){
+            throw new Error(
+              "No se encontró la empresa seleccionada."
+            );
+          }
+
+          const response =
+            await authorizedFetch(
+
+              `/api/admin/companies/${encodeURIComponent(companyId)}` +
+              `/employees/${encodeURIComponent(employeeCode)}/vacations`,
+
+              {
+                method: "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json"
+                },
+
+                body: JSON.stringify({
+                  start_date: startDate,
+                  end_date: endDate,
+                  days_taken: days,
+                  notes
+                })
+              }
+
+            );
+
+          const data =
+            await response
+              .json()
+              .catch(() => ({}));
+
+          if(!response.ok){
+
+            throw new Error(
+              data.error ||
+              "No se pudieron registrar las vacaciones."
+            );
+
+          }
+
+          closeModal();
+
+          await bmcRenderVacationSummary();
+
+          alert(
+            "Vacaciones registradas correctamente."
+          );
+
+        }catch(error){
+
+          console.error(
+            "Error registrando vacaciones:",
+            error
+          );
+
+          alert(
+            error?.message ||
+            "No se pudieron registrar las vacaciones."
+          );
+
+          if(saveButton){
+            saveButton.disabled = false;
+            saveButton.textContent =
+              "Guardar vacaciones";
+          }
+
+        }
+
+      }
+    );
+}
 function bmcSeedPolicies(){
   let rows=getPolicies(); let p=rows.find(x=>x.title===BMC_V7_POLICY_TITLE);
   if(!p){p={id:`policy-${Date.now()}`,title:BMC_V7_POLICY_TITLE,text:BMC_V7_POLICY_TEXT,created_at:new Date().toISOString()};rows.unshift(p);savePolicies(rows);}else if(!p.text?.trim()){p.text=BMC_V7_POLICY_TEXT;savePolicies(rows);}
@@ -6991,37 +7725,160 @@ function bmcEnhanceIncidenceModal(){
 }
 bmcEnhanceIncidenceModal();
 
+
 async function bmcQualifyIncidenceBackend(event){
-  if(event.target?.id!=="incidence-modal-save")return;
-  if(!incidenceQualificationContext?.record)return;
-  event.preventDefault(); event.stopImmediatePropagation();
-  const record=incidenceQualificationContext.record;
-  const companyId=String(record.company_id||bmcCompanyId());
-  const attendanceId=String(record.attendance_record_id||record.id_remote||record.id||"");
-  const concept=document.querySelector("#incidence-modal-type")?.value||"Ausentismo";
-  const notes=document.querySelector("#incidence-modal-note")?.value?.trim()||null;
-  if(!companyId||!attendanceId){setStatus("No se encontró el registro de asistencia para calificar.");return;}
+
+  if(event.target?.id !== "incidence-modal-save") return;
+  if(!incidenceQualificationContext?.record) return;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  const record = incidenceQualificationContext.record;
+
+  const companyId = String(
+    record.company_id ||
+    bmcCompanyId() ||
+    ""
+  );
+
+  const attendanceId = String(
+    record.attendance_record_id ||
+    record.id_remote ||
+    record.record_id ||
+    record.id ||
+    ""
+  );
+
+  const concept =
+    document.querySelector("#incidence-modal-type")?.value ||
+    "Ausentismo";
+
+  const notes =
+    document.querySelector("#incidence-modal-note")?.value?.trim() ||
+    null;
+
+  const feedback =
+    document.querySelector("#incidence-save-feedback");
+
+  const saveBtn =
+    document.querySelector("#incidence-modal-save");
+
+  if(!companyId){
+    if(feedback) feedback.textContent = "No se encontró la empresa.";
+    return;
+  }
+
+  if(!attendanceId){
+    if(feedback) feedback.textContent =
+      "No se encontró el registro de asistencia.";
+    return;
+  }
+
   try{
-    const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/incidents/${encodeURIComponent(attendanceId)}/qualify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({concept,notes})});
-    const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.error||"No se pudo calificar la incidencia");
-    const worker=workerForAttendance(record), m=workerMetaForAttendance(record);
-    let local=qualificationRows().filter(q=>q.record_key!==incidentRecordKey(record));
-    local.push({record_key:incidentRecordKey(record),worker_id:workerIdentity(worker)||record.employee_id||record.employee_code,worker_name:m.name,paternal:m.paternal,cargo:m.role,curp:m.curp,type:concept,original_type:eventLabels[record.event_type]||record.event_type,justified:isJustifiedType(concept),has_permission:isJustifiedType(concept),occurred_at:record.occurred_at||new Date().toISOString(),saved_at:new Date().toISOString(),quantified_value:Number(data.applied_value||0),category:bmcCategoryOf(worker)});
-    writeJsonStorage(incidenceQualificationKey,local);
-    const feedback=document.querySelector("#incidence-save-feedback");
-    const saveBtn=document.querySelector("#incidence-modal-save");
-    if(feedback){feedback.textContent=`✓ ${concept} guardada correctamente.`;feedback.classList.remove("save-error");feedback.classList.add("show");}
-    if(saveBtn){saveBtn.classList.add("btn-saved");saveBtn.textContent="✓ Guardado";}
+
+    if(saveBtn){
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Guardando...";
+    }
+
+    if(feedback){
+      feedback.textContent = "Guardando en base de datos...";
+    }
+
+    console.log("POST INCIDENCIA:", {
+      companyId,
+      attendanceId,
+      concept
+    });
+
+    const response = await authorizedFetch(
+      `/api/admin/companies/${encodeURIComponent(companyId)}` +
+      `/incidents/${encodeURIComponent(attendanceId)}/qualify`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          concept,
+          notes
+        })
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    console.log(
+      "RESPUESTA BACKEND INCIDENCIA:",
+      response.status,
+      data
+    );
+
+    if(!response.ok){
+      throw new Error(
+        data.error ||
+        `Error ${response.status} al guardar la incidencia.`
+      );
+    }
+
+    /*
+     * IMPORTANTE:
+     * NO guardamos la incidencia en localStorage.
+     * El backend/PostgreSQL es la única fuente real.
+     */
+
+    if(feedback){
+      feedback.textContent =
+        `✓ ${concept} guardada correctamente.`;
+      feedback.classList.remove("save-error");
+      feedback.classList.add("show");
+    }
+
+    setStatus(
+      `Incidencia guardada como ${concept}.`
+    );
+
+    closeIncidenceQualification();
+
+    incidenceView = "justified";
+
+    await loadAttendance();
     await bmcRenderIncidentCounts();
-    setStatus(`Incidencia guardada como ${concept}. El valor se tomó automáticamente de la categoría.`);
-    setTimeout(()=>{if(saveBtn){saveBtn.classList.remove("btn-saved");saveBtn.textContent="Guardar";}closeIncidenceQualification();renderAttendance();},700);
+
   }catch(error){
-    console.error(error);
-    const feedback=document.querySelector("#incidence-save-feedback");
-    if(feedback){feedback.textContent=error.message||"No se pudo calificar la incidencia.";feedback.classList.add("show","save-error");}
-    setStatus(error.message||"No se pudo calificar la incidencia.");
+
+    console.error(
+      "ERROR BACKEND INCIDENCIA:",
+      error
+    );
+
+    if(feedback){
+      feedback.textContent =
+        error?.message ||
+        "No se pudo guardar la incidencia.";
+
+      feedback.classList.add(
+        "show",
+        "save-error"
+      );
+    }
+
+    setStatus(
+      error?.message ||
+      "No se pudo guardar la incidencia."
+    );
+
+  }finally{
+
+    if(saveBtn){
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar";
+    }
   }
 }
+
+
 document.addEventListener("click",bmcQualifyIncidenceBackend,true);
 
 async function bmcRenderIncidentCounts(){
@@ -7063,6 +7920,71 @@ setTimeout(async()=>{await bmcLoadCategories();await bmcWarmWorkerConfigs();},0)
 
 
 
+
+/* =========================
+   V15 - COMIDA, DESCANSO, AUSENTISMO Y RETARDOS
+========================= */
+function bmcV15WorkDaysCount(){return Math.max(1,selectedDays("entry").length||1)}
+function bmcV15AbsenceAuto(){return Number((7/bmcV15WorkDaysCount()).toFixed(2))}
+function bmcV15RefreshAbsenceFormula(force=false){
+  const input=document.querySelector("#bmc-absence-value"); if(!input)return;
+  const days=bmcV15WorkDaysCount(), auto=bmcV15AbsenceAuto();
+  if(force||input.dataset.manual!=="1") input.value=auto.toFixed(2);
+}
+function bmcV15MealEnd(){
+  const meal=document.querySelector("#cfg-meal")?.value||"";
+  const mins=Math.max(0,Number(document.querySelector("#bmc-meal-minutes")?.value||60));
+  const end=document.querySelector("#cfg-meal-end"); if(end&&meal) end.value=addMinutesToTime(meal,mins);
+}
+function bmcV15Inject(){
+  const table=document.querySelector("#worker-config-form table"); if(!table)return;
+  const meal=document.querySelector("#cfg-meal")?.closest("tr");
+  const oldMealDuration=document.querySelector("#bmc-meal-duration-row"); if(oldMealDuration)oldMealDuration.remove();
+  const mealEnd=document.querySelector("#cfg-meal-end")?.closest("tr"); if(mealEnd) mealEnd.cells[2].innerHTML="";
+  const incidenceRow=[...table.querySelectorAll("tr")].find(r=>r.querySelector(".bmc-concept-value-grid"));
+  if(incidenceRow && !document.querySelector("#bmc-absence-value")){
+    const normal=BMC_INCIDENCES.filter(x=>!["Ausentismo","Retardo","Tiempo extraordinario"].includes(x));
+    incidenceRow.cells[0].innerHTML=`<div class="incidence-values-grid bmc-concept-value-grid"><div class="incidence-values-head">Concepto</div><div class="incidence-values-head">Valor</div><div>Ausentismo</div><div><input id="bmc-absence-value" type="number" min="0" step="0.01"></div><div>Retardo</div><div class="input-unit"><input id="bmc-late-per-week" type="number" min="1" step="1" value="3"><span>veces</span></div>${normal.map(n=>{const i=BMC_INCIDENCES.indexOf(n);const zero=["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].includes(n);return `<div>${escapeHtml(n)}</div><input id="bmc-inc-${i}" type="number" min="0" step="0.01" value="${zero?0:1}">`;}).join("")}<div>Tiempo extraordinario</div><div class="bmc-overtime-cell"><select id="bmc-overtime-enabled"><option value="si">Sí</option><option value="no">No</option></select></div></div>`;
+    document.querySelector("#bmc-overtime-enabled")?.addEventListener("change",bmcToggleOvertimeValue);
+  }
+  document.querySelector("#bmc-meal-minutes")?.addEventListener("input",bmcV15MealEnd);
+  document.querySelector("#cfg-meal")?.addEventListener("change",bmcV15MealEnd);
+  const abs=document.querySelector("#bmc-absence-value"); if(abs&&!abs.dataset.listener){abs.dataset.listener="1";abs.addEventListener("input",()=>abs.dataset.manual="1");}
+  document.querySelectorAll('[data-day-group="entry"] input').forEach(x=>{if(!x.dataset.absListener){x.dataset.absListener="1";x.addEventListener("change",()=>bmcV15RefreshAbsenceFormula(false));}});
+  bmcV15RefreshAbsenceFormula(true); bmcV15MealEnd(); bmcToggleOvertimeValue();
+}
+const bmcV15Read=bmcReadFormExtras;
+bmcReadFormExtras=function(){
+  const data=bmcV15Read();
+  const absence=Number(document.querySelector("#bmc-absence-value")?.value||bmcV15AbsenceAuto());
+  const late=Math.max(1,Math.floor(Number(document.querySelector("#bmc-late-per-week")?.value||3)));
+  data.meal_duration_minutes=Math.max(0,Number(document.querySelector("#bmc-meal-minutes")?.value||60));
+  data.meal_end_time=document.querySelector("#cfg-meal-end")?.value||data.meal_end_time;
+  data.tolerance_minutes=Math.max(0,Number(document.querySelector("#bmc-tolerance-minutes")?.value||10));
+  data.rest_days=selectedDays("rest").map(short=>bmcShortToWeekday(short)).filter(Boolean);
+  data.rest_start_time=document.querySelector("#bmc-rest-start")?.value||null;
+  data.rest_duration_minutes=Math.max(0,Number(document.querySelector("#bmc-rest-minutes")?.value||30));
+  data.absence_value=absence; data.late_per_week=late;
+  data.incidence_values=(data.incidence_values||[]).filter(x=>!["Ausentismo","Retardo"].includes(x.concept));
+  data.incidence_values.unshift({concept:"Retardo",value:absence,late_per_week:late},{concept:"Ausentismo",value:absence,formula:`7/${bmcV15WorkDaysCount()}`});
+  return data;
+};
+const bmcV15Fill=bmcFillFormExtras;
+bmcFillFormExtras=function(cfg={}){
+  bmcV15Fill(cfg); bmcV15Inject();
+  const meal=document.querySelector("#bmc-meal-minutes"); if(meal)meal.value=cfg.meal_duration_minutes??60;
+  setSelectedDays("rest",(cfg.rest_days||[]).map(n=>bmcWeekdayToShort(n)).filter(Boolean));
+  const restStart=document.querySelector("#bmc-rest-start"); if(restStart)restStart.value=cfg.rest_start_time||"12:00";
+  const rest=document.querySelector("#bmc-rest-minutes"); if(rest)rest.value=cfg.rest_duration_minutes??30;
+  const tolerance=document.querySelector("#bmc-tolerance-minutes"); if(tolerance)tolerance.value=cfg.tolerance_minutes??10;
+  const values=Object.fromEntries((cfg.incidence_values||[]).map(x=>[x.concept,x]));
+  const abs=document.querySelector("#bmc-absence-value"); if(abs){abs.dataset.manual="0";abs.value=bmcV15AbsenceAuto().toFixed(2);}
+  const late=document.querySelector("#bmc-late-per-week"); if(late)late.value=cfg.late_per_week??values.Retardo?.late_per_week??3;
+  ["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].forEach(name=>{const i=BMC_INCIDENCES.indexOf(name),el=document.querySelector(`#bmc-inc-${i}`);if(el&&values[name]==null)el.value=0;});
+  bmcV15RefreshAbsenceFormula(true); bmcV15MealEnd();
+};
+setTimeout(()=>{bmcV15Inject();},0);
+
 /* =========================
    BMC V8 - AJUSTES VISUALES Y GUARDADO
 ========================= */
@@ -7073,9 +7995,9 @@ function bmcV8ShowSaved(button,message,feedback){
 
 /* La tolerancia va inmediatamente debajo de Entrada. */
 function bmcV8MoveTolerance(){
-  const tolerance=document.querySelector("#bmc-tolerance")?.closest("tr");
+  const meal=document.querySelector("#bmc-meal-duration-row");
   const entry=document.querySelector("#cfg-entry")?.closest("tr");
-  if(tolerance&&entry&&entry.parentElement===tolerance.parentElement){entry.insertAdjacentElement("afterend",tolerance);}
+  if(meal&&entry&&entry.parentElement===meal.parentElement){entry.insertAdjacentElement("afterend",meal);}
 }
 
 /* El título de la política deja de ser un input y pasa a ser encabezado. */
@@ -7136,6 +8058,1663 @@ openIncidenceQualification=function(...args){
 bmcV8MoveTolerance();
 renderPolicies();
 
+
+/* =========================
+   V4 - TIEMPO EXTRA, CORTE Y CONTEOS AUTOMÁTICOS
+========================= */
+const BMC_OVERTIME_REPORT={rows:[]};
+function bmcMinutesText(total){
+  const n=Math.max(0,Math.round(Number(total)||0)),h=Math.floor(n/60),m=n%60;
+  if(h&&m)return `${h} hora${h===1?'':'s'} y ${m} minuto${m===1?'':'s'}`;
+  if(h)return `${h} hora${h===1?'':'s'}`;
+  return `${m} minuto${m===1?'':'s'}`;
+}
+function bmcTimeMinutes(value){
+  const m=String(value||'').match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):null;
+}
+function bmcAttendanceWorker(record){
+  const id=String(record.employee_code||record.employee_id||record.code||'');
+  const name=record.employee_name||record.full_name||record.name||record.username||record.employee_full_name||'';
+  return mergedWorkers().find(w=>String(w.employee_code||w.id||'')===id||(name&&normalizeSearchText(fullWorkerName(w))===normalizeSearchText(name)))||null;
+}
+function bmcCategoryCfgForWorker(worker){
+  if(!worker)return null;
+  const wc=bmcWorkerConfigCache[bmcEmployeeCode(worker)]||worker;
+  const cat=String(wc.category_number||worker.category_number||bmcCategoryOf(worker)||'');
+  return bmcCategoriesCache[cat]||null;
+}
+function bmcScheduledEndForDate(cfg,date){
+  if(!cfg)return null;
+  const jsDay=date.getDay(),weekday=jsDay===0?7:jsDay;
+  const wd=(cfg.workdays||[]).find(x=>Number(x.weekday)===weekday&&x.is_workday!==false);
+  return wd?.end_time||cfg.end_time||null;
+}
+function bmcInjectOvertimeReport(){
+  const page=document.querySelector('#devices-page'); if(!page||document.querySelector('#bmc-overtime-report'))return;
+  const first=page.querySelector('.records-card'); if(!first)return;
+  const card=document.createElement('div');card.id='bmc-overtime-report';card.className='card blue-card overtime-report-card';
+  card.innerHTML=`<div class="card-title"><div><h3>Corte de tiempo extra</h3><span>Consulta las salidas y los minutos acumulados por periodo.</span></div></div>
+  <div class="overtime-filter-grid">
+    <div><label>Desde</label><input id="bmc-ot-from" type="date"></div>
+    <div><label>Hasta</label><input id="bmc-ot-to" type="date"></div>
+    <div><label>Trabajador</label><select id="bmc-ot-worker"><option value="">Todos los trabajadores</option></select></div>
+    <button id="bmc-ot-search" class="btn btn-primary" type="button">Ver corte</button>
+    <button id="bmc-ot-excel" class="btn btn-soft" type="button">Descargar Excel</button>
+  </div><div id="bmc-ot-summary" class="overtime-summary"></div><div class="table-wrap"><table class="overtime-table"><thead><tr><th>Trabajador</th><th>Fecha</th><th>Salida programada</th><th>Salida marcada</th><th>Tiempo extra</th></tr></thead><tbody id="bmc-ot-body"><tr><td colspan="5">Selecciona un periodo.</td></tr></tbody></table></div>`;
+  first.insertAdjacentElement('beforebegin',card);
+  document.querySelector('#bmc-ot-search')?.addEventListener('click',bmcLoadOvertimeReport);
+  document.querySelector('#bmc-ot-excel')?.addEventListener('click',bmcExportOvertimeExcel);
+  bmcFillOvertimeWorkers();
+}
+function bmcFillOvertimeWorkers(){
+  const sel=document.querySelector('#bmc-ot-worker');if(!sel)return;const current=sel.value,companyId=document.querySelector('#devices-company')?.value||'';
+  const workers=mergedWorkers().filter(w=>!companyId||!w.company_id||String(w.company_id)===String(companyId));
+  sel.innerHTML='<option value="">Todos los trabajadores</option>'+workers.sort((a,b)=>fullWorkerName(a).localeCompare(fullWorkerName(b),'es')).map(w=>`<option value="${escapeHtml(bmcEmployeeCode(w))}">${escapeHtml(fullWorkerName(w))}</option>`).join('');
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+async function bmcLoadOvertimeReport(){
+  const companyId=document.querySelector('#devices-company')?.value||'';const body=document.querySelector('#bmc-ot-body'),summary=document.querySelector('#bmc-ot-summary');
+  if(!companyId){body.innerHTML='<tr><td colspan="5">Selecciona una empresa.</td></tr>';return;}
+  const from=document.querySelector('#bmc-ot-from')?.value||'',to=document.querySelector('#bmc-ot-to')?.value||'',workerCode=document.querySelector('#bmc-ot-worker')?.value||'';
+  try{
+    await bmcLoadCategories(companyId);await bmcWarmWorkerConfigs();
+    const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/attendance`);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'No se pudo cargar la asistencia.');
+    const records=Array.isArray(data.records)?data.records:[];const rows=[];
+    records.filter(r=>r.event_type==='CLOCK_OUT').forEach(r=>{
+      const d=recordDate(r);if(Number.isNaN(d.getTime()))return;if(from&&d<new Date(`${from}T00:00:00`))return;if(to&&d>new Date(`${to}T23:59:59.999`))return;
+      const w=bmcAttendanceWorker(r);if(!w)return;const code=bmcEmployeeCode(w);if(workerCode&&code!==workerCode)return;
+      const cfg=bmcCategoryCfgForWorker(w);if(!cfg||cfg.overtime_allowed!==true)return;
+      const end=bmcScheduledEndForDate(cfg,d),scheduled=bmcTimeMinutes(end);if(scheduled==null)return;
+      const actual=d.getHours()*60+d.getMinutes();const extra=Math.max(0,actual-scheduled);rows.push({code,name:fullWorkerName(w),date:d,end,marked:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,minutes:extra});
+    });
+    rows.sort((a,b)=>a.name.localeCompare(b.name,'es')||a.date-b.date);BMC_OVERTIME_REPORT.rows=rows;
+    body.innerHTML=rows.length?rows.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${x.date.toLocaleDateString('es-MX')}</td><td>${escapeHtml(x.end)}</td><td>${escapeHtml(x.marked)}</td><td>${escapeHtml(bmcMinutesText(x.minutes))}</td></tr>`).join(''):'<tr><td colspan="5">No hay tiempo extra en este periodo.</td></tr>';
+    const totals=new Map();rows.forEach(x=>totals.set(x.name,(totals.get(x.name)||0)+x.minutes));const grand=rows.reduce((a,x)=>a+x.minutes,0);
+    summary.innerHTML=`<span class="overtime-total-chip">Total: ${escapeHtml(bmcMinutesText(grand))}</span>`+[...totals].map(([n,m])=>`<span class="overtime-total-chip">${escapeHtml(n)}: ${escapeHtml(bmcMinutesText(m))}</span>`).join('');
+  }catch(e){console.error(e);body.innerHTML=`<tr><td colspan="5">${escapeHtml(e.message||'No se pudo generar el corte.')}</td></tr>`;}
+}
+function bmcExportOvertimeExcel(){
+  const rows=BMC_OVERTIME_REPORT.rows||[];if(!rows.length){setStatus('Primero genera un corte con registros.');return;}
+  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const totals=new Map();rows.forEach(x=>totals.set(x.name,(totals.get(x.name)||0)+x.minutes));
+  const detail=rows.map(x=>`<Row><Cell><Data ss:Type="String">${esc(x.name)}</Data></Cell><Cell><Data ss:Type="String">${esc(x.date.toLocaleDateString('es-MX'))}</Data></Cell><Cell><Data ss:Type="String">${esc(x.end)}</Data></Cell><Cell><Data ss:Type="String">${esc(x.marked)}</Data></Cell><Cell><Data ss:Type="Number">${x.minutes}</Data></Cell><Cell><Data ss:Type="String">${esc(bmcMinutesText(x.minutes))}</Data></Cell></Row>`).join('');
+  const summary=[...totals].map(([n,m])=>`<Row><Cell><Data ss:Type="String">${esc(n)}</Data></Cell><Cell><Data ss:Type="Number">${m}</Data></Cell><Cell><Data ss:Type="String">${esc(bmcMinutesText(m))}</Data></Cell></Row>`).join('');
+  const xml=`<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Tiempo extra"><Table><Row><Cell><Data ss:Type="String">Trabajador</Data></Cell><Cell><Data ss:Type="String">Fecha</Data></Cell><Cell><Data ss:Type="String">Salida programada</Data></Cell><Cell><Data ss:Type="String">Salida marcada</Data></Cell><Cell><Data ss:Type="String">Minutos extra</Data></Cell><Cell><Data ss:Type="String">Total legible</Data></Cell></Row>${detail}</Table></Worksheet><Worksheet ss:Name="Resumen"><Table><Row><Cell><Data ss:Type="String">Trabajador</Data></Cell><Cell><Data ss:Type="String">Minutos</Data></Cell><Cell><Data ss:Type="String">Total</Data></Cell></Row>${summary}</Table></Worksheet></Workbook>`;
+  const blob=new Blob([xml],{type:'application/vnd.ms-excel'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`tiempo_extra_${document.querySelector('#bmc-ot-from')?.value||'inicio'}_${document.querySelector('#bmc-ot-to')?.value||'fin'}.xls`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+}
+async function bmcRenderIncidentCountsV4(){
+  await bmcV4OldIncidentCounts();const grid=document.querySelector('#bmc-incidence-counts-grid');if(!grid)return;
+  const companyId=bmcCompanyId();if(!companyId)return;await bmcLoadCategories(companyId);
+  const workers=mergedWorkers().filter(w=>!w.company_id||String(w.company_id)===String(companyId));const cards=[...grid.querySelectorAll('.absence-summary-card')];
+  for(let i=0;i<workers.length;i++){
+    const w=workers[i],card=cards[i];if(!card)continue;const code=bmcEmployeeCode(w),cfg=bmcCategoryCfgForWorker(w)||{};let rows=[];
+    try{const r=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/incidence-counts`);const d=await r.json().catch(()=>({}));rows=r.ok?(d.incidences||[]):[];}catch{}
+    const count=n=>Number(rows.find(x=>x.concept===n)?.count||0),late=count('Retardo'),explicit=count('Ausentismo'),threshold=Math.max(1,Number((cfg.incidence_values||[]).find(x=>x.concept==='Retardo')?.late_per_week||cfg.late_per_week||3)),autoAbs=Math.floor(late/threshold),totalAbs=explicit+autoAbs;
+    const counts=[
+      `Retardo: ${late}`,
+      `Ausentismo: ${totalAbs}`,
+      ...BMC_INCIDENCES.filter(n=>!['Ausentismo','Retardo','Tiempo extraordinario'].includes(n)).map(n=>`${n}: ${count(n)}`)
+    ].join(' · ');
+    card.insertAdjacentHTML('beforeend',`<div class="incidence-auto-detail">${escapeHtml(counts)}</div>`);
+  }
+}
+const bmcV4OldIncidentCounts=bmcRenderIncidentCounts;bmcRenderIncidentCounts=bmcRenderIncidentCountsV4;
+const bmcV4OldLoadDevices=loadDevices;loadDevices=async function(){await bmcV4OldLoadDevices();bmcFillOvertimeWorkers();};
+bmcInjectOvertimeReport();
+
+</script>
+
+
+<style>
+.category-admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.category-admin-actions .btn{padding:6px 9px;font-size:10px}.category-name-input{min-height:34px!important;height:34px!important;font-weight:800}.category-row-main{min-width:0;flex:1}.category-row-v15{align-items:flex-start!important}
+</style>
+<script>
+/* ===== V15: datos reales, categorías administrables y edición sin reinicios ===== */
+(function(){
+  const metaKey=()=>`coati_category_meta_${bmcCompanyId()||'global'}`;
+  function readMeta(){try{return JSON.parse(localStorage.getItem(metaKey())||'{}')||{}}catch{return {}}}
+  function writeMeta(v){localStorage.setItem(metaKey(),JSON.stringify(v||{}));}
+  function catName(cat){const m=readMeta();return m[String(cat)]?.name||`Categoría ${cat}`;}
+  function hiddenCat(cat){return !!readMeta()[String(cat)]?.hidden;}
+  function categoryIds(){
+    const ids=new Set(Object.keys(bmcCategoriesCache||{}).map(String));
+    mergedWorkers().forEach(w=>{const c=bmcCategoryOf(w);if(/^\d+$/.test(String(c)))ids.add(String(c));});
+    return [...ids].filter(x=>!hiddenCat(x)).sort((a,b)=>Number(a)-Number(b));
+  }
+  window.bmcCategoryDisplayName=catName;
+
+  window.bmcSiteOptions=function(selected=""){
+    const companyId=String(bmcCompanyId()||document.querySelector('#devices-company')?.value||'');
+    const sites=getWorksites().filter(s=>{
+      if(companyId && String(s.company_id)!==companyId)return false;
+      return isUuid(s.id); // solo centros confirmados por backend/PostgreSQL
+    });
+    return [
+      `<option value="" ${String(selected)===''?'selected':''}>Sin asignar</option>`,
+      `<option value="__FOREIGN__" ${String(selected)==='__FOREIGN__'?'selected':''}>Foráneo</option>`,
+      ...sites.map(s=>`<option value="${escapeHtml(s.id)}" ${String(s.id)===String(selected)?'selected':''}>${escapeHtml(s.name||s.key||'Centro')}</option>`)
+    ].join('');
+  };
+
+  window.bmcCategoryOf=function(w){
+    const direct=Number(w?.category_number||w?.category||0);
+    if(Number.isInteger(direct)&&direct>0)return String(direct);
+    const cached=bmcWorkerConfigCache[bmcEmployeeCode(w)];
+    const n=Number(cached?.category_number||0);
+    return Number.isInteger(n)&&n>0?String(n):'Sin categoría';
+  };
+
+  window.renderSettingsWorkers=function(){
+    const box=document.querySelector('#settings-worker-list');if(!box)return;
+    const left=box.closest('.settings-workers-panel');
+    const h=left?.querySelector('h4');if(h)h.textContent='Categorías';
+    const p=left?.querySelector('.settings-intro');if(p)p.textContent='Solo se muestran las categorías existentes o asignadas a trabajadores. Puedes renombrarlas o eliminar las que no estén en uso.';
+    const formTitle=document.querySelector('#settings-page .settings-form-panel .card-title h3');if(formTitle)formTitle.textContent='Configuración por categoría';
+    box.innerHTML='';
+    const ids=categoryIds();
+    if(!ids.length){box.innerHTML='<div class="config-worker-empty">No hay categorías cargadas.</div>';return;}
+    ids.forEach(cat=>{
+      const members=bmcCategoryMembers(cat),cfg=bmcCategoriesCache[cat]||{},row=document.createElement('div');
+      row.className='worker-select-row category-row-v15';
+      row.innerHTML=`<div class="category-row-main"><div class="worker-select-name">${escapeHtml(catName(cat))}</div><div class="worker-select-meta">${members.length} trabajador${members.length===1?'':'es'} · ${cfg?.configured_at?'✓ Configurada':'Sin guardar'}</div><div class="category-admin-actions"><button class="btn btn-soft btn-small cat-rename" type="button">Renombrar</button><button class="btn btn-soft btn-small cat-delete" type="button">Eliminar</button></div></div><button class="btn ${cfg?.configured_at?'btn-primary':'btn-soft'} btn-small cat-config" type="button">${cfg?.configured_at?'Editar':'Configurar'}</button>`;
+      row.querySelector('.cat-config').onclick=()=>bmcSelectCategory(cat);
+      row.querySelector('.cat-rename').onclick=()=>{
+        const next=prompt('Nuevo nombre de la categoría:',catName(cat));if(next===null)return;const name=next.trim();if(!name)return;
+        const m=readMeta();m[cat]={...(m[cat]||{}),name,hidden:false};writeMeta(m);renderSettingsWorkers();refreshCategorySelects();
+      };
+      row.querySelector('.cat-delete').onclick=async()=>{
+        if(members.length){setStatus(`No se puede eliminar ${catName(cat)} porque tiene ${members.length} trabajador(es) asignado(s).`);return;}
+        if(!confirm(`¿Eliminar ${catName(cat)}?`))return;
+        const m=readMeta();m[cat]={...(m[cat]||{}),hidden:true};writeMeta(m);
+        try{const cid=bmcCompanyId();if(cid&&bmcCategoriesCache[cat])await authorizedFetch(`/api/admin/companies/${encodeURIComponent(cid)}/categories/${encodeURIComponent(cat)}`,{method:'DELETE'});}catch(e){console.warn('El backend no admite DELETE de categoría; se ocultó en el portal.',e);}
+        renderSettingsWorkers();refreshCategorySelects();setStatus('Categoría eliminada de la vista.');
+      };
+      box.appendChild(row);
+    });
+  };
+
+  function refreshCategorySelects(){
+    const ids=categoryIds();
+    ['#worker-edit-category'].forEach(sel=>{const el=document.querySelector(sel);if(!el)return;const cur=el.value;el.innerHTML='<option value="">Selecciona categoría</option>'+ids.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(catName(c))}</option>`).join('');if(ids.includes(cur))el.value=cur;});
+  }
+  window.refreshCategorySelects=refreshCategorySelects;
+
+  const oldLoadCats=window.bmcLoadCategories;
+  if(typeof oldLoadCats==='function')window.bmcLoadCategories=async function(...args){const r=await oldLoadCats.apply(this,args);refreshCategorySelects();return r;};
+
+  const oldSelect=window.bmcSelectCategory;
+  if(typeof oldSelect==='function')window.bmcSelectCategory=async function(cat){await oldSelect(cat);const n=document.querySelector('#config-worker-name');if(n)n.textContent=catName(cat);};
+
+  window.fillAttendanceRoleFilter=function(){
+    const el=document.querySelector('#attendance-role');if(!el)return;const cur=el.value;
+    const roles=new Set();mergedWorkers().forEach(w=>{const r=w.cargo||w.position||w.department;if(r)roles.add(String(r));});attendanceRecords.forEach(r=>{const m=workerMetaForAttendance(r);if(m.role)roles.add(String(m.role));});
+    el.innerHTML='<option value="">Todos</option>';[...roles].sort((a,b)=>a.localeCompare(b,'es')).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;el.appendChild(o)});if([...el.options].some(o=>o.value===cur))el.value=cur;
+  };
+
+  const oldLoadDevices=window.loadDevices;
+  if(typeof oldLoadDevices==='function')window.loadDevices=async function(...args){const r=await oldLoadDevices.apply(this,args);fillAttendanceRoleFilter();refreshCategorySelects();return r;};
+
+  window.openWorkerEdit=async function(worker){
+    bmcEditingWorker=worker;
+    const identity=String(workerIdentity(worker)||worker?.id||''), modal=document.querySelector('#worker-edit-modal'), feedback=document.querySelector('#worker-save-feedback');
+    document.querySelector('#worker-edit-identity').value=identity;document.querySelector('#worker-edit-title').textContent=fullWorkerName(worker);
+    const base={
+      '#worker-edit-name':worker.name||worker.employee_name||'', '#worker-edit-paternal':worker.paternal||worker.paternal_surname||'', '#worker-edit-maternal':worker.maternal||worker.maternal_surname||'', '#worker-edit-role':worker.cargo||worker.position||worker.department||'', '#worker-edit-rfc':worker.rfc||'', '#worker-edit-curp':worker.curp||'', '#worker-edit-nss':worker.nss||'', '#worker-edit-phone':worker.phone||'', '#worker-edit-hire-date':worker.hire_date?String(worker.hire_date).slice(0,10):'', '#worker-edit-category':bmcCategoryOf(worker)==='Sin categoría'?'':bmcCategoryOf(worker)
+    };
+    refreshCategorySelects();Object.entries(base).forEach(([s,v])=>{const e=document.querySelector(s);if(e)e.value=v??''});modal?.classList.remove('hidden');
+    if(feedback){feedback.textContent='Cargando datos guardados...';feedback.classList.remove('save-error');feedback.classList.add('show');}
+    const companyId=String(worker?.company_id||bmcCompanyId());if(companyId){try{await bmcLoadCategories(companyId)}catch{}try{await loadWorksitesFromBackend(companyId)}catch(e){console.error(e)}}
+    const cfg=await bmcLoadWorkerConfig(worker);
+    if(cfg){
+      const put=(s,v)=>{if(v===undefined||v===null||v==='')return;const e=document.querySelector(s);if(e)e.value=v};
+      put('#worker-edit-hire-date',cfg.hire_date?String(cfg.hire_date).slice(0,10):null);put('#worker-edit-category',cfg.category_number?String(cfg.category_number):null);put('#worker-edit-phone',cfg.phone);put('#worker-edit-name',cfg.first_name);put('#worker-edit-paternal',cfg.last_name_paternal);put('#worker-edit-maternal',cfg.last_name_maternal);put('#worker-edit-role',cfg.department);put('#worker-edit-rfc',cfg.rfc);put('#worker-edit-curp',cfg.curp);put('#worker-edit-nss',cfg.nss);
+      bmcRenderDaySitesFromConfig(cfg);document.querySelector('#worker-save-state')?.classList.toggle('hidden',!cfg.category_number);
+      if(feedback){feedback.textContent='✓ Datos cargados sin modificar valores.';feedback.classList.remove('save-error');setTimeout(()=>feedback.classList.remove('show'),1400)}
+    }else{
+      bmcRenderDaySitesFromConfig({category_number:Number(base['#worker-edit-category']||0),work_sites_by_day:[]});
+      if(feedback){feedback.textContent='Se conservaron los datos actuales del trabajador.';feedback.classList.remove('save-error');}
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded',()=>{fillAttendanceRoleFilter();refreshCategorySelects();});
+  fillAttendanceRoleFilter();refreshCategorySelects();
+})();
+</script>
+
+<script>
+/* ===== V16 FINAL: categorías administrables + centros 100% backend ===== */
+(function(){
+  const ZERO_INCIDENCES=new Set(['Permiso médico justificado','Permiso médico no justificado','Permiso de salida','Falta justificada']);
+  const metaKey=()=>`coati_category_meta_${bmcCompanyId()||'global'}`;
+  const readMeta=()=>{try{return JSON.parse(localStorage.getItem(metaKey())||'{}')||{}}catch{return {}}};
+  const writeMeta=v=>localStorage.setItem(metaKey(),JSON.stringify(v||{}));
+  const catName=cat=>readMeta()[String(cat)]?.name||`Categoría ${cat}`;
+  const hiddenCat=cat=>!!readMeta()[String(cat)]?.hidden;
+  function categoryIdsV16(){
+    const ids=new Set(Object.keys(bmcCategoriesCache||{}).map(String));
+    Object.entries(readMeta()).forEach(([id,m])=>{if(!m?.hidden)ids.add(String(id));});
+    mergedWorkers().forEach(w=>{const c=Number(w?.category_number||w?.category||bmcWorkerConfigCache[bmcEmployeeCode(w)]?.category_number||0);if(Number.isInteger(c)&&c>0)ids.add(String(c));});
+    return [...ids].filter(x=>/^\d+$/.test(x)&&!hiddenCat(x)).sort((a,b)=>Number(a)-Number(b));
+  }
+  window.bmcCategoryDisplayName=catName;
+
+  /* Nunca volver a migrar centros locales antiguos a PostgreSQL. */
+  window.ensureRealWorksiteIds=async function(companyId){
+    if(!companyId)return [];
+    return await loadWorksitesFromBackend(companyId);
+  };
+
+  /* Eliminar definitivamente en backend, no solo de localStorage. */
+  window.deleteWorksite=async function(id){
+    const site=getWorksites().find(r=>String(r.id)===String(id));
+    if(!site)return;
+    if(!confirm(`¿Eliminar el centro de trabajo ${site.name}?`))return;
+    const companyId=String(site.company_id||document.querySelector('#worksite-list-company')?.value||document.querySelector('#devices-company')?.value||'');
+    try{
+      if(companyId&&isUuid(id)){
+        const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/sites/${encodeURIComponent(id)}`,{method:'DELETE'});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.detail||data.error||'No se pudo eliminar el centro en PostgreSQL.');
+      }
+      saveWorksites(getWorksites().filter(r=>String(r.id)!==String(id)));
+      const assignments=getWorkerWorksiteAssignments();
+      Object.keys(assignments).forEach(k=>{if(String(assignments[k])===String(id))delete assignments[k];});
+      saveWorkerWorksiteAssignments(assignments);
+      if(companyId)await loadWorksitesFromBackend(companyId);
+      renderWorksites();renderDevicesTable();fillWorksiteFilter();renderAttendance();
+      setStatus('Centro de trabajo eliminado definitivamente.');
+    }catch(error){console.error(error);setStatus(error.message||'No se pudo eliminar el centro de trabajo.');}
+  };
+
+  /* Limpia una sola vez los centros fantasma creados por versiones anteriores.
+     Solo toca estos nombres si además están SIN domicilio. */
+  const ghostNames=new Set(['contador','desarrollador web','programador']);
+  async function cleanupLegacyGhostWorksites(companyId){
+    // Legacy cleanup disabled. Sites are only changed by explicit user actions.
+    if(!companyId)return [];
+    return await loadWorksitesFromBackend(companyId);
+  }
+
+  function refreshCategorySelectsV16(){
+    const ids=categoryIdsV16();
+    const el=document.querySelector('#worker-edit-category');
+    if(el){const cur=el.value;el.innerHTML='<option value="">Selecciona categoría</option>'+ids.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(catName(c))}</option>`).join('');if(ids.includes(cur))el.value=cur;}
+  }
+  window.refreshCategorySelects=refreshCategorySelectsV16;
+
+  window.renderSettingsWorkers=function(){
+    const box=document.querySelector('#settings-worker-list');if(!box)return;
+    const left=box.closest('.settings-workers-panel');
+    const h=left?.querySelector('h4');if(h)h.textContent='Categorías';
+    const p=left?.querySelector('.settings-intro');if(p)p.textContent='Agrega, renombra, configura o elimina categorías desde aquí.';
+    const title=document.querySelector('#settings-page .settings-form-panel .card-title h3');if(title)title.textContent='Configuración por categoría';
+    box.innerHTML='';
+    const toolbar=document.createElement('div');toolbar.className='category-toolbar-v16';
+    toolbar.innerHTML='<button type="button" class="btn btn-primary btn-small" id="category-add-v16">+ Agregar categoría</button>';
+    box.appendChild(toolbar);
+    const ids=categoryIdsV16();
+    if(!ids.length){box.insertAdjacentHTML('beforeend','<div class="config-worker-empty">No hay categorías. Usa “Agregar categoría”.</div>');}
+    ids.forEach(cat=>{
+      const members=bmcCategoryMembers(cat),cfg=bmcCategoriesCache[cat]||{},row=document.createElement('div');
+      row.className='worker-select-row category-row-v16';
+      row.innerHTML=`<div class="category-row-main"><div class="worker-select-name">${escapeHtml(catName(cat))}</div><div class="worker-select-meta">${members.length} trabajador${members.length===1?'':'es'} · <span class="${cfg?.configured_at?'saved-state':''}">${cfg?.configured_at?'✓ Configurada':'Sin guardar'}</span></div><div class="category-admin-actions"><button class="btn btn-soft btn-small cat-rename" type="button">Renombrar</button><button class="btn btn-soft btn-small cat-delete" type="button">Eliminar</button></div></div><button class="btn ${cfg?.configured_at?'btn-primary':'btn-soft'} btn-small cat-config" type="button">${cfg?.configured_at?'Editar':'Configurar'}</button>`;
+      row.querySelector('.cat-config').onclick=()=>bmcSelectCategory(cat);
+      row.querySelector('.cat-rename').onclick=()=>{const next=prompt('Nombre de la categoría:',catName(cat));if(next===null||!next.trim())return;const m=readMeta();m[cat]={...(m[cat]||{}),name:next.trim(),hidden:false};writeMeta(m);renderSettingsWorkers();refreshCategorySelectsV16();};
+      row.querySelector('.cat-delete').onclick=async()=>{
+        if(members.length){setStatus(`No se puede eliminar ${catName(cat)}: tiene ${members.length} trabajador(es) asignado(s).`);return;}
+        if(!confirm(`¿Eliminar ${catName(cat)}?`))return;
+        const cid=bmcCompanyId();
+        if(cid&&bmcCategoriesCache[cat]){
+          try{const r=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(cid)}/categories/${encodeURIComponent(cat)}`,{method:'DELETE'});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||d.error||'El backend no permitió eliminar la categoría.');}delete bmcCategoriesCache[cat];}
+          catch(e){setStatus(e.message||'No se pudo eliminar la categoría de PostgreSQL.');return;}
+        }
+        const m=readMeta();m[cat]={...(m[cat]||{}),hidden:true};writeMeta(m);renderSettingsWorkers();refreshCategorySelectsV16();setStatus('Categoría eliminada.');
+      };
+      box.appendChild(row);
+    });
+    box.querySelector('#category-add-v16').onclick=()=>{
+      const used=new Set([...Object.keys(bmcCategoriesCache||{}),...Object.keys(readMeta()),...categoryIdsV16()].map(Number).filter(Number.isFinite));
+      let n=1;while(used.has(n))n++;
+      const name=prompt('Nombre de la nueva categoría:',`Categoría ${n}`);if(name===null||!name.trim())return;
+      const m=readMeta();m[String(n)]={name:name.trim(),hidden:false};writeMeta(m);renderSettingsWorkers();refreshCategorySelectsV16();setStatus('Categoría agregada. Configúrala y guarda para registrarla en PostgreSQL.');
+    };
+  };
+
+  /* Estos cuatro conceptos nacen en 0. Un valor distinto solo existe si el usuario lo guardó. */
+  const oldFill=window.bmcFillFormExtras;
+  if(typeof oldFill==='function')window.bmcFillFormExtras=function(cfg={}){
+    oldFill(cfg||{});
+    const values=Object.fromEntries((cfg?.incidence_values||[]).map(x=>[x.concept,Number(x.value)]));
+    ZERO_INCIDENCES.forEach(name=>{const i=BMC_INCIDENCES.indexOf(name),el=document.querySelector(`#bmc-inc-${i}`);if(el)el.value=Number.isFinite(values[name])?values[name]:0;});
+    const tol=document.querySelector('#bmc-tolerance-minutes');if(tol&&(cfg?.tolerance_minutes===undefined||cfg?.tolerance_minutes===null||cfg?.tolerance_minutes===''))tol.value=10;
+  };
+
+  const oldLoadDevices=window.loadDevices;
+  if(typeof oldLoadDevices==='function')window.loadDevices=async function(...args){
+    const r=await oldLoadDevices.apply(this,args);
+    const cid=String(document.querySelector('#devices-company')?.value||bmcCompanyId()||'');
+    if(cid)await cleanupLegacyGhostWorksites(cid);
+    refreshCategorySelectsV16();
+    return r;
+  };
+
+  document.addEventListener('DOMContentLoaded',async()=>{
+    refreshCategorySelectsV16();renderSettingsWorkers();
+    const cid=String(document.querySelector('#devices-company')?.value||bmcCompanyId()||'');if(cid)await cleanupLegacyGhostWorksites(cid);
+  });
+})();
+</script>
+<style>
+.category-toolbar-v16{display:flex;justify-content:flex-end;margin:0 0 12px}.category-row-v16{align-items:center;gap:10px}.category-row-main{min-width:0;flex:1}.category-admin-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.category-admin-actions .cat-delete{color:#b42318}.category-admin-actions .cat-rename{color:#17456b}
+</style>
+
+
+<style>
+.category-add-fixed-v17{display:none!important}
+.category-add-fixed-v17 button{min-height:42px;font-weight:800}
+</style>
+<script>
+/* ===== V17: categorías, incidencias calificadas y centro por día ===== */
+(function(){
+  const GHOST_SITE_NAMES_V17=new Set(['contador','desarrollador web','programador']);
+  function isLegacyGhostSiteV17(s){
+    if(!s)return false;
+    const ghost=GHOST_SITE_NAMES_V17.has(normalizeSiteName(s.name));
+    const hasAddress=Boolean(s.street||s.postal_code||s.neighborhood||s.locality||s.municipality||s.state);
+    return ghost && !hasAddress;
+  }
+  function visibleWorksitesV17(){ return getWorksites().filter(s=>!isLegacyGhostSiteV17(s)); }
+
+  /* Botón Agregar siempre visible, aunque otra rutina vuelva a renderizar categorías. */
+  function ensureCategoryAddButtonV17(){
+    const box=document.querySelector('#settings-worker-list');
+    if(!box)return;
+    let holder=box.querySelector('.category-add-fixed-v17');
+    if(!holder){
+      holder=document.createElement('div');holder.className='category-add-fixed-v17';
+      holder.innerHTML='<button type="button" class="btn btn-primary" id="category-add-fixed-v17">+ Agregar categoría</button>';
+      box.prepend(holder);
+    }
+    holder.querySelector('button').onclick=()=>{
+      const metaKey=`coati_category_meta_${bmcCompanyId()||'global'}`;
+      let meta={};try{meta=JSON.parse(localStorage.getItem(metaKey)||'{}')||{}}catch{}
+      const used=new Set([...Object.keys(bmcCategoriesCache||{}),...Object.keys(meta)].map(Number).filter(Number.isFinite));
+      mergedWorkers().forEach(w=>{const n=Number(w?.category_number||w?.category||0);if(Number.isInteger(n)&&n>0)used.add(n)});
+      let n=1;while(used.has(n))n++;
+      const name=prompt('Nombre de la nueva categoría:',`Categoría ${n}`);if(name===null||!name.trim())return;
+      meta[String(n)]={...(meta[String(n)]||{}),name:name.trim(),hidden:false};
+      localStorage.setItem(metaKey,JSON.stringify(meta));
+      renderSettingsWorkers();ensureCategoryAddButtonV17();refreshCategorySelects?.();
+      setStatus('Categoría agregada. Entra a Configurar y guárdala.');
+    };
+  }
+  const renderCatsV17=window.renderSettingsWorkers;
+  if(typeof renderCatsV17==='function')window.renderSettingsWorkers=function(...args){const r=renderCatsV17.apply(this,args);ensureCategoryAddButtonV17();return r;};
+
+  /* Filtros de centros: únicamente centros reales visibles. */
+  window.fillWorksiteFilter=function(){
+    const select=document.querySelector('#attendance-worksite');if(!select)return;
+    const current=select.value, companyId=document.querySelector('#report-company')?.value||'';
+    const names=new Set();
+    visibleWorksitesV17().filter(s=>!companyId||String(s.company_id)===String(companyId)).forEach(s=>{if(s.name)names.add(s.name)});
+    select.innerHTML='<option value="">Todos</option>';
+    [...names].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})).forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;select.appendChild(o)});
+    if([...select.options].some(o=>o.value===current))select.value=current;
+  };
+
+  /* Centro real del trabajador según el día de la incidencia. */
+  function siteForAttendanceDayV17(record){
+    /*
+      IMPORTANTE:
+      No llamar workerForAttendance() aquí.
+      workerForAttendance() usa workerMetaForAttendance() y esta última
+      consulta este centro, lo que antes provocaba recursión infinita.
+    */
+    const recordCode=String(
+      record?.employee_code ??
+      record?.employee_id ??
+      record?.code ??
+      ''
+    ).trim();
+
+    const recordName=String(
+      record?.employee_name ??
+      record?.full_name ??
+      record?.name ??
+      record?.username ??
+      record?.employee_full_name ??
+      ''
+    ).trim();
+
+    const worker=(typeof mergedWorkers==='function' ? mergedWorkers() : []).find(w=>{
+      const workerCode=String(
+        w?.employee_code ??
+        w?.id_local ??
+        w?.id ??
+        ''
+      ).trim();
+
+      if(recordCode && workerCode===recordCode)return true;
+
+      if(recordName && typeof normalizeSearchText==='function' && typeof fullWorkerName==='function'){
+        return normalizeSearchText(fullWorkerName(w))===normalizeSearchText(recordName);
+      }
+
+      return false;
+    })||null;
+
+    if(!worker)return null;
+
+    const code=bmcEmployeeCode(worker);
+    const cfg=bmcWorkerConfigCache?.[code]||{};
+    const jsDay=recordDate(record).getDay();
+    const weekday=jsDay===0?7:jsDay;
+
+    const row=(Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[])
+      .find(x=>Number(x.weekday)===weekday);
+
+    if(row){
+      if(String(row.work_mode||'').toUpperCase()==='FOREIGN'){
+        return {
+          id:null,
+          name:'Foráneo',
+          key:'FORANEO',
+          is_foreign:true,
+          radius_m:null,
+          latitude:null,
+          longitude:null
+        };
+      }
+      if(row.site_id){
+        const site=visibleWorksitesV17()
+          .find(s=>String(s.id)===String(row.site_id));
+        if(site)return site;
+      }
+    }
+
+    const fallback=worksiteForWorker(worker);
+    return fallback && !isLegacyGhostSiteV17(fallback)?fallback:null;
+  }
+  window.linkedWorksiteLocationForRecord=function(record){
+    const site=siteForAttendanceDayV17(record);
+    if(site?.is_foreign){
+      const lat=Number(record.latitude),lng=Number(record.longitude);
+      return {
+        site,
+        distance:null,
+        radius:null,
+        status:'FORANEO',
+        latitude:Number.isFinite(lat)?lat:null,
+        longitude:Number.isFinite(lng)?lng:null
+      };
+    }
+    if(!site||!Number.isFinite(Number(site.latitude))||!Number.isFinite(Number(site.longitude)))return null;
+    const lat=Number(record.latitude),lng=Number(record.longitude);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng))return {site,distance:null,status:'SIN_UBICACION'};
+    const distance=distanceMeters(lat,lng,Number(site.latitude),Number(site.longitude));
+    const radius=Number(site.radius_m||300);
+    return {site,distance,radius,status:distance<=radius?'DENTRO':'FUERA'};
+  };
+  const oldMetaV17=window.workerMetaForAttendance;
+  window.workerMetaForAttendance=function(record){
+    const m=oldMetaV17(record), site=siteForAttendanceDayV17(record);
+    if(site)m.worksite=site.name||m.worksite;
+    return m;
+  };
+
+  /* Una vez calificada, justificada o no, pertenece a Calificadas. */
+  const tab=document.querySelector('#incidence-tab-justified');if(tab)tab.textContent='Calificadas';
+
+  document.addEventListener('DOMContentLoaded',()=>{ensureCategoryAddButtonV17();fillWorksiteFilter();const t=document.querySelector('#incidence-tab-justified');if(t)t.textContent='Calificadas';});
+  setTimeout(()=>{ensureCategoryAddButtonV17();fillWorksiteFilter();},250);
+})();
+</script>
+
+
+<script>
+/* =========================================================
+   COOATII V18 — PostgreSQL como fuente de verdad
+   Compatible con backend dinámico de categorías/centros.
+========================================================= */
+(function(){
+  function currentCompanyIdV18(){
+    return String(
+      (typeof bmcCompanyId==="function" ? bmcCompanyId() : "") ||
+      document.querySelector("#devices-company")?.value ||
+      ""
+    );
+  }
+
+  function categoryPayloadV18(cfg,name){
+    const zeroConcepts=[
+      "Permiso médico justificado",
+      "Permiso médico no justificado",
+      "Permiso de salida",
+      "Falta justificada"
+    ];
+    const values=new Map((cfg?.incidence_values||[]).map(x=>[String(x.concept),Number(x.value)]));
+    const concepts=[
+      "Ausentismo","Retardo",
+      "Permiso médico justificado","Permiso médico no justificado",
+      "Permiso de salida","Falta justificada"
+    ];
+    return {
+      name:String(name||cfg?.name||"").trim(),
+      start_time:cfg?.start_time||null,
+      end_time:cfg?.end_time||null,
+      meal_start_time:cfg?.meal_start_time||null,
+      meal_end_time:cfg?.meal_end_time||null,
+      tolerance_minutes:Number.isFinite(Number(cfg?.tolerance_minutes)) ? Number(cfg.tolerance_minutes) : 10,
+      overtime_allowed:cfg?.overtime_allowed !== false,
+      overtime_value:cfg?.overtime_allowed === false ? Number(cfg?.overtime_value||0) : null,
+      rest_days:Array.isArray(cfg?.rest_days) ? cfg.rest_days.map(Number).filter(Boolean) : [],
+      workdays:Array.isArray(cfg?.workdays) ? cfg.workdays.map(w=>({
+        weekday:Number(w.weekday),
+        is_workday:w.is_workday!==false,
+        start_time:w.start_time||null,
+        end_time:w.end_time||null
+      })) : [],
+      incidence_values:concepts.map(concept=>({
+        concept,
+        value:values.has(concept) ? Number(values.get(concept)||0) : (zeroConcepts.includes(concept)?0:0)
+      }))
+    };
+  }
+
+  async function reloadCategoriesV18(){
+    const companyId=currentCompanyIdV18();
+    if(!companyId)return;
+    if(typeof bmcLoadCategories==="function") await bmcLoadCategories(companyId);
+    if(typeof refreshCategorySelects==="function") refreshCategorySelects();
+  }
+
+  /* Rebuild the category panel from PostgreSQL-loaded categories only. */
+  const previousRender=window.renderSettingsWorkers;
+  window.renderSettingsWorkers=function(){
+    if(typeof previousRender==="function") previousRender();
+
+    const box=document.querySelector("#settings-worker-list");
+    if(!box)return;
+
+    const add=box.querySelector("#category-add-v16");
+    if(add){
+      add.onclick=async()=>{
+        const companyId=currentCompanyIdV18();
+        if(!companyId){setStatus("Selecciona una empresa.");return;}
+        const name=prompt("Nombre de la nueva categoría:","Nueva categoría");
+        if(name===null||!name.trim())return;
+        try{
+          const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/categories`,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({name:name.trim()})
+          });
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok)throw new Error(data.detail||data.error||"No se pudo crear la categoría.");
+          await reloadCategoriesV18();
+          window.renderSettingsWorkers();
+          setStatus(`Categoría ${data.name||name.trim()} creada en PostgreSQL.`);
+        }catch(error){
+          console.error(error);
+          setStatus(error.message||"No se pudo crear la categoría.");
+        }
+      };
+    }
+
+    box.querySelectorAll(".category-row-v16").forEach(row=>{
+      const configBtn=row.querySelector(".cat-config");
+      const label=row.querySelector(".worker-select-name")?.textContent||"";
+      let categoryNumber=null;
+
+      if(configBtn){
+        const original=configBtn.onclick;
+        configBtn.onclick=(ev)=>{
+          if(original) original.call(configBtn,ev);
+        };
+      }
+
+      const rows=[...box.querySelectorAll(".category-row-v16")];
+      const index=rows.indexOf(row);
+      const ids=(typeof categoryIdsV16==="function"?categoryIdsV16():Object.keys(window.bmcCategoriesCache||{}));
+      categoryNumber=String(ids[index]||"");
+      const cfg=(window.bmcCategoriesCache||{})[categoryNumber]||{};
+
+      const rename=row.querySelector(".cat-rename");
+      if(rename){
+        rename.onclick=async()=>{
+          const companyId=currentCompanyIdV18();
+          if(!companyId||!categoryNumber)return;
+          const next=prompt("Nombre de la categoría:",cfg.name||label);
+          if(next===null||!next.trim())return;
+          try{
+            const response=await authorizedFetch(
+              `/api/admin/companies/${encodeURIComponent(companyId)}/categories/${encodeURIComponent(categoryNumber)}`,
+              {
+                method:"PUT",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify(categoryPayloadV18(cfg,next.trim()))
+              }
+            );
+            const data=await response.json().catch(()=>({}));
+            if(!response.ok)throw new Error(data.detail||data.error||"No se pudo renombrar la categoría.");
+            await reloadCategoriesV18();
+            window.renderSettingsWorkers();
+            setStatus("Categoría renombrada en PostgreSQL.");
+          }catch(error){
+            console.error(error);
+            setStatus(error.message||"No se pudo renombrar la categoría.");
+          }
+        };
+      }
+    });
+  };
+
+  /* Worker modal: categories are always populated from backend cache. */
+  window.refreshCategorySelects=function(){
+    const select=document.querySelector("#worker-edit-category");
+    if(!select)return;
+    const current=select.value;
+    const rows=Object.values(window.bmcCategoriesCache||{})
+      .filter(c=>Number.isInteger(Number(c.category_number))&&Number(c.category_number)>0)
+      .sort((a,b)=>Number(a.category_number)-Number(b.category_number));
+    select.innerHTML='<option value="">Selecciona categoría</option>'+
+      rows.map(c=>`<option value="${escapeHtml(String(c.category_number))}">${escapeHtml(c.name||`Categoría ${c.category_number}`)}</option>`).join("");
+    if([...select.options].some(o=>o.value===current))select.value=current;
+  };
+
+  /* Worksites: refresh from PostgreSQL; never manufacture IDs from local cache. */
+  window.ensureRealWorksiteIds=async function(companyId){
+    if(!companyId)return [];
+    return await loadWorksitesFromBackend(companyId);
+  };
+
+  document.addEventListener("DOMContentLoaded",async()=>{
+    const companyId=currentCompanyIdV18();
+    if(companyId){
+      try{
+        await loadWorksitesFromBackend(companyId);
+        await reloadCategoriesV18();
+      }catch(error){
+        console.error("Carga inicial PostgreSQL:",error);
+      }
+    }
+    window.refreshCategorySelects();
+    window.renderSettingsWorkers();
+  });
+})();
+</script>
+
+
+<style>
+/* ===== COOATII FORÁNEO ===== */
+.foreign-route-card{margin-top:18px}
+.foreign-route-controls{display:grid;grid-template-columns:minmax(220px,1fr) 180px auto;gap:12px;align-items:end;margin:14px 0}
+.foreign-route-controls label{display:block;font-weight:800;margin-bottom:6px}
+.foreign-route-map{position:relative;min-height:360px;border:1px solid #d7e1ea;border-radius:18px;overflow:hidden;background:#f7fafc}
+.foreign-route-empty{min-height:360px;display:flex;align-items:center;justify-content:center;text-align:center;padding:28px;color:#66788a}
+.foreign-route-summary{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
+.foreign-route-chip{background:#eef6fb;border:1px solid #d5e8f4;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800;color:#17456b}
+.foreign-route-svg{width:100%;height:360px;display:block}
+.foreign-route-point{
+    fill:currentColor;
+    cursor:pointer;
+    transition:r .15s ease, fill .15s ease, stroke .15s ease;
+}
+
+.foreign-route-point:hover{
+    fill:#2e7da6;
+    stroke:#ffffff;
+    stroke-width:3;
+}
+
+.foreign-route-point.selected{
+    fill:#dc2626;
+    stroke:#ffffff;
+    stroke-width:4;
+}
+
+.foreign-route-row{
+    cursor:pointer;
+    transition:background .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+
+.foreign-route-row:hover{
+    background:#f3f8ff;
+    border-color:#a9c9f0;
+}
+
+.foreign-route-row.selected{
+    background:#e5f0ff;
+    border-color:#367fb4;
+    box-shadow:0 0 0 2px rgba(54,127,180,.15);
+}
+
+
+/* Entrada de jornada */
+.foreign-route-row.route-entry{
+    background:#fff9c4;
+    border-color:#facc15;
+}
+
+/* Salida de jornada */
+.foreign-route-row.route-exit{
+    background:#ffedd5;
+    border-color:#fb923c;
+}
+
+.foreign-route-event{
+    font-weight:900;
+}
+
+.foreign-route-event.entry{
+    color:#a16207;
+}
+
+.foreign-route-event.exit{
+    color:#c2410c;
+}
+
+.foreign-route-line{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:.75}
+.foreign-route-list{margin-top:12px;display:grid;gap:7px}
+.foreign-route-row{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid #e1e8ee;border-radius:12px;background:#fff}
+@media(max-width:760px){.foreign-route-controls{grid-template-columns:1fr}.foreign-route-row{grid-template-columns:75px 1fr}.foreign-route-row a{grid-column:2}}
+</style>
+
+<script>
+/* ===== COOATII V19 — modalidad FORÁNEO y recorrido diario ===== */
+(function(){
+  const FOREIGN_LABEL='Foráneo';
+
+  /* Oculta definitivamente el botón grande duplicado; se conserva el botón pequeño del panel. */
+  function removeDuplicateCategoryButton(){
+    document.querySelectorAll('.category-add-fixed-v17').forEach(el=>el.remove());
+  }
+
+  /* Etiquetas de zona: Foráneo nunca genera "fuera de rango". */
+  const previousZoneLabel=window.zoneLabel;
+  window.zoneLabel=function(status){
+    if(status==='FORANEO')return 'Foráneo · seguimiento de recorrido';
+    return typeof previousZoneLabel==='function'?previousZoneLabel(status):String(status||'');
+  };
+  const previousZoneClass=window.zoneClass;
+  window.zoneClass=function(status){
+    if(status==='FORANEO')return 'unknown';
+    return typeof previousZoneClass==='function'?previousZoneClass(status):'unknown';
+  };
+
+  function foreignWorkerForRecord(record){
+    const code=String(record?.employee_code||record?.employee_id||'').trim();
+    const name=normalizeSearchText(record?.employee_name||record?.full_name||record?.name||'');
+    return mergedWorkers().find(w=>{
+      if(code && String(w?.employee_code||w?.id_local||w?.id||'').trim()===code)return true;
+      return name && normalizeSearchText(fullWorkerName(w))===name;
+    })||null;
+  }
+
+  function foreignDayForRecord(record){
+    const worker=foreignWorkerForRecord(record);
+    if(!worker)return false;
+    const cfg=bmcWorkerConfigCache?.[bmcEmployeeCode(worker)]||{};
+    const d=recordDate(record);
+    if(Number.isNaN(d.getTime()))return false;
+    const weekday=d.getDay()===0?7:d.getDay();
+    const row=(Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[])
+      .find(x=>Number(x.weekday)===weekday);
+    return Boolean(row && String(row.work_mode||'').toUpperCase()==='FOREIGN');
+  }
+
+  function validGps(record){
+    return Number.isFinite(Number(record?.latitude)) && Number.isFinite(Number(record?.longitude));
+  }
+
+  function dateKeyLocal(d){
+    const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  let foreignLocationRecords=[];
+
+  function foreignRouteRecords(workerCode,date){
+    return (Array.isArray(foreignLocationRecords)?foreignLocationRecords:[])
+      .filter(r=>{
+        if(!validGps(r))return false;
+        const code=String(r.employee_code||r.employeeId||r.employee_id||'').trim();
+        if(workerCode && code!==String(workerCode).trim())return false;
+
+        const rawDate=String(r.work_date||r.workDate||'').slice(0,10);
+        if(date && rawDate && rawDate!==date)return false;
+
+        if(date && !rawDate){
+          const d=recordDate(r);
+          if(Number.isNaN(d.getTime()) || dateKeyLocal(d)!==date)return false;
+        }
+        return true;
+      })
+      .sort((a,b)=>recordDate(a)-recordDate(b));
+  }
+
+  async function loadForeignLocationRecords(){
+    const companyId=document.querySelector("#report-company")?.value||"";
+    const workerCode=document.querySelector("#foreign-route-worker")?.value||"";
+    const date=document.querySelector("#foreign-route-date")?.value||"";
+
+    foreignLocationRecords=[];
+
+    if(!companyId)return [];
+
+    const params=new URLSearchParams();
+    if(workerCode)params.set("employeeCode",workerCode);
+    if(date)params.set("date",date);
+    params.set("limit","1000");
+
+    const response=await authorizedFetch(
+      `/api/admin/companies/${encodeURIComponent(companyId)}/foreign-locations?${params.toString()}`
+    );
+
+    const data=await response.json().catch(()=>({}));
+
+    if(!response.ok){
+      throw new Error(data.error||"No se pudieron cargar los puntos GPS foráneos.");
+    }
+
+    foreignLocationRecords=
+      Array.isArray(data.records)
+        ? data.records
+        : Array.isArray(data.points)
+          ? data.points
+          : [];
+
+    return foreignLocationRecords;
+  }
+
+  function ensureForeignRouteCard(){
+    if(document.querySelector('#foreign-route-card'))return;
+    const page=document.querySelector('#attendance-page');
+    if(!page)return;
+    const card=document.createElement('div');
+    card.id='foreign-route-card';
+    card.className='card foreign-route-card';
+    card.innerHTML=`
+      <div class="card-title">
+        <div>
+          <h3>Recorrido foráneo</h3>
+          <p class="settings-intro"></p>
+        </div>
+      </div>
+      <div class="foreign-route-controls">
+        <div><label>Trabajador</label><select id="foreign-route-worker"><option value="">Todos los foráneos</option></select></div>
+        <div><label>Día</label><input id="foreign-route-date" type="date"></div>
+        <button id="foreign-route-refresh" type="button" class="btn btn-primary">Ver recorrido</button>
+      </div>
+      <div id="foreign-route-summary" class="foreign-route-summary"></div>
+      <div id="foreign-route-map" class="foreign-route-map"><div class="foreign-route-empty">Selecciona un trabajador y un día para consultar su recorrido.</div></div>
+      <div id="foreign-route-list" class="foreign-route-list"></div>
+`;
+    page.appendChild(card);
+
+    const date=document.querySelector('#foreign-route-date');
+    if(date && !date.value)date.value=dateKeyLocal(new Date());
+    document.querySelector('#foreign-route-refresh')?.addEventListener('click',renderForeignRoute);
+    document.querySelector('#foreign-route-worker')?.addEventListener('change',renderForeignRoute);
+    document.querySelector('#foreign-route-date')?.addEventListener('change',renderForeignRoute);
+    refreshForeignWorkers();
+  }
+
+  async function refreshForeignWorkers(){
+    if(typeof bmcWarmWorkerConfigs==='function'){
+      try{ await bmcWarmWorkerConfigs(); }catch(error){ console.error('No se pudieron cargar configuraciones foráneas',error); }
+    }
+    const sel=document.querySelector('#foreign-route-worker');if(!sel)return;
+    const current=sel.value;
+    const found=new Map();
+    const selectedDate=document.querySelector('#foreign-route-date')?.value||'';
+    const selectedDay=selectedDate ? new Date(`${selectedDate}T12:00:00`).getDay() : null;
+    const weekday=selectedDay===0?7:selectedDay;
+    mergedWorkers().forEach(w=>{
+      const code=bmcEmployeeCode(w);
+      const cfg=bmcWorkerConfigCache?.[code]||{};
+      const rows=Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[];
+      const isForeign=Number.isInteger(weekday)
+        ? rows.some(x=>Number(x.weekday)===weekday && String(x.work_mode||'').toUpperCase()==='FOREIGN')
+        : rows.some(x=>String(x.work_mode||'').toUpperCase()==='FOREIGN');
+      if(isForeign)found.set(code,fullWorkerName(w));
+    });
+    sel.innerHTML='<option value="">Todos los foráneos</option>'+
+      [...found.entries()].sort((a,b)=>a[1].localeCompare(b[1],'es'))
+        .map(([code,name])=>`<option value="${escapeHtml(code)}">${escapeHtml(name)}</option>`).join('');
+    if([...sel.options].some(o=>o.value===current))sel.value=current;
+  }
+
+  async function renderForeignRoute(){
+    ensureForeignRouteCard();
+    await refreshForeignWorkers();
+
+    const workerCode=document.querySelector('#foreign-route-worker')?.value||'';
+    const date=document.querySelector('#foreign-route-date')?.value||'';
+    const map=document.querySelector('#foreign-route-map');
+    const list=document.querySelector('#foreign-route-list');
+    const summary=document.querySelector('#foreign-route-summary');
+    if(!map||!list||!summary)return;
+
+    summary.innerHTML='<span class="foreign-route-chip">Cargando puntos GPS...</span>';
+
+    try{
+      await loadForeignLocationRecords();
+    }catch(error){
+      console.error("Error cargando recorrido foráneo:",error);
+      summary.innerHTML='<span class="foreign-route-chip">0 puntos GPS</span>';
+      map.innerHTML=`<div class="foreign-route-empty">${escapeHtml(error?.message||"No se pudieron cargar los puntos GPS.")}</div>`;
+      list.innerHTML='';
+      return;
+    }
+
+    const rows=foreignRouteRecords(workerCode,date);
+
+    summary.innerHTML=`<span class="foreign-route-chip">${rows.length} punto${rows.length===1?'':'s'} GPS</span>`+
+      (date?`<span class="foreign-route-chip">${escapeHtml(date)}</span>`:'');
+
+    if(!rows.length){
+      map.innerHTML='<div class="foreign-route-empty">No hay puntos GPS guardados para este trabajador y día.</div>';
+      list.innerHTML='';
+      return;
+    }
+
+    const pts=rows.map(r=>({lat:Number(r.latitude),lng:Number(r.longitude),r}));
+    const minLat=Math.min(...pts.map(p=>p.lat)),maxLat=Math.max(...pts.map(p=>p.lat));
+    const minLng=Math.min(...pts.map(p=>p.lng)),maxLng=Math.max(...pts.map(p=>p.lng));
+    const pad=28,w=900,h=360;
+    const x=p=>pad+((p.lng-minLng)/(maxLng-minLng||1))*(w-pad*2);
+    const y=p=>h-pad-((p.lat-minLat)/(maxLat-minLat||1))*(h-pad*2);
+    const poly=pts.map(p=>`${x(p)},${y(p)}`).join(' ');
+
+    map.innerHTML=`
+<svg class="foreign-route-svg"
+     viewBox="0 0 ${w} ${h}"
+     role="img"
+     aria-label="Recorrido GPS del día">
+
+    <polyline
+        class="foreign-route-line"
+        points="${poly}">
+    </polyline>
+
+    ${pts.map((p,i)=>`
+        <circle
+            class="foreign-route-point"
+            data-point-index="${i}"
+            cx="${x(p)}"
+            cy="${y(p)}"
+            r="${i===0||i===pts.length-1?7:5}">
+            <title>
+                Punto ${i+1} ·
+                ${recordDate(p.r).toLocaleTimeString(
+                    'es-MX',
+                    {hour:'2-digit',minute:'2-digit'}
+                )}
+            </title>
+        </circle>
+    `).join('')}
+</svg>`;
+
+list.innerHTML=rows.map((r,i)=>{
+    const d=recordDate(r);
+
+    const eventType=String(
+        r.attendance_event_type || ''
+    ).toUpperCase();
+
+    const isEntry=eventType==='CLOCK_IN';
+    const isExit=eventType==='CLOCK_OUT';
+
+    const rowClass=isEntry
+        ? ' route-entry'
+        : isExit
+            ? ' route-exit'
+            : '';
+
+    const eventLabel=isEntry
+        ? '<span class="foreign-route-event entry"> · ENTRADA</span>'
+        : isExit
+            ? '<span class="foreign-route-event exit"> · SALIDA</span>'
+            : '';
+
+    const url=`https://www.google.com/maps/search/?api=1&query=${
+        encodeURIComponent(`${r.latitude},${r.longitude}`)
+    }`;
+
+    return `
+        <div
+            class="foreign-route-row${rowClass}"
+            data-point-index="${i}">
+
+            <strong>
+                ${escapeHtml(
+                    d.toLocaleTimeString(
+                        'es-MX',
+                        {hour:'2-digit',minute:'2-digit'}
+                    )
+                )}
+            </strong>
+
+            <span>
+                Punto ${i+1}${eventLabel} ·
+                ${Number(r.latitude).toFixed(6)},
+                ${Number(r.longitude).toFixed(6)}
+            </span>
+
+            <a
+                class="location-link"
+                href="${url}"
+                target="_blank"
+                rel="noopener">
+                Ver en Maps
+            </a>
+        </div>
+    `;
+}).join('');
+
+/* =========================================
+   SELECCIÓN MAPA ↔ HISTORIAL
+========================================= */
+
+const routePoints=[
+    ...map.querySelectorAll('.foreign-route-point')
+];
+
+const routeRows=[
+    ...list.querySelectorAll('.foreign-route-row')
+];
+
+
+function selectForeignPoint(index,scrollToRow=false){
+
+    routePoints.forEach((point,i)=>{
+
+        point.classList.toggle(
+            'selected',
+            i===index
+        );
+
+        /* Punto seleccionado más grande */
+        const originalRadius=
+            i===0 || i===routePoints.length-1
+                ? 7
+                : 5;
+
+        point.setAttribute(
+            'r',
+            i===index
+                ? originalRadius+5
+                : originalRadius
+        );
+    });
+
+
+    routeRows.forEach((row,i)=>{
+
+        row.classList.toggle(
+            'selected',
+            i===index
+        );
+
+    });
+
+
+    /*
+     * Si se seleccionó desde el mapa,
+     * lleva el historial al punto correspondiente.
+     */
+    if(scrollToRow){
+
+        const selectedRow=routeRows[index];
+
+        if(selectedRow){
+
+            selectedRow.scrollIntoView({
+                behavior:'smooth',
+                block:'center'
+            });
+
+        }
+    }
+}
+
+
+/* CLICK EN UN PUNTO DEL MAPA */
+
+routePoints.forEach((point,index)=>{
+
+    point.addEventListener('click',event=>{
+
+        event.stopPropagation();
+
+        selectForeignPoint(
+            index,
+            true
+        );
+
+    });
+
+});
+
+
+/* CLICK EN UNA FILA DEL HISTORIAL */
+
+routeRows.forEach((row,index)=>{
+
+    row.addEventListener('click',event=>{
+
+        /*
+         * No interceptar el botón
+         * "Ver en Maps"
+         */
+        if(event.target.closest('a')){
+            return;
+        }
+
+        selectForeignPoint(
+            index,
+            false
+        );
+
+    });
+
+});
+  }
+
+  /* Actualiza el módulo cuando se refresca la información de asistencia. */
+  const oldRenderAttendanceV19=window.renderAttendance;
+  if(typeof oldRenderAttendanceV19==='function'){
+    window.renderAttendance=function(...args){
+      const result=oldRenderAttendanceV19.apply(this,args);
+      setTimeout(()=>{ensureForeignRouteCard();refreshForeignWorkers();},0);
+      return result;
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    removeDuplicateCategoryButton();
+    ensureForeignRouteCard();
+    refreshForeignWorkers();
+  });
+  setTimeout(()=>{removeDuplicateCategoryButton();ensureForeignRouteCard();refreshForeignWorkers();},350);
+})();
+</script>
+
+
+<script>
+/* ===== HOTFIX DE CARGA: EMPRESAS / TRABAJADORES / CARGOS / CENTROS ===== */
+(function(){
+  const companySelectors=[
+    '#user-company','#report-company','#devices-company','#code-company',
+    '#worksite-company','#worksite-list-company'
+  ];
+
+  function setOptions(select, rows, current){
+    if(!select)return;
+    select.innerHTML='<option value="">Selecciona una empresa</option>';
+    rows.forEach(c=>{
+      const o=document.createElement('option');
+      o.value=String(c.id||'');
+      o.textContent=String(c.name||'Empresa');
+      select.appendChild(o);
+    });
+    if(current && [...select.options].some(o=>o.value===current)) select.value=current;
+    else if(rows.length===1) select.value=String(rows[0].id);
+  }
+
+  async function reloadAllCompanies(){
+    try{
+      const response=await authorizedFetch('/api/admin/companies');
+      const data=await response.json().catch(()=>[]);
+      if(!response.ok || !Array.isArray(data)) throw new Error(data?.error||'No se pudieron cargar las empresas');
+      companySelectors.forEach(sel=>{
+        const el=document.querySelector(sel);
+        setOptions(el,data,el?.value||'');
+      });
+      return data;
+    }catch(error){
+      console.error('Error cargando empresas:',error);
+      setStatus?.(error.message||'No se pudieron cargar las empresas.');
+      return [];
+    }
+  }
+
+  async function reloadWorksites(companyId){
+    if(!companyId)return [];
+    try{
+      const rows=await loadWorksitesFromBackend(companyId);
+      renderWorksites?.();
+      fillWorksiteFilter?.();
+      return rows;
+    }catch(error){
+      console.error('Error cargando centros:',error);
+      setStatus?.(error.message||'No se pudieron cargar los centros de trabajo.');
+      return [];
+    }
+  }
+
+  function fillCargoSelector(){
+    const select=document.querySelector('#code-site');
+    if(!select)return;
+    const current=select.value;
+    const cargos=new Set(['Programador','Contador']);
+    try{
+      mergedWorkers().forEach(w=>{
+        const cargo=String(w.cargo||w.position||w.department||'').trim();
+        if(cargo)cargos.add(cargo);
+      });
+    }catch(_e){}
+    select.innerHTML='<option value="">Selecciona un cargo</option>';
+    [...cargos].sort((a,b)=>a.localeCompare(b,'es')).forEach(cargo=>{
+      const o=document.createElement('option');
+      o.value=cargo;
+      o.textContent=cargo;
+      select.appendChild(o);
+    });
+    if([...select.options].some(o=>o.value===current))select.value=current;
+  }
+
+  async function reloadWorkersAndCategories(){
+    const companyId=document.querySelector('#devices-company')?.value||'';
+    if(!companyId)return;
+    try{ await loadDevices(); }catch(error){ console.error('Error cargando trabajadores:',error); }
+    try{ await bmcLoadCategories(companyId); }catch(error){ console.error('Error cargando categorías:',error); }
+    try{ renderDevicesTable?.(); }catch(_e){}
+    try{ renderSettingsWorkers?.(); }catch(_e){}
+    try{ fillAttendanceRoleFilter?.(); }catch(_e){}
+    fillCargoSelector();
+  }
+
+  async function hydratePortal(){
+    const companies=await reloadAllCompanies();
+    if(!companies.length)return;
+    const mainId=document.querySelector('#devices-company')?.value || String(companies[0].id||'');
+    companySelectors.forEach(sel=>{
+      const el=document.querySelector(sel);
+      if(el && !el.value && mainId && [...el.options].some(o=>o.value===mainId))el.value=mainId;
+    });
+    await reloadWorkersAndCategories();
+    const worksiteId=document.querySelector('#worksite-list-company')?.value||mainId;
+    if(worksiteId)await reloadWorksites(worksiteId);
+    fillCargoSelector();
+  }
+
+  document.querySelector('#worksite-list-company')?.addEventListener('change',async e=>{
+    await reloadWorksites(e.target.value);
+  });
+  document.querySelector('#worksite-company')?.addEventListener('change',async e=>{
+    if(e.target.value)await reloadWorksites(e.target.value);
+  });
+  document.querySelector('#devices-company')?.addEventListener('change',async()=>{
+    await reloadWorkersAndCategories();
+  });
+  document.querySelector('#code-company')?.addEventListener('change',()=>{
+    setTimeout(fillCargoSelector,0);
+  });
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(hydratePortal,0));
+  else setTimeout(hydratePortal,0);
+})();
+</script>
+\n<script>
+/* ===== COOATII V20 — ajustes de incidencias y foráneos ===== */
+(function(){
+  function isMealEventV20(record){
+    const e=String(record?.event_type||'').toUpperCase();
+    return e==='MEAL_START'||e==='MEAL_END';
+  }
+
+  /* En comida no se evalúa geocerca: salir y regresar a comer no genera fuera de rango. */
+  const previousLinkedV20=window.linkedWorksiteLocationForRecord;
+  if(typeof previousLinkedV20==='function'){
+    window.linkedWorksiteLocationForRecord=function(record){
+      if(isMealEventV20(record)){
+        const worker=typeof workerForAttendance==='function'?workerForAttendance(record):null;
+        const site=worker && typeof worksiteForWorker==='function'?worksiteForWorker(worker):null;
+        return {site:site||{name:'Comida'},distance:null,radius:null,status:'COMIDA'};
+      }
+      return previousLinkedV20(record);
+    };
+  }
+
+  const previousZoneLabelV20=window.zoneLabel;
+  window.zoneLabel=function(status){
+    if(status==='COMIDA')return 'Horario de comida · sin validar rango';
+    return typeof previousZoneLabelV20==='function'?previousZoneLabelV20(status):String(status||'');
+  };
+  const previousZoneClassV20=window.zoneClass;
+  window.zoneClass=function(status){
+    if(status==='COMIDA')return 'unknown';
+    return typeof previousZoneClassV20==='function'?previousZoneClassV20(status):'unknown';
+  };
+
+  /* Al cambiar el día del recorrido, recalcula quién está configurado como Foráneo ese día. */
+  document.querySelector('#foreign-route-date')?.addEventListener('change',()=>{
+    if(typeof refreshForeignWorkers==='function')refreshForeignWorkers();
+  });
+})();
+</script>\n
+<script>
+/* ===== COOATII V21 — Foráneo visible + comida solo como registro ===== */
+(function(){
+  const isMealRecordV21=record=>{
+    const event=String(record?.event_type||'').toUpperCase();
+    return event==='MEAL_START'||event==='MEAL_END';
+  };
+
+  function workerModeLabelV21(worker){
+    if(!worker)return 'Sin asignar';
+    const code=typeof bmcEmployeeCode==='function'?bmcEmployeeCode(worker):String(worker.employee_code||'');
+    const cfg=window.bmcWorkerConfigCache?.[code]||bmcWorkerConfigCache?.[code]||{};
+    const rows=Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[];
+    const now=new Date();
+    const weekday=now.getDay()===0?7:now.getDay();
+    const today=rows.find(x=>Number(x.weekday)===weekday);
+    if(today && String(today.work_mode||'SITE').toUpperCase()==='FOREIGN')return 'Foráneo';
+    if(today?.site_id){
+      const sites=typeof getWorksites==='function'?getWorksites():[];
+      const site=sites.find(s=>String(s.id)===String(today.site_id));
+      if(site?.name)return site.name;
+    }
+    if(rows.some(x=>String(x.work_mode||'SITE').toUpperCase()==='FOREIGN'))return 'Foráneo';
+    const fallback=typeof worksiteForWorker==='function'?worksiteForWorker(worker):null;
+    return fallback?.name||'Sin asignar';
+  }
+
+  /* Corrige la columna Centro para que un trabajador FOREIGN no aparezca como "Sin asignar". */
+  const previousRenderDevicesV21=window.renderDevicesTable;
+  if(typeof previousRenderDevicesV21==='function'){
+    window.renderDevicesTable=function(...args){
+      const result=previousRenderDevicesV21.apply(this,args);
+      const companyId=document.querySelector('#devices-company')?.value||'';
+      const workers=mergedWorkers()
+        .filter(w=>!companyId||!w.company_id||String(w.company_id)===String(companyId))
+        .sort((a,b)=>normalizeSearchText(a.paternal||'').localeCompare(normalizeSearchText(b.paternal||''))||normalizeSearchText(fullWorkerName(a)).localeCompare(normalizeSearchText(fullWorkerName(b))));
+      [...document.querySelectorAll('#devices tr')].forEach((tr,index)=>{
+        const worker=workers[index];
+        if(!worker)return;
+        const cell=tr.querySelector('.worker-worksite-text');
+        if(cell)cell.textContent=workerModeLabelV21(worker);
+      });
+      return result;
+    };
+  }
+
+  /* Salió/Regresó de comer se conservan en attendanceRecords, pero NO aparecen como anomalías. */
+  const previousRenderAttendanceV21=window.renderAttendance;
+  if(typeof previousRenderAttendanceV21==='function'){
+    window.renderAttendance=function(...args){
+      const original=attendanceRecords;
+      try{
+        attendanceRecords=original.filter(record=>!isMealRecordV21(record));
+        return previousRenderAttendanceV21.apply(this,args);
+      }finally{
+        attendanceRecords=original;
+      }
+    };
+  }
+
+  /* Tampoco deben abrirse para calificación accidentalmente. */
+  const previousOpenIncidentV21=window.openIncidenceQualification;
+  if(typeof previousOpenIncidentV21==='function'){
+    window.openIncidenceQualification=function(workerName,record,preset=''){
+      if(isMealRecordV21(record))return;
+      return previousOpenIncidentV21(workerName,record,preset);
+    };
+  }
+
+  async function refreshForeignUiV21(){
+    try{
+      if(typeof bmcWarmWorkerConfigs==='function')await bmcWarmWorkerConfigs();
+      if(typeof refreshForeignWorkers==='function')await refreshForeignWorkers();
+      if(typeof renderDevicesTable==='function')renderDevicesTable();
+      if(typeof renderAttendance==='function')renderAttendance();
+    }catch(error){console.error(error);}
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshForeignUiV21,150));
+  }else{
+    setTimeout(refreshForeignUiV21,150);
+  }
+})();
+</script>
+
+
+<style>
+/* ===== V25: CONTEO SIMPLE DE INCIDENCIAS AL FINAL ===== */
+#bmc-incidence-counts-card{
+    margin-top:18px;
+}
+#bmc-incidence-counts-card .card-title{
+    margin-bottom:14px;
+}
+#bmc-incidence-counts-card .card-title h3{
+    margin:0;
+}
+.incidence-counts-simple{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:14px;
+}
+.incidence-worker-simple{
+    border:1px solid var(--blue-200);
+    border-radius:14px;
+    padding:15px 16px;
+    background:#fff;
+}
+.incidence-worker-simple-name{
+    color:var(--blue-800);
+    font-size:15px;
+    font-weight:900;
+    margin-bottom:10px;
+}
+.incidence-worker-simple-lines{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    color:#526b83;
+    font-size:13px;
+    line-height:1.35;
+}
+.incidence-worker-simple-line{
+    display:block;
+}
+@media(max-width:580px){
+    .incidence-counts-simple{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+
+<script>
+/* ===== COOATII V25 — conteo simple por trabajador ===== */
+(function(){
+  const INCIDENCE_NAMES_V25 = [
+    "Ausentismo",
+    "Retardo",
+    "Permiso médico justificado",
+    "Permiso médico no justificado",
+    "Permiso de salida",
+    "Falta justificada",
+    "Tiempo extraordinario"
+  ];
+
+  async function renderIncidentCountsV25(){
+    const page=document.querySelector("#attendance-page");
+    if(!page)return;
+
+    let card=document.querySelector("#bmc-incidence-counts-card");
+
+    if(!card){
+      card=document.createElement("div");
+      card.id="bmc-incidence-counts-card";
+      card.className="card blue-card";
+      card.innerHTML=`
+        <div class="card-title">
+          <div><h3>Conteo de incidencias</h3></div>
+        </div>
+        <div id="bmc-incidence-counts-grid" class="incidence-counts-simple"></div>
+      `;
+      page.appendChild(card);
+    }else{
+      card.style.display="";
+      const title=card.querySelector(".card-title");
+      if(title)title.innerHTML='<div><h3>Conteo de incidencias</h3></div>';
+      let grid=card.querySelector("#bmc-incidence-counts-grid");
+      if(!grid){
+        grid=document.createElement("div");
+        grid.id="bmc-incidence-counts-grid";
+        card.appendChild(grid);
+      }
+      grid.className="incidence-counts-simple";
+    }
+
+    /* Siempre mantener este conteo hasta abajo de Incidencias. */
+    page.appendChild(card);
+
+    const grid=card.querySelector("#bmc-incidence-counts-grid");
+    const companyId=typeof bmcCompanyId==="function"?bmcCompanyId():"";
+
+    if(!companyId){
+      grid.innerHTML='<div class="empty">Selecciona una empresa.</div>';
+      return;
+    }
+
+    const workers=(typeof mergedWorkers==="function"?mergedWorkers():[])
+      .filter(w=>!w.company_id||String(w.company_id)===String(companyId))
+      .sort((a,b)=>{
+        const an=typeof fullWorkerName==="function"?fullWorkerName(a):String(a.full_name||a.name||"");
+        const bn=typeof fullWorkerName==="function"?fullWorkerName(b):String(b.full_name||b.name||"");
+        return an.localeCompare(bn,"es",{sensitivity:"base"});
+      });
+
+    if(!workers.length){
+      grid.innerHTML='<div class="empty">No hay trabajadores.</div>';
+      return;
+    }
+
+    const results=await Promise.all(workers.map(async worker=>{
+      const code=typeof bmcEmployeeCode==="function"
+        ? bmcEmployeeCode(worker)
+        : String(worker.employee_code||worker.id_local||worker.id||"");
+
+      try{
+        const response=await authorizedFetch(
+          `/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/incidence-counts`
+        );
+        const data=await response.json().catch(()=>({}));
+       return {
+  worker,
+  rows:response.ok && Array.isArray(data.incidences)?data.incidences:[],
+  ausentismoValue:response.ok ? Number(data.ausentismo_value || 0) : 0
+};
+      }catch(error){
+        console.error("No se pudo cargar el conteo de incidencias:",error);
+       return {worker,rows:[],ausentismoValue:0};
+      }
+    }));
+
+    grid.innerHTML=results.map(({worker,rows,ausentismoValue})=>{
+  const workerName=typeof fullWorkerName==="function"
+    ? fullWorkerName(worker)
+    : String(worker.full_name||worker.name||worker.employee_code||"Trabajador");
+
+  const lines=INCIDENCE_NAMES_V25.map(name=>{
+    const row=rows.find(x=>String(x.concept||"")===name);
+    const count=Number(row?.count||0);
+
+    if(name==="Ausentismo"){
+      const percentage=count*Number(ausentismoValue||0);
+
+      return `<span class="incidence-worker-simple-line">
+        ${escapeHtml(name)}: ${count} = ${percentage.toFixed(2)}%
+      </span>`;
+    }
+
+    return `<span class="incidence-worker-simple-line">
+      ${escapeHtml(name)}: ${count}
+    </span>`;
+  }).join("");
+
+
+
+
+      return `
+        <div class="incidence-worker-simple">
+          <div class="incidence-worker-simple-name">${escapeHtml(workerName)}</div>
+          <div class="incidence-worker-simple-lines">${lines}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  /* Sustituye la versión anterior que ocultaba el conteo. */
+  window.bmcRenderIncidentCounts=renderIncidentCountsV25;
+  try{ bmcRenderIncidentCounts=renderIncidentCountsV25; }catch(_){}
+
+  async function refreshCountsV25(){
+    try{
+      await renderIncidentCountsV25();
+    }catch(error){
+      console.error(error);
+    }
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",()=>setTimeout(refreshCountsV25,250));
+  }else{
+    setTimeout(refreshCountsV25,250);
+  }
+
+  /* Actualiza el conteo cuando se cambia de empresa o filtros principales. */
+  document.addEventListener("change",event=>{
+    if([
+      "attendance-company",
+      "devices-company"
+    ].includes(event.target?.id)){
+      setTimeout(refreshCountsV25,100);
+    }
+  });
+
+  /* Después de calificar una incidencia, vuelve a cargar el conteo. */
+  document.addEventListener("click",event=>{
+    if(event.target?.id==="incidence-modal-save"){
+      setTimeout(refreshCountsV25,900);
+    }
+  });
+})();
+</script>
+
+<script>
+/* ===== COOATII V26 — INCIDENCIAS DESDE POSTGRESQL ===== */
+(function(){
+    async function reloadIncidencesV26(){
+        try{
+            if(typeof loadAttendance==="function"){
+                await loadAttendance();
+            }
+        }catch(error){
+            console.error("V26: no se pudieron recargar incidencias",error);
+        }
+    }
+
+    document.querySelector('[data-page="attendance-page"]')
+        ?.addEventListener("click",()=>{
+            setTimeout(reloadIncidencesV26,0);
+        });
+
+    document.querySelector("#incidence-tab-pending")
+        ?.addEventListener("click",()=>{
+            setTimeout(reloadIncidencesV26,0);
+        });
+
+    document.querySelector("#incidence-tab-justified")
+        ?.addEventListener("click",()=>{
+            setTimeout(reloadIncidencesV26,0);
+        });
+})();
 </script>
 
 </body>

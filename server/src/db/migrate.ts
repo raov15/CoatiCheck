@@ -100,10 +100,10 @@ export async function initDb(): Promise<void> {
     );
 
     /* =========================================================
-       CATEGORÍAS 1 / 2 / 3
+       CATEGORÍAS
 
        La configuración laboral se guarda por categoría.
-       Cada empresa tiene exactamente las categorías 1, 2 y 3.
+       Cada empresa puede tener tantas categorías como necesite.
     ========================================================= */
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -111,8 +111,8 @@ export async function initDb(): Promise<void> {
       company_id UUID NOT NULL
         REFERENCES companies(id)
         ON DELETE CASCADE,
-      category_number SMALLINT NOT NULL
-        CHECK (category_number BETWEEN 1 AND 3),
+      category_number INTEGER NOT NULL
+        CHECK (category_number >= 1),
       name TEXT NOT NULL,
       start_time TEXT,
       end_time TEXT,
@@ -326,6 +326,8 @@ export async function initDb(): Promise<void> {
       site_id UUID
         REFERENCES sites(id)
         ON DELETE CASCADE,
+      work_mode TEXT NOT NULL DEFAULT 'SITE'
+        CHECK (work_mode IN ('SITE', 'FOREIGN')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(employee_id, weekday)
@@ -353,6 +355,49 @@ export async function initDb(): Promise<void> {
         REFERENCES sites(id),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    /* =========================================================
+       RECORRIDO GPS DE TRABAJADORES FORÁNEOS
+
+       Cada punto se guarda automáticamente desde la app móvil
+       durante una jornada foránea. Los puntos se conservan por
+       trabajador, fecha y hora para reconstruir el recorrido.
+    ========================================================= */
+
+    CREATE TABLE IF NOT EXISTS employee_location_points (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL
+        REFERENCES companies(id)
+        ON DELETE CASCADE,
+      employee_id UUID NOT NULL
+        REFERENCES employees(id_remote)
+        ON DELETE CASCADE,
+      device_id UUID
+        REFERENCES devices(id_remote)
+        ON DELETE SET NULL,
+      work_date DATE NOT NULL,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      latitude DOUBLE PRECISION NOT NULL
+        CHECK (latitude BETWEEN -90 AND 90),
+      longitude DOUBLE PRECISION NOT NULL
+        CHECK (longitude BETWEEN -180 AND 180),
+      accuracy_m REAL,
+      altitude_m DOUBLE PRECISION,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_company_date
+      ON employee_location_points(company_id, work_date DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_employee_date
+      ON employee_location_points(employee_id, work_date DESC, recorded_at ASC);
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_recorded_at
+      ON employee_location_points(recorded_at DESC);
+
+    /* Evita guardar exactamente el mismo punto dos veces para el mismo trabajador. */
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_employee_location_points_employee_recorded_at
+      ON employee_location_points(employee_id, recorded_at);
 
     /* =========================================================
        INCIDENCIAS CALIFICADAS
@@ -549,70 +594,115 @@ export async function initDb(): Promise<void> {
     END $$;
 
     /* =========================================================
-       CREAR AUTOMÁTICAMENTE CATEGORÍAS 1, 2 Y 3
-       PARA EMPRESAS EXISTENTES
+       CATEGORÍAS DINÁMICAS + MIGRACIÓN SEGURA
+
+       - Ya NO se crean Categoría 1, 2 y 3 automáticamente.
+       - category_number deja de estar limitado a 1..3.
+       - Las categorías existentes se conservan.
+       - Los valores faltantes de incidencias nacen en 0.
+       - La corrección de los antiguos valores predeterminados 1 -> 0
+         se ejecuta una sola vez para no pisar cambios posteriores
+         hechos por el administrador.
     ========================================================= */
 
-    INSERT INTO categories (
-      company_id,
-      category_number,
-      name,
-      overtime_allowed,
-      overtime_value
-    )
-    SELECT
-      c.id,
-      n.category_number,
-      'Categoría ' || n.category_number,
-      TRUE,
-      NULL
-    FROM companies c
-    CROSS JOIN (
-      VALUES (1), (2), (3)
-    ) AS n(category_number)
-    ON CONFLICT (company_id, category_number)
-    DO NOTHING;
+    CREATE TABLE IF NOT EXISTS app_schema_migrations (
+      migration_key TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
-    /* =========================================================
-       VALORES PREDETERMINADOS DE INCIDENCIAS
-       PARA TODAS LAS CATEGORÍAS
-    ========================================================= */
+    ALTER TABLE categories
+      DROP CONSTRAINT IF EXISTS categories_category_number_check;
 
-    INSERT INTO category_incidence_values (
-      category_id,
-      concept,
-      value
-    )
-    SELECT
-      cat.id,
-      v.concept,
-      v.value
+    DO $$
+    DECLARE
+      constraint_name TEXT;
+    BEGIN
+      SELECT con.conname
+      INTO constraint_name
+      FROM pg_constraint con
+      JOIN pg_class rel ON rel.oid = con.conrelid
+      JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+      WHERE nsp.nspname = 'public'
+        AND rel.relname = 'categories'
+        AND con.contype = 'c'
+        AND pg_get_constraintdef(con.oid) ILIKE '%category_number%between%1%3%'
+      LIMIT 1;
+
+      IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE categories DROP CONSTRAINT %I', constraint_name);
+      END IF;
+    END $$;
+
+    ALTER TABLE categories
+      ALTER COLUMN category_number TYPE INTEGER;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'categories_category_number_positive_check'
+      ) THEN
+        ALTER TABLE categories
+          ADD CONSTRAINT categories_category_number_positive_check
+          CHECK (category_number >= 1);
+      END IF;
+    END $$;
+
+    /* Eliminar la automatización antigua de Categoría 1, 2 y 3. */
+    DROP TRIGGER IF EXISTS trg_create_default_company_categories ON companies;
+    DROP FUNCTION IF EXISTS create_default_company_categories();
+
+    /*
+     * Corrección UNA SOLA VEZ de los cuatro conceptos que antes
+     * se sembraban en 1. Después de esta marca, migrate.ts nunca
+     * volverá a modificar un valor que el usuario cambie manualmente.
+     */
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM app_schema_migrations
+        WHERE migration_key = 'incidence_permission_defaults_to_zero_v1'
+      ) THEN
+        UPDATE category_incidence_values
+        SET value = 0, updated_at = NOW()
+        WHERE concept IN (
+          'Permiso médico justificado',
+          'Permiso médico no justificado',
+          'Permiso de salida',
+          'Falta justificada'
+        )
+        AND value = 1;
+
+        INSERT INTO app_schema_migrations (migration_key)
+        VALUES ('incidence_permission_defaults_to_zero_v1');
+      END IF;
+    END $$;
+
+    /*
+     * Si una categoría existente no tiene alguno de estos conceptos,
+     * se crea en 0. ON CONFLICT DO NOTHING conserva cualquier valor
+     * que ya haya sido configurado por el usuario.
+     */
+    INSERT INTO category_incidence_values (category_id, concept, value)
+    SELECT cat.id, v.concept, 0
     FROM categories cat
     CROSS JOIN (
       VALUES
-        ('Ausentismo', 1::NUMERIC),
-        ('Retardo', 1::NUMERIC),
-        ('Permiso médico justificado', 1::NUMERIC),
-        ('Permiso médico no justificado', 1::NUMERIC),
-        ('Permiso de salida', 1::NUMERIC),
-        ('Falta justificada', 1::NUMERIC)
-    ) AS v(concept, value)
-    ON CONFLICT (category_id, concept)
-    DO NOTHING;
+        ('Ausentismo'),
+        ('Retardo'),
+        ('Permiso médico justificado'),
+        ('Permiso médico no justificado'),
+        ('Permiso de salida'),
+        ('Falta justificada')
+    ) AS v(concept)
+    ON CONFLICT (category_id, concept) DO NOTHING;
 
-    /* =========================================================
-       HORARIO BASE LUNES A VIERNES PARA CATEGORÍAS
-
-       Solo se crea si todavía no existe configuración.
-       Después el administrador podrá cambiarlo.
-    ========================================================= */
-
+    /*
+     * Mantener los siete días disponibles para cada categoría existente.
+     * No sobrescribe horarios ya configurados.
+     */
     INSERT INTO category_workdays (
-      category_id,
-      weekday,
-      is_workday,
-      start_time,
-      end_time
+      category_id, weekday, is_workday, start_time, end_time
     )
     SELECT
       cat.id,
@@ -621,87 +711,8 @@ export async function initDb(): Promise<void> {
       cat.start_time,
       cat.end_time
     FROM categories cat
-    CROSS JOIN (
-      VALUES (1), (2), (3), (4), (5), (6), (7)
-    ) AS d(weekday)
-    ON CONFLICT (category_id, weekday)
-    DO NOTHING;
-
-    /* =========================================================
-       TRIGGER: CATEGORÍAS AUTOMÁTICAS PARA EMPRESAS NUEVAS
-    ========================================================= */
-
-    CREATE OR REPLACE FUNCTION create_default_company_categories()
-    RETURNS TRIGGER
-    LANGUAGE plpgsql
-    AS $$
-    DECLARE
-      category_row RECORD;
-    BEGIN
-      INSERT INTO categories (
-        company_id,
-        category_number,
-        name,
-        overtime_allowed,
-        overtime_value
-      )
-      VALUES
-        (NEW.id, 1, 'Categoría 1', TRUE, NULL),
-        (NEW.id, 2, 'Categoría 2', TRUE, NULL),
-        (NEW.id, 3, 'Categoría 3', TRUE, NULL)
-      ON CONFLICT (company_id, category_number)
-      DO NOTHING;
-
-      FOR category_row IN
-        SELECT id
-        FROM categories
-        WHERE company_id = NEW.id
-      LOOP
-        INSERT INTO category_incidence_values (
-          category_id,
-          concept,
-          value
-        )
-        VALUES
-          (category_row.id, 'Ausentismo', 1),
-          (category_row.id, 'Retardo', 1),
-          (category_row.id, 'Permiso médico justificado', 1),
-          (category_row.id, 'Permiso médico no justificado', 1),
-          (category_row.id, 'Permiso de salida', 1),
-          (category_row.id, 'Falta justificada', 1)
-        ON CONFLICT (category_id, concept)
-        DO NOTHING;
-
-        INSERT INTO category_workdays (
-          category_id,
-          weekday,
-          is_workday,
-          start_time,
-          end_time
-        )
-        VALUES
-          (category_row.id, 1, TRUE, NULL, NULL),
-          (category_row.id, 2, TRUE, NULL, NULL),
-          (category_row.id, 3, TRUE, NULL, NULL),
-          (category_row.id, 4, TRUE, NULL, NULL),
-          (category_row.id, 5, TRUE, NULL, NULL),
-          (category_row.id, 6, FALSE, NULL, NULL),
-          (category_row.id, 7, FALSE, NULL, NULL)
-        ON CONFLICT (category_id, weekday)
-        DO NOTHING;
-      END LOOP;
-
-      RETURN NEW;
-    END;
-    $$;
-
-    DROP TRIGGER IF EXISTS trg_create_default_company_categories
-      ON companies;
-
-    CREATE TRIGGER trg_create_default_company_categories
-    AFTER INSERT ON companies
-    FOR EACH ROW
-    EXECUTE FUNCTION create_default_company_categories();
+    CROSS JOIN (VALUES (1), (2), (3), (4), (5), (6), (7)) AS d(weekday)
+    ON CONFLICT (category_id, weekday) DO NOTHING;
 
     /* =========================================================
        ÍNDICES ÚTILES
@@ -773,6 +784,40 @@ export async function initDb(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS idx_category_incidence_values_category_id
       ON category_incidence_values(category_id);
+
+    /* =========================================================
+       MODO DE TRABAJO POR DÍA
+
+       SITE    = trabaja en un centro asignado
+       FOREIGN = trabajador foráneo, sin centro/geocerca fija
+
+       No se deduce FOREIGN a partir de site_id NULL.
+       Las asignaciones existentes permanecen como SITE.
+    ========================================================= */
+
+    ALTER TABLE employee_work_sites
+      ADD COLUMN IF NOT EXISTS work_mode TEXT NOT NULL DEFAULT 'SITE';
+
+    UPDATE employee_work_sites
+    SET work_mode = 'SITE'
+    WHERE work_mode IS NULL
+       OR work_mode NOT IN ('SITE', 'FOREIGN');
+
+    ALTER TABLE employee_work_sites
+      ALTER COLUMN work_mode SET DEFAULT 'SITE';
+
+    ALTER TABLE employee_work_sites
+      ALTER COLUMN work_mode SET NOT NULL;
+
+    ALTER TABLE employee_work_sites
+      DROP CONSTRAINT IF EXISTS employee_work_sites_work_mode_check;
+
+    ALTER TABLE employee_work_sites
+      ADD CONSTRAINT employee_work_sites_work_mode_check
+      CHECK (work_mode IN ('SITE', 'FOREIGN'));
+
+    CREATE INDEX IF NOT EXISTS idx_employee_work_sites_work_mode
+      ON employee_work_sites(work_mode);
 
     CREATE INDEX IF NOT EXISTS idx_employee_work_sites_employee_id
       ON employee_work_sites(employee_id);

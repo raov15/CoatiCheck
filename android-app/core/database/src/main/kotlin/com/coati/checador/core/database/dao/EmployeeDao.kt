@@ -43,7 +43,9 @@ interface EmployeeDao {
 
     @Query("""
         UPDATE employees
-        SET sync_status = :status, id_remote = :idRemote, updated_at = :updatedAt
+        SET sync_status = :status,
+            id_remote = :idRemote,
+            updated_at = :updatedAt
         WHERE id_local = :idLocal
     """)
     suspend fun updateSyncResult(
@@ -53,15 +55,33 @@ interface EmployeeDao {
         updatedAt: Long
     )
 
-    @Query("UPDATE employees SET sync_status = :status WHERE id_local = :idLocal")
-    suspend fun updateSyncStatus(idLocal: String, status: String)
+    @Query("""
+        UPDATE employees
+        SET sync_status = :status
+        WHERE id_local = :idLocal
+    """)
+    suspend fun updateSyncStatus(
+        idLocal: String,
+        status: String
+    )
 
-    @Query("SELECT COUNT(*) FROM employees WHERE sync_status = 'pending'")
+    @Query("""
+        SELECT COUNT(*)
+        FROM employees
+        WHERE sync_status = 'pending'
+    """)
     suspend fun countPending(): Int
 
-    @Query("SELECT COUNT(*) FROM employees WHERE is_active = 1")
+    @Query("""
+        SELECT COUNT(*)
+        FROM employees
+        WHERE is_active = 1
+    """)
     suspend fun countActive(): Int
 
-    @Query("DELETE FROM employees WHERE id_local = :idLocal")
+    @Query("""
+        DELETE FROM employees
+        WHERE id_local = :idLocal
+    """)
     suspend fun deleteById(idLocal: String)
 }

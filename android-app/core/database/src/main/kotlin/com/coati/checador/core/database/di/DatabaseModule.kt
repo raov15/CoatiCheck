@@ -9,6 +9,8 @@ import com.coati.checador.core.database.dao.AttendanceRecordDao
 import com.coati.checador.core.database.dao.DeviceDao
 import com.coati.checador.core.database.dao.EmployeeDao
 import com.coati.checador.core.database.dao.EmployeeFaceProfileDao
+import com.coati.checador.core.database.dao.EmployeeWorkSiteDao
+import com.coati.checador.core.database.dao.ForeignLocationPointDao
 import com.coati.checador.core.database.dao.SyncQueueDao
 import com.coati.checador.core.database.util.DatabasePassphraseManager
 import dagger.Module
@@ -46,7 +48,9 @@ object DatabaseModule {
             .addMigrations(
                 CoatiDatabase.MIGRATION_1_2,
                 CoatiDatabase.MIGRATION_2_3,
-                CoatiDatabase.MIGRATION_3_4
+                CoatiDatabase.MIGRATION_3_4,
+                CoatiDatabase.MIGRATION_4_5,
+                CoatiDatabase.MIGRATION_5_6
             )
 
             .fallbackToDestructiveMigration()
@@ -89,4 +93,24 @@ object DatabaseModule {
         db: CoatiDatabase
     ): DeviceDao =
         db.deviceDao()
+
+    // =========================================================
+    // RECORRIDO FORÁNEO
+    // =========================================================
+
+    @Provides
+    fun provideForeignLocationPointDao(
+        db: CoatiDatabase
+    ): ForeignLocationPointDao =
+        db.foreignLocationPointDao()
+
+    // =========================================================
+    // CONFIGURACIÓN SITE / FOREIGN POR DÍA
+    // =========================================================
+
+    @Provides
+    fun provideEmployeeWorkSiteDao(
+        db: CoatiDatabase
+    ): EmployeeWorkSiteDao =
+        db.employeeWorkSiteDao()
 }

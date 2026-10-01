@@ -730,4 +730,113 @@ router.post(
   }
 );
 
+
+/* =========================================================
+   GET /api/employees/work-assignments
+
+   Descarga a Android la configuración laboral por día de los
+   empleados pertenecientes a la empresa del dispositivo.
+
+   SITE:
+   - tiene un centro de trabajo fijo para ese día.
+
+   FOREIGN:
+   - no tiene centro fijo.
+   - site_id se devuelve NULL.
+   - Android puede activar el seguimiento de ubicación foránea.
+
+   Esta ruta NO modifica empleados ni configuraciones.
+========================================================= */
+router.get(
+  '/work-assignments',
+  authMiddleware,
+  async (
+    req: AuthRequest,
+    res: Response
+  ): Promise<void> => {
+
+    if (!req.deviceId) {
+      res.status(401).json({
+        error: 'No se pudo identificar el dispositivo',
+      });
+      return;
+    }
+
+    try {
+      const deviceResult = await pool.query(
+        `
+          SELECT
+            id_remote,
+            company_id
+          FROM devices
+          WHERE id_remote = $1
+          LIMIT 1
+        `,
+        [req.deviceId],
+      );
+
+      if (deviceResult.rows.length === 0) {
+        res.status(403).json({
+          error: 'El dispositivo no está registrado',
+        });
+        return;
+      }
+
+      const device = deviceResult.rows[0];
+
+      if (!device.company_id) {
+        res.status(403).json({
+          error: 'El dispositivo no tiene empresa asignada',
+        });
+        return;
+      }
+
+      const result = await pool.query(
+        `
+          SELECT
+            e.id_remote AS employee_id_remote,
+            e.id_local AS employee_id_local,
+            e.employee_code,
+            ews.weekday,
+            ews.work_mode,
+            CASE
+              WHEN ews.work_mode = 'FOREIGN' THEN NULL
+              ELSE ews.site_id
+            END AS site_id,
+            CASE
+              WHEN ews.work_mode = 'FOREIGN' THEN NULL
+              ELSE s.name
+            END AS site_name
+          FROM employees e
+          JOIN employee_work_sites ews
+            ON ews.employee_id = e.id_remote
+          LEFT JOIN sites s
+            ON s.id = ews.site_id
+           AND s.company_id = e.company_id
+          WHERE e.company_id = $1
+            AND e.is_active = TRUE
+          ORDER BY
+            e.employee_code,
+            ews.weekday
+        `,
+        [device.company_id],
+      );
+
+      res.status(200).json({
+        assignments: result.rows,
+      });
+
+    } catch (error) {
+      console.error(
+        'Error descargando configuración laboral para Android:',
+        error
+      );
+
+      res.status(500).json({
+        error: 'Error interno del servidor',
+      });
+    }
+  }
+);
+
 export default router;

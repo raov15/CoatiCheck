@@ -12,12 +12,20 @@ android {
     defaultConfig {
         minSdk = 26
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
@@ -31,13 +39,19 @@ android {
 }
 
 dependencies {
+
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
     implementation(project(":core:database"))
     implementation(project(":core:security"))
+
+    // Necesario para CoatiApiServiceFactory
+    implementation(project(":core:network"))
+
     implementation(project(":core:sync"))
     implementation(project(":feature:location"))
-    // Motor de reconocimiento facial 1:N (FaceRecognitionEngine)
+
+    // Motor de reconocimiento facial 1:N
     implementation(project(":feature:face-recognition"))
 
     implementation(libs.androidx.core.ktx)
@@ -51,9 +65,10 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
+
     debugImplementation(libs.androidx.ui.tooling)
 
-    // CameraX — para vista previa y captura facial en asistencia
+    // CameraX
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
@@ -61,16 +76,17 @@ dependencies {
 
     implementation("com.google.mlkit:face-detection:16.1.7")
 
-    // Timber logging
+    // Timber
     implementation(libs.timber)
 
-    // Hilt DI
+    // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
-    // Permisos en Compose (cámara y ubicación)
+    // Permisos
     implementation(libs.accompanist.permissions)
+
     implementation(libs.coil.compose)
 
     testImplementation(libs.junit)

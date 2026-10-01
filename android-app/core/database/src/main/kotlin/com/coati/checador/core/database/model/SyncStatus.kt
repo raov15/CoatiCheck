@@ -1,8 +1,8 @@
 package com.coati.checador.core.database.model
 
 object SyncStatus {
-    const val PENDING = "pending"
-    const val SYNCING = "syncing"
-    const val SYNCED = "synced"
-    const val ERROR = "error"
+    const val PENDING = "PENDING"
+    const val SYNCING = "SYNCING"
+    const val SYNCED = "SYNCED"
+    const val ERROR = "ERROR"
 }
