@@ -32,6 +32,9 @@ insertOrReplace:
 INSERT OR REPLACE INTO foreign_location_points
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+findById:
+SELECT * FROM foreign_location_points WHERE id_local = ?;
+
 getPendingForSync:
 SELECT * FROM foreign_location_points
 WHERE sync_status IN ('PENDING', 'ERROR') AND sync_attempts < 10

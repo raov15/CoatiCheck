@@ -82,6 +82,7 @@ kotlin {
                 implementation(libs.play.services.location)
                 implementation(libs.kotlinx.coroutines.play.services)
                 implementation(libs.mlkit.face.detection)
+                implementation(libs.androidx.work)
             }
         }
         val androidUnitTest by getting {

@@ -1,5 +1,6 @@
 package com.coati.checador.shared.data.network
 
+import com.coati.checador.shared.domain.sync.SyncApi
 import com.coati.checador.shared.data.network.dto.AttendanceSyncRequest
 import com.coati.checador.shared.data.network.dto.AttendanceSyncResponse
 import com.coati.checador.shared.data.network.dto.DeviceBrandingResponse
@@ -65,7 +66,7 @@ class CoatiApi(
     connectTimeoutMs: Long = 15_000,
     requestTimeoutMs: Long = 30_000,
     httpClientEngine: HttpClientEngine? = null
-) {
+) : SyncApi {
     private val base = requireNotNull(
         ApiBaseUrl.normalize(baseUrl)
     ) { "URL base inválida: '$baseUrl'. Debe usar https://" }.trimEnd('/')
@@ -134,7 +135,7 @@ class CoatiApi(
             }.body()
         }
 
-    suspend fun refreshToken(bearerToken: String): DeviceTokenRefreshResponse =
+    override suspend fun refreshToken(bearerToken: String): DeviceTokenRefreshResponse =
         apiCall {
             client.post("$base/devices/refresh-token") {
                 header(HttpHeaders.Authorization, bearerToken)
@@ -152,7 +153,7 @@ class CoatiApi(
     // EMPLEADOS
     // =========================================================
 
-    suspend fun syncEmployees(
+    override suspend fun syncEmployees(
         bearerToken: String,
         request: EmployeeSyncRequest
     ): EmployeeSyncResponse =
@@ -168,7 +169,7 @@ class CoatiApi(
     // CONFIGURACIÓN SITE / FOREIGN
     // =========================================================
 
-    suspend fun getEmployeeWorkAssignments(
+    override suspend fun getEmployeeWorkAssignments(
         bearerToken: String
     ): EmployeeWorkAssignmentsResponse =
         apiCall {
@@ -181,7 +182,7 @@ class CoatiApi(
     // ASISTENCIAS
     // =========================================================
 
-    suspend fun syncAttendance(
+    override suspend fun syncAttendance(
         bearerToken: String,
         request: AttendanceSyncRequest
     ): AttendanceSyncResponse =
@@ -197,7 +198,7 @@ class CoatiApi(
     // RECORRIDO FORÁNEO
     // =========================================================
 
-    suspend fun syncForeignLocations(
+    override suspend fun syncForeignLocations(
         bearerToken: String,
         request: ForeignLocationSyncRequest
     ): ForeignLocationSyncResponse =
