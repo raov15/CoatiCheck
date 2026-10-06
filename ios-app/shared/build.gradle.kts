@@ -81,6 +81,7 @@ kotlin {
                 implementation(libs.tensorflow.lite)
                 implementation(libs.play.services.location)
                 implementation(libs.kotlinx.coroutines.play.services)
+                implementation(libs.mlkit.face.detection)
             }
         }
         val androidUnitTest by getting {

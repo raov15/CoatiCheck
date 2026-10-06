@@ -37,6 +37,7 @@ koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version = "2.14.0" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version = "21.2.0" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
+mlkit-face-detection = { module = "com.google.mlkit:face-detection", version = "16.1.5" }
 
 # Android
 androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.12.0" }
