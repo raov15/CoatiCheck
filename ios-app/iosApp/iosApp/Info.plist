@@ -20,6 +20,19 @@
     <string>1</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>CoatiCheck usa la cámara para reconocer el rostro del empleado al registrar la asistencia y al enrolar nuevos empleados.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>CoatiCheck obtiene la ubicación al momento del checado para validar el sitio de trabajo.</string>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.coati.checador.ios.sync</string>
+    </array>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

@@ -12,6 +12,20 @@
 		000000000000000000000016 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000007 /* Assets.xcassets */; };
 		000000000000000000000017 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000008 /* Preview Assets.xcassets */; };
 		000000000000000000000018 /* CoatiCheckShared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000A /* CoatiCheckShared.xcframework */; };
+		00000000000000000000001E /* KotlinInterop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001D /* KotlinInterop.swift */; };
+		000000000000000000000020 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001F /* AppDependencies.swift */; };
+		000000000000000000000022 /* CoreMLFaceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000021 /* CoreMLFaceEngine.swift */; };
+		000000000000000000000024 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000023 /* CameraService.swift */; };
+		000000000000000000000028 /* DeviceAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000027 /* DeviceAuthView.swift */; };
+		00000000000000000000002A /* AttendanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000029 /* AttendanceView.swift */; };
+		00000000000000000000002C /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002B /* EnrollmentView.swift */; };
+		00000000000000000000002E /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002D /* HistoryView.swift */; };
+		000000000000000000000030 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002F /* SettingsView.swift */; };
+		000000000000000000000032 /* DeviceAuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000031 /* DeviceAuthViewModel.swift */; };
+		000000000000000000000034 /* AttendanceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000033 /* AttendanceViewModel.swift */; };
+		000000000000000000000036 /* EnrollmentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000035 /* EnrollmentViewModel.swift */; };
+		000000000000000000000038 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000037 /* HistoryViewModel.swift */; };
+		00000000000000000000003A /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000039 /* SettingsViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +36,20 @@
 		000000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		00000000000000000000000A /* CoatiCheckShared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = CoatiCheckShared.xcframework; path = ../shared/build/XCFrameworks/release/CoatiCheckShared.xcframework; sourceTree = "<group>"; };
 		000000000000000000000013 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		00000000000000000000001D /* KotlinInterop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KotlinInterop.swift; sourceTree = "<group>"; };
+		00000000000000000000001F /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
+		000000000000000000000021 /* CoreMLFaceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreMLFaceEngine.swift; sourceTree = "<group>"; };
+		000000000000000000000023 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		000000000000000000000027 /* DeviceAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAuthView.swift; sourceTree = "<group>"; };
+		000000000000000000000029 /* AttendanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceView.swift; sourceTree = "<group>"; };
+		00000000000000000000002B /* EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentView.swift; sourceTree = "<group>"; };
+		00000000000000000000002D /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		00000000000000000000002F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		000000000000000000000031 /* DeviceAuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAuthViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000000033 /* AttendanceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000000035 /* EnrollmentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000000037 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
+		000000000000000000000039 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,11 +78,41 @@
 			children = (
 				000000000000000000000005 /* App.swift */,
 				000000000000000000000006 /* ContentView.swift */,
+				00000000000000000000001D /* KotlinInterop.swift */,
+				00000000000000000000001F /* AppDependencies.swift */,
+				000000000000000000000021 /* CoreMLFaceEngine.swift */,
+				000000000000000000000023 /* CameraService.swift */,
+				000000000000000000000025 /* Views */,
+				000000000000000000000026 /* ViewModels */,
 				000000000000000000000007 /* Assets.xcassets */,
 				000000000000000000000009 /* Info.plist */,
 				000000000000000000000010 /* Preview Content */,
 			);
 			path = iosApp;
+			sourceTree = "<group>";
+		};
+		000000000000000000000025 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000027 /* DeviceAuthView.swift */,
+				000000000000000000000029 /* AttendanceView.swift */,
+				00000000000000000000002B /* EnrollmentView.swift */,
+				00000000000000000000002D /* HistoryView.swift */,
+				00000000000000000000002F /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		000000000000000000000026 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000031 /* DeviceAuthViewModel.swift */,
+				000000000000000000000033 /* AttendanceViewModel.swift */,
+				000000000000000000000035 /* EnrollmentViewModel.swift */,
+				000000000000000000000037 /* HistoryViewModel.swift */,
+				000000000000000000000039 /* SettingsViewModel.swift */,
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		000000000000000000000010 /* Preview Content */ = {
@@ -153,6 +211,20 @@
 			files = (
 				000000000000000000000014 /* App.swift in Sources */,
 				000000000000000000000015 /* ContentView.swift in Sources */,
+				00000000000000000000001E /* KotlinInterop.swift in Sources */,
+				000000000000000000000020 /* AppDependencies.swift in Sources */,
+				000000000000000000000022 /* CoreMLFaceEngine.swift in Sources */,
+				000000000000000000000024 /* CameraService.swift in Sources */,
+				000000000000000000000028 /* DeviceAuthView.swift in Sources */,
+				00000000000000000000002A /* AttendanceView.swift in Sources */,
+				00000000000000000000002C /* EnrollmentView.swift in Sources */,
+				00000000000000000000002E /* HistoryView.swift in Sources */,
+				000000000000000000000030 /* SettingsView.swift in Sources */,
+				000000000000000000000032 /* DeviceAuthViewModel.swift in Sources */,
+				000000000000000000000034 /* AttendanceViewModel.swift in Sources */,
+				000000000000000000000036 /* EnrollmentViewModel.swift in Sources */,
+				000000000000000000000038 /* HistoryViewModel.swift in Sources */,
+				00000000000000000000003A /* SettingsViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -288,7 +360,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
+				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
@@ -301,6 +374,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.coati.checador.ios;
@@ -318,7 +395,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
@@ -331,6 +408,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lsqlite3",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.coati.checador.ios;

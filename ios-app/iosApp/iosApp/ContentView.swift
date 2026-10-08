@@ -1,16 +1,47 @@
 import SwiftUI
-import CoatiCheckShared
 
+/// Router raíz: registro de dispositivo o la app principal.
 struct ContentView: View {
-    @State private var greeting = "Cargando..."
+    @State private var deviceRegistered =
+        AppDependencies.shared.sharedApp.isDeviceRegistered()
 
     var body: some View {
-        VStack {
-            Text(greeting)
-                .padding()
+        if deviceRegistered {
+            MainTabView()
+        } else {
+            DeviceAuthView {
+                deviceRegistered = true
+            }
         }
-        .onAppear {
-            greeting = Greeting().greet()
+    }
+}
+
+/// Navegación principal con pestañas, equivalente al bottom nav Android.
+struct MainTabView: View {
+    @ObservedObject private var appState = AppState.shared
+
+    var body: some View {
+        TabView {
+            AttendanceView()
+                .tabItem {
+                    Label("Asistencia", systemImage: "faceid")
+                }
+                .badge(appState.pendingCount > 0 ? Int(appState.pendingCount) : 0)
+
+            EnrollmentView()
+                .tabItem {
+                    Label("Enrolar", systemImage: "person.badge.plus")
+                }
+
+            HistoryView()
+                .tabItem {
+                    Label("Historial", systemImage: "clock.arrow.circlepath")
+                }
+
+            SettingsView()
+                .tabItem {
+                    Label("Configuración", systemImage: "gearshape")
+                }
         }
     }
 }

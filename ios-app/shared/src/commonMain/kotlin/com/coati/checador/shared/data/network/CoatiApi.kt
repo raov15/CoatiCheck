@@ -67,11 +67,22 @@ class CoatiApi(
     requestTimeoutMs: Long = 30_000,
     httpClientEngine: HttpClientEngine? = null
 ) : SyncApi {
-    private val base = requireNotNull(
+    private var base = requireNotNull(
         ApiBaseUrl.normalize(baseUrl)
     ) { "URL base inválida: '$baseUrl'. Debe usar https://" }.trimEnd('/')
 
     val apiBaseUrl: String get() = "$base/"
+
+    /**
+     * Actualiza la URL base en caliente (p. ej. cuando el usuario cambia
+     * el servidor desde la pantalla de configuración). Devuelve true si
+     * la URL era válida y se aplicó; las URLs inválidas se ignoran.
+     */
+    fun updateBaseUrl(newBaseUrl: String): Boolean {
+        val normalized = ApiBaseUrl.normalize(newBaseUrl) ?: return false
+        base = normalized.trimEnd('/')
+        return true
+    }
 
     val client: HttpClient = buildClient(httpClientEngine, connectTimeoutMs, requestTimeoutMs)
 
