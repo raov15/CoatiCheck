@@ -58,7 +58,7 @@ final class DeviceAuthViewModel: ObservableObject {
     }
 
     private func performCall(
-        _ call: (@escaping (KResult<Device>?, Error?) -> Void) -> Void
+        _ call: (@escaping @Sendable (KResult<Device>?, Error?) -> Void) -> Void
     ) {
         let url = serverUrl.trimmingCharacters(in: .whitespaces)
         guard !url.isEmpty else {
