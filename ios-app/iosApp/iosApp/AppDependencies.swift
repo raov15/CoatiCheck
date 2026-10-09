@@ -29,6 +29,5 @@ final class AppDependencies {
             databaseDriverFactory: DatabaseDriverFactory(),
             platformContext: PlatformContext()
         )
-        AppState.shared.refreshPending()
     }
 }
