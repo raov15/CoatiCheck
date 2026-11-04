@@ -1,0 +1,33 @@
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Xcode
+iosApp/build/
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/iosApp.xcodeproj/*.pbxuser
+iosApp/iosApp.xcodeproj/!default.pbxuser
+iosApp/iosApp.xcodeproj/*.mode1v3
+iosApp/iosApp.xcodeproj/!default.mode1v3
+iosApp/iosApp.xcodeproj/*.mode2v3
+iosApp/iosApp.xcodeproj/!default.mode2v3
+iosApp/iosApp.xcodeproj/*.perspectivev3
+iosApp/iosApp.xcodeproj/!default.perspectivev3
+iosApp/iosApp.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
+
+# Generated frameworks
+shared/build/XCFrameworks/
+*.xcframework/
+
+# Kotlin/Native
+.kotlin/

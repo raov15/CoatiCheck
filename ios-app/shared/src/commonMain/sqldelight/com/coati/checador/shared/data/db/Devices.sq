@@ -1,0 +1,38 @@
+CREATE TABLE devices (
+    id_local TEXT NOT NULL PRIMARY KEY,
+    id_remote TEXT,
+    device_name TEXT NOT NULL,
+    site_id TEXT,
+    auth_token TEXT,
+    registered_at INTEGER NOT NULL
+);
+
+insertOrReplace:
+INSERT OR REPLACE INTO devices
+VALUES (?, ?, ?, ?, ?, ?);
+
+getCurrent:
+SELECT * FROM devices LIMIT 1;
+
+observeCurrent:
+SELECT * FROM devices LIMIT 1;
+
+findById:
+SELECT * FROM devices WHERE id_local = ?;
+
+-- Persiste id_remote + auth_token tras registrarse en el backend.
+updateAuth:
+UPDATE devices
+SET id_remote = ?, auth_token = ?
+WHERE id_local = ?;
+
+updateAuthToken:
+UPDATE devices SET auth_token = ?
+WHERE id_local = ?;
+
+updateSiteId:
+UPDATE devices SET site_id = ?
+WHERE id_local = ?;
+
+deleteAll:
+DELETE FROM devices;

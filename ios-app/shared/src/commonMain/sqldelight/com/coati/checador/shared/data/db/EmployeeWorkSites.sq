@@ -1,0 +1,39 @@
+CREATE TABLE employee_work_sites (
+    employee_id TEXT NOT NULL,
+    weekday INTEGER NOT NULL,
+    work_mode TEXT NOT NULL,
+    site_id TEXT,
+    site_name TEXT,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY(employee_id, weekday),
+    FOREIGN KEY(employee_id)
+        REFERENCES employees(id_local)
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+);
+
+CREATE INDEX index_employee_work_sites_employee_id
+ON employee_work_sites(employee_id);
+
+CREATE INDEX index_employee_work_sites_work_mode
+ON employee_work_sites(work_mode);
+
+insertOrReplace:
+INSERT OR REPLACE INTO employee_work_sites
+VALUES (?, ?, ?, ?, ?, ?);
+
+getForEmployee:
+SELECT * FROM employee_work_sites WHERE employee_id = ?;
+
+getForEmployeeAndWeekday:
+SELECT * FROM employee_work_sites
+WHERE employee_id = ? AND weekday = ?;
+
+getForeign:
+SELECT * FROM employee_work_sites WHERE work_mode = 'FOREIGN';
+
+deleteForEmployee:
+DELETE FROM employee_work_sites WHERE employee_id = ?;
+
+deleteAll:
+DELETE FROM employee_work_sites;
