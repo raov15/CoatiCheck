@@ -149,6 +149,13 @@ export async function initDb(): Promise<void> {
     ALTER TABLE categories
       ADD COLUMN IF NOT EXISTS meal_end_time TEXT;
 
+    ALTER TABLE categories
+      ADD COLUMN IF NOT EXISTS meal_duration_minutes INTEGER NOT NULL DEFAULT 60;
+    ALTER TABLE categories
+      ADD COLUMN IF NOT EXISTS rest_start_time TEXT;
+    ALTER TABLE categories
+      ADD COLUMN IF NOT EXISTS rest_duration_minutes INTEGER NOT NULL DEFAULT 30;
+
     /* =========================================================
        DÍAS LABORALES POR CATEGORÍA
 
@@ -848,6 +855,59 @@ export async function initDb(): Promise<void> {
   /* =========================================================
      USUARIO ADMINISTRADOR INICIAL
   ========================================================= */
+
+  // Estructuras utilizadas por los regresos de comida y las incidencias automáticas.
+  await pool.query(`
+    ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS break_kind TEXT;
+    ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS late_return_minutes INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS attendance_auto_incidents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      employee_id UUID NOT NULL REFERENCES employees(id_remote) ON DELETE CASCADE,
+      category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+      attendance_record_id UUID REFERENCES attendance_records(id_remote) ON DELETE CASCADE,
+      incident_date DATE NOT NULL,
+      concept TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed')),
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS attendance_auto_incidents_absence_unique
+      ON attendance_auto_incidents(company_id, employee_id, incident_date, origin)
+      WHERE attendance_record_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS attendance_auto_incidents_record_unique
+      ON attendance_auto_incidents(company_id, attendance_record_id, origin)
+      WHERE attendance_record_id IS NOT NULL;
+  `);
+
+  // Conserva los conceptos permitidos por instalaciones anteriores y añade
+  // la etiqueta neutral que queda pendiente de calificación administrativa.
+  await pool.query(`
+DO $coati_concept$
+DECLARE
+  existing_rule TEXT;
+BEGIN
+  SELECT pg_get_expr(conbin, conrelid) INTO existing_rule
+  FROM pg_constraint
+  WHERE conrelid = 'public.attendance_auto_incidents'::regclass
+    AND conname = 'attendance_auto_incidents_concept_check'
+    AND contype = 'c';
+
+  IF existing_rule IS NOT NULL
+     AND position(quote_literal('Incidencia') IN existing_rule) = 0 THEN
+    ALTER TABLE public.attendance_auto_incidents
+      DROP CONSTRAINT attendance_auto_incidents_concept_check;
+    EXECUTE format(
+      'ALTER TABLE public.attendance_auto_incidents ADD CONSTRAINT attendance_auto_incidents_concept_check CHECK ((%s) OR concept = %L)',
+      existing_rule, 'Incidencia'
+    );
+  END IF;
+END;
+$coati_concept$;
+  `);
 
   const bootstrapPassword =
     process.env.ADMIN_BOOTSTRAP_PASSWORD;

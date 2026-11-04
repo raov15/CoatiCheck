@@ -1,0 +1,537 @@
+  },
+);
+
+/* Ausencias automáticas: 10:00 para turnos hasta las 10; otros turnos +2 h.
+   Ejecutar cada minuto y al arrancar. El índice único evita duplicados. */
+async function processAutomaticAbsences(): Promise<void> {
+  await pool.query(`
+    WITH day_context AS (
+      SELECT (NOW() AT TIME ZONE 'America/Mexico_City')::date AS today,
+             (NOW() AT TIME ZONE 'America/Mexico_City')::time AS local_time
+    ), candidates AS (
+      SELECT e.company_id,e.id_remote AS employee_id,
+             COALESCE(edc.category_id,e.category_id) AS category_id,
+             dc.today AS incident_date,
+             COALESCE(cw.start_time,c.start_time) AS start_time
+      FROM employees e CROSS JOIN day_context dc
+      LEFT JOIN employee_day_categories edc ON edc.employee_id=e.id_remote
+        AND edc.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+          CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END)
+      JOIN categories c ON c.id=COALESCE(edc.category_id,e.category_id)
+      JOIN category_workdays cw ON cw.category_id=c.id
+        AND cw.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+          CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END)
+      WHERE e.is_active=TRUE AND cw.is_workday=TRUE
+        AND (e.hire_date IS NULL OR e.hire_date::date<=dc.today)
+        AND NOT EXISTS (SELECT 1 FROM category_rest_days rd WHERE rd.category_id=c.id
+          AND rd.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+            CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM employee_vacations v
+          WHERE v.employee_id=e.id_remote AND v.company_id=e.company_id
+            AND dc.today BETWEEN v.start_date AND v.end_date)
+        AND NOT EXISTS (SELECT 1 FROM qualified_incidents q
+          WHERE q.employee_id=e.id_remote AND q.company_id=e.company_id
+            AND q.incident_date=dc.today AND q.concept IN
+              ('Permiso médico justificado','Falta justificada','Permiso de salida'))
+    )
+    INSERT INTO attendance_auto_incidents
+      (company_id,employee_id,category_id,incident_date,concept,origin,notes)
+    SELECT c.company_id,c.employee_id,c.category_id,c.incident_date,
+      'Ausentismo','ABSENCE','Sin registro de entrada al cumplirse el plazo'
+    FROM candidates c CROSS JOIN day_context dc
+    WHERE c.start_time ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9]'
+      AND dc.local_time >= CASE
+        WHEN c.start_time::time <= TIME '10:00' THEN TIME '10:00'
+        ELSE (c.start_time::time + INTERVAL '2 hours')::time END
+      AND NOT EXISTS (SELECT 1 FROM attendance_records a
+        JOIN employees e2 ON e2.id_remote=c.employee_id
+        WHERE a.company_id=c.company_id AND a.event_type='CLOCK_IN'
+          AND a.employee_id IN (e2.id_local,e2.id_remote::text,e2.employee_code)
+          AND (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=c.incident_date)
+    ON CONFLICT DO NOTHING
+  `);
+}
+let absenceJobRunning = false;
+async function runAbsenceJob(): Promise<void> {
+  if(absenceJobRunning) return;
+  absenceJobRunning=true;
+  try { await processAutomaticAbsences(); }
+  catch(error) { console.error('Error generando ausentismo automático:',error); }
+  finally { absenceJobRunning=false; }
+}
+const absenceInterval = setInterval(() => { void runAbsenceJob(); }, 60000);
+absenceInterval.unref();
+void runAbsenceJob();
+
+router.get('/companies/:companyId/automatic-incidents',userAuthMiddleware,
+  requirePasswordChangeComplete,async(req:UserAuthRequest,res:Response):Promise<void>=>{
+    if(!canAccessCompany(req,req.params.companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+    const status=String(req.query.status??'pending');
+    if(!['pending','reviewed','all'].includes(status)){res.status(400).json({error:'Estado inválido'});return;}
+    try{
+      const data=await pool.query(`SELECT ai.*,e.employee_code,e.full_name AS employee_name,
+        cat.name AS category_name
+        FROM attendance_auto_incidents ai
+        JOIN employees e ON e.id_remote=ai.employee_id
+        LEFT JOIN categories cat ON cat.id=ai.category_id
+        WHERE ai.company_id=$1 AND ($2='all' OR ai.status=$2)
+        ORDER BY ai.incident_date DESC,ai.created_at DESC LIMIT 500`,[req.params.companyId,status]);
+      res.json({records:data.rows});
+    }catch(error){console.error(error);res.status(500).json({error:'No se pudieron consultar incidencias automáticas'});}
+  });
+router.post('/companies/:companyId/automatic-incidents/:incidentId/review',
+  userAuthMiddleware,requirePasswordChangeComplete,requireRole('admin','superadmin'),
+  async(req:UserAuthRequest,res:Response):Promise<void>=>{
+    if(!canAccessCompany(req,req.params.companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+    const notes=String(req.body?.notes??'').trim();
+    if(!notes||notes.length>4000){res.status(400).json({error:'Escribe observaciones (máximo 4000 caracteres)'});return;}
+    try{
+      const result=await pool.query(`UPDATE attendance_auto_incidents
+        SET notes=$3,status='reviewed',reviewed_at=NOW(),reviewed_by=$4
+        WHERE company_id=$1 AND id=$2 AND status='pending' RETURNING *`,
+        [req.params.companyId,req.params.incidentId,notes,req.user!.id]);
+      if(!result.rowCount){res.status(404).json({error:'Incidencia no encontrada o ya revisada'});return;}
+      res.json({saved:true,record:result.rows[0]});
+    }catch(error){console.error(error);res.status(500).json({error:'No se pudo guardar la revisión'});}
+  });
+
+function canAccessCompany(req: UserAuthRequest, companyId: string): boolean {
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance_records a
+          WHERE a.company_id = s.company_id
+            AND a.employee_id IN (s.employee_id::text,
+              (SELECT e2.id_local FROM employees e2 WHERE e2.id_remote = s.employee_id), s.employee_code)
+            AND a.event_type = 'CLOCK_IN'
+            AND (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date = s.work_date
+        )
+      ORDER BY s.work_date DESC, s.employee_name LIMIT 20000`, [companyId, from, to, employee]);
+    res.json({ records: result.rows, absences: result.rows, count: result.rows.length });
+  } catch (error) {
+    console.error('Error consultando ausentismo:', error);
+    res.status(500).json({ error: 'No se pudo consultar el ausentismo' });
+  }
+});
+
+/* Registrar observaciones de una ausencia sin generar duplicados. */
+router.post('/companies/:companyId/absences/notes', userAuthMiddleware,
+  requirePasswordChangeComplete, async (req: UserAuthRequest, res: Response): Promise<void> => {
+  const { companyId } = req.params;
+  if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+  const employeeId = String(req.body?.employee_id ?? req.body?.employeeId ?? '');
+  const workDate = String(req.body?.work_date ?? req.body?.workDate ?? '');
+  const notes = String(req.body?.notes ?? '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(employeeId) || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !notes || notes.length > 4000) {
+    res.status(400).json({ error: 'Trabajador, fecha y observaciones válidos son obligatorios' }); return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`absence:${companyId}:${employeeId}:${workDate}`]);
+    const check = await client.query(`SELECT e.id_remote, COALESCE(edc.category_id, e.category_id) AS category_id
+      FROM employees e
+      LEFT JOIN employee_day_categories edc ON edc.employee_id = e.id_remote
+        AND edc.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+          CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END)
+      WHERE e.company_id = $1 AND e.id_remote = $2 AND e.is_active = TRUE
+        AND $3::date < (NOW() AT TIME ZONE 'America/Mexico_City')::date
+        AND EXISTS (SELECT 1 FROM category_workdays cw
+          WHERE cw.category_id = COALESCE(edc.category_id, e.category_id) AND cw.is_workday
+            AND cw.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+              CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM category_rest_days rd
+          WHERE rd.category_id = COALESCE(edc.category_id, e.category_id)
+            AND rd.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+              CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM attendance_records a
+          WHERE a.company_id = $1 AND a.event_type = 'CLOCK_IN'
+            AND a.employee_id IN (e.id_remote::text, e.id_local, e.employee_code)
+            AND (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date = $3::date)
+      LIMIT 1`, [companyId, employeeId, workDate]);
+    if (!check.rows.length) {
+      await client.query('ROLLBACK'); res.status(409).json({ error: 'No corresponde a una ausencia laboral concluida sin entrada' }); return;
+    }
+    const previous = await client.query(`SELECT id FROM qualified_incidents
+      WHERE company_id = $1 AND employee_id = $2 AND incident_date = $3::date
+        AND attendance_record_id IS NULL AND concept IN ('Ausentismo', 'Falta justificada')
+      ORDER BY qualified_at DESC LIMIT 1 FOR UPDATE`, [companyId, employeeId, workDate]);
+    const result = previous.rows.length
+      ? await client.query(`UPDATE qualified_incidents SET notes = $2, qualified_at = NOW(), qualified_by = $3
+          WHERE id = $1 RETURNING *`, [previous.rows[0].id, notes, req.user?.id ?? null])
+      : await client.query(`INSERT INTO qualified_incidents
+          (company_id, attendance_record_id, employee_id, category_id, concept, incident_date, applied_value, notes, qualified_by)
+          VALUES ($1, NULL, $2, $3, 'Ausentismo', $4::date, 0, $5, $6) RETURNING *`,
+          [companyId, employeeId, check.rows[0].category_id, workDate, notes, req.user?.id ?? null]);
+    await client.query('COMMIT'); res.json({ saved: true, record: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK'); console.error('Error guardando observaciones de ausentismo:', error);
+    res.status(500).json({ error: 'No se pudieron guardar las observaciones' });
+  } finally { client.release(); }
+});
+
+/* Exportación del historial para el Excel generado en administración. */
+router.get(
+  '/companies/:companyId/history-export',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId } = req.params;
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' });
+      return;
+    }
+    const param = (name: string): string =>
+      typeof req.query[name] === 'string' ? String(req.query[name]).trim() : '';
+    const from = param('from');
+    const to = param('to');
+    const employee = param('employee');
+    const role = param('role');
+    const worksite = param('worksite');
+    const concept = param('concept');
+    const onlyIncidents = param('only_incidents') === 'true';
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if ((from && !datePattern.test(from)) || (to && !datePattern.test(to)) || (from && to && from > to)) {
+      res.status(400).json({ error: 'El rango de fechas no es válido' });
+      return;
+    }
+    try {
+      const result = await pool.query(
+        `SELECT e.employee_code, e.full_name, a.event_type, a.occurred_at,
+                qi.concept, qi.applied_value, qi.notes, qi.qualified_at,
+                cat.name AS category_name, e.site_id,
+                CASE WHEN a.event_type = 'CLOCK_IN'
+                  AND cat.start_time IS NOT NULL
+                  AND cat.start_time::text ~ '^([01][0-9]|2[0-3]):[0-5][0-9]'
+                  AND (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::time
+                      > cat.start_time::time + make_interval(mins => COALESCE(cat.tolerance_minutes, 0))
+                THEN TRUE ELSE FALSE END AS is_late
+         FROM attendance_records a
+         JOIN employees e ON e.company_id = a.company_id
+           AND (e.id_local = a.employee_id OR e.id_remote::text = a.employee_id OR e.employee_code = a.employee_id)
+         LEFT JOIN categories cat ON cat.id = e.category_id AND cat.company_id = a.company_id
+         LEFT JOIN qualified_incidents qi ON qi.attendance_record_id = a.id_remote
+         WHERE a.company_id = $1
+           AND ($2::text = '' OR (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date >= $2::date)
+           AND ($3::text = '' OR (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date <= $3::date)
+           AND ($4::text = '' OR e.employee_code = $4 OR e.full_name ILIKE '%' || $4 || '%')
+           AND ($5::text = '' OR cat.name = $5 OR e.category_id::text = $5)
+           AND ($6::text = '' OR e.site_id::text = $6 OR EXISTS (
+             SELECT 1 FROM sites st WHERE st.id = e.site_id AND st.name = $6))
+           AND ($7::text = '' OR qi.concept = $7 OR ($7 = 'Retardo' AND
+             a.event_type = 'CLOCK_IN' AND cat.start_time IS NOT NULL AND
+             (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::time
+               > cat.start_time::time + make_interval(mins => COALESCE(cat.tolerance_minutes, 0))))
+           AND (NOT $8::boolean OR qi.id IS NOT NULL OR (
+             a.event_type = 'CLOCK_IN' AND cat.start_time IS NOT NULL AND
+             (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::time
+               > cat.start_time::time + make_interval(mins => COALESCE(cat.tolerance_minutes, 0))))
+         ORDER BY a.occurred_at DESC LIMIT 20000`,
+        [companyId, from, to, employee, role, worksite, concept, onlyIncidents],
+      );
+      res.json({ records: result.rows, count: result.rows.length });
+    } catch (error) {
+      console.error('Error exportando historial:', error);
+      res.status(500).json({ error: 'No se pudo generar el historial de asistencias' });
+    }
+  },
+);
+
+/* =========================================================
+   GET /api/admin/companies/:companyId/attendance
+          c.name AS category_name,
+          c.start_time,
+          c.end_time,
+          c.overtime_allowed,
+          c.overtime_value
+
+        FROM attendance_records a
+
+        JOIN employees e
+          ON e.company_id = a.company_id
+         AND (
+              e.id_local = a.employee_id
+              OR e.id_remote::text = a.employee_id
+              OR e.employee_code = a.employee_id
+         )
+
+        LEFT JOIN categories c
+          ON c.id = e.category_id
+         AND c.company_id = a.company_id
+
+        WHERE ${conditions.join('\n          AND ')}
+
+        ORDER BY
+          a.occurred_at ASC
+        `,
+        values,
+      );
+
+      res.json({
+        records: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        'Error consultando asistencias:',
+        error,
+      );
+
+      const detail =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      res.status(500).json({
+        error: 'No se pudieron consultar las asistencias',
+        detail,
+      });
+    }
+  },
+);
+
+/* =========================================================
+   VACACIONES DE TRABAJADORES
+========================================================= */
+
+/*
+ * Obtener resumen e historial de vacaciones.
+ */
+router.get(
+  '/companies/:companyId/employees/:employeeCode/vacations',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  async (
+    req: UserAuthRequest,
+    res: Response,
+  ): Promise<void> => {
+    const { companyId, employeeCode } = req.params;
+
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({
+        error: 'No puede consultar trabajadores de otra empresa',
+      });
+      return;
+    }
+
+    try {
+      const employeeResult = await pool.query(
+        `SELECT
+           id_remote,
+           employee_code,
+           full_name,
+           hire_date
+         FROM employees
+         WHERE company_id = $1
+           AND employee_code = $2
+           AND is_active = TRUE
+         LIMIT 1`,
+        [companyId, employeeCode],
+      );
+
+      const employee = employeeResult.rows[0];
+
+      if (!employee) {
+        res.status(404).json({
+          error: 'Trabajador no encontrado',
+        });
+        return;
+      }
+
+      const vacationsResult = await pool.query(
+        `SELECT
+           id,
+           start_date,
+           end_date,
+           days_taken,
+           notes,
+           created_at
+         FROM employee_vacations
+         WHERE company_id = $1
+           AND employee_id = $2
+         ORDER BY start_date DESC, created_at DESC`,
+        [companyId, employee.id_remote],
+      );
+
+      const totalTaken = vacationsResult.rows.reduce(
+        (total: number, row: any) =>
+          total + Number(row.days_taken ?? 0),
+        0,
+      );
+
+      res.json({
+        employee_code: employee.employee_code,
+        employee_name: employee.full_name,
+        hire_date: employee.hire_date,
+        total_taken: totalTaken,
+        vacations: vacationsResult.rows,
+      });
+    } catch (error) {
+      console.error(
+        'Error consultando vacaciones:',
+        error,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(employee_id, weekday)
+    );
+
+    /* =========================================================
+       ASISTENCIAS
+    ========================================================= */
+
+    CREATE TABLE IF NOT EXISTS attendance_records (
+      id_remote UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      id_local TEXT NOT NULL UNIQUE,
+      employee_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      occurred_at BIGINT NOT NULL,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      accuracy_m REAL,
+      altitude_m DOUBLE PRECISION,
+      face_confidence REAL,
+      device_id TEXT,
+      company_id UUID
+        REFERENCES companies(id),
+      site_id UUID
+        REFERENCES sites(id),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    /* =========================================================
+       RECORRIDO GPS DE TRABAJADORES FORÁNEOS
+
+       Cada punto se guarda automáticamente desde la app móvil
+       durante una jornada foránea. Los puntos se conservan por
+       trabajador, fecha y hora para reconstruir el recorrido.
+    ========================================================= */
+
+    CREATE TABLE IF NOT EXISTS employee_location_points (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL
+        REFERENCES companies(id)
+        ON DELETE CASCADE,
+      employee_id UUID NOT NULL
+        REFERENCES employees(id_remote)
+        ON DELETE CASCADE,
+      device_id UUID
+        REFERENCES devices(id_remote)
+        ON DELETE SET NULL,
+      work_date DATE NOT NULL,
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      latitude DOUBLE PRECISION NOT NULL
+        CHECK (latitude BETWEEN -90 AND 90),
+      longitude DOUBLE PRECISION NOT NULL
+        CHECK (longitude BETWEEN -180 AND 180),
+      accuracy_m REAL,
+      altitude_m DOUBLE PRECISION,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_company_date
+      ON employee_location_points(company_id, work_date DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_employee_date
+      ON employee_location_points(employee_id, work_date DESC, recorded_at ASC);
+
+    CREATE INDEX IF NOT EXISTS idx_employee_location_points_recorded_at
+      ON employee_location_points(recorded_at DESC);
+
+    /* Evita guardar exactamente el mismo punto dos veces para el mismo trabajador. */
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_employee_location_points_employee_recorded_at
+      ON employee_location_points(employee_id, recorded_at);
+
+    /* =========================================================
+       INCIDENCIAS CALIFICADAS
+
+       Cuando el administrador elige, por ejemplo, "Retardo",
+       applied_value se toma automáticamente del valor configurado
+       para la categoría del trabajador.
+    ========================================================= */
+
+    ALTER TABLE employee_work_sites
+      ALTER COLUMN site_id DROP NOT NULL;
+
+    ALTER TABLE employee_work_sites
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    ALTER TABLE employee_work_sites
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    CREATE TABLE IF NOT EXISTS qualified_incidents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL
+        REFERENCES companies(id)
+        ON DELETE CASCADE,
+      attendance_record_id UUID
+        REFERENCES attendance_records(id_remote)
+        ON DELETE CASCADE,
+      employee_id UUID NOT NULL
+        REFERENCES employees(id_remote)
+        ON DELETE CASCADE,
+      category_id UUID
+        REFERENCES categories(id)
+        ON DELETE SET NULL,
+      concept TEXT NOT NULL,
+      incident_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      applied_value NUMERIC(10,2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      qualified_by UUID
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+      qualified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+      CHECK (
+        concept IN (
+          'Ausentismo',
+          'Retardo',
+          'Permiso médico justificado',
+          'Permiso médico no justificado',
+          'Permiso de salida',
+          'Falta justificada',
+          'Tiempo extraordinario'
+        )
+      )
+    );
+
+    /* =========================================================
+       MIGRACIONES PARA BASES YA EXISTENTES
+    ========================================================= */
+
+    ALTER TABLE companies
+      ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'America/Mexico_City';
+      ADD COLUMN IF NOT EXISTS end_time TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS face_image TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS hire_date DATE;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS category_id UUID
+      REFERENCES categories(id)
+      ON DELETE SET NULL;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS company_id UUID
+      REFERENCES companies(id);
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS site_id UUID
+      REFERENCES sites(id);
+
+    ALTER TABLE attendance_records
+      ADD COLUMN IF NOT EXISTS company_id UUID
+      REFERENCES companies(id);
+
+    ALTER TABLE attendance_records
+      ADD COLUMN IF NOT EXISTS site_id UUID
+      REFERENCES sites(id);
+
+    /* =========================================================
+       RANGO FIJO DE 300 METROS
+    ========================================================= */
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (

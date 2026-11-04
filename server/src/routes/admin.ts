@@ -1,4 +1,5 @@
-      import { Router, Request, Response } from 'express';
+import { processMissingBreaks } from '../services/break-policy';
+import { Router, Request, Response } from 'express';
 
 import bcrypt from 'bcryptjs';
 
@@ -23,6 +24,18 @@ import {
 
 const router = Router();
 
+function parseCompanyProfile(value: unknown): Record<string, unknown> {
+  if (value == null || value === '') return {};
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch { throw new Error('Perfil de empresa inválido'); }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Perfil de empresa inválido');
+  const allowed = ['person_type','rfc','name','curp','nss','business_name','trade_name','employer_registration','postal_code','street','number','latitude','longitude','radius_m'];
+  return Object.fromEntries(allowed.filter(k => Object.prototype.hasOwnProperty.call(parsed, k)).map(k => [k, (parsed as Record<string, unknown>)[k]]));
+}
+
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const uploadDir = path.resolve(process.env.UPLOAD_DIR ?? 'uploads/logos');
@@ -46,6 +59,10 @@ router.post(
 
     const { username, password } = req.body ?? {};
 
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+      return;
+    }
     const result = await pool.query(
       'SELECT id, company_id, role, must_change_password, password_hash FROM users WHERE username = $1 AND is_active = TRUE',
       [username],
@@ -75,6 +92,8 @@ router.post(
     res.json({
       token,
       must_change_password: user.must_change_password,
+      role: user.role,
+      user: { id: user.id, role: user.role },
     });
   },
 );
@@ -119,11 +138,28 @@ router.post(
   },
 );
 
+// Protección global de las rutas de empresa, incluso si una ruta olvida validar permisos.
+router.use('/companies/:companyId', async (req: UserAuthRequest, res: Response, next) => {
+  // El logo/branding puede consultarse sin sesión, como en el sistema original.
+  if (req.method === 'GET' && req.path === '/branding') return next();
+  userAuthMiddleware(req, res, () => {
+    if (!req.user || req.user.mustChangePassword || !['admin', 'superadmin'].includes(req.user.role)) {
+      res.status(403).json({ error: 'Debe iniciar sesión y completar el cambio de contraseña' });
+      return;
+    }
+    if (!canAccessCompany(req, req.params.companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' });
+      return;
+    }
+    next();
+  });
+});
+
 router.post(
   '/companies',
   userAuthMiddleware,
   requirePasswordChangeComplete,
-  requireRole('admin'),
+  requireRole('admin', 'superadmin'),
   upload.single('logo'),
   async (req: UserAuthRequest, res: Response): Promise<void> => {
     const { name, slug } = req.body ?? {};
@@ -140,11 +176,27 @@ router.post(
         ? `/api/admin/logos/${req.file.filename}`
         : null;
 
-      const result = await pool.query(
-        'INSERT INTO companies (name, slug, logo_path) VALUES ($1, $2, $3) RETURNING id, name, slug, logo_path',
-        [name, slug, logoPath],
-      );
-
+      const client = await pool.connect();
+      let result;
+      try {
+        await client.query('BEGIN');
+        result = await client.query(
+          'INSERT INTO companies (name, slug, logo_path, profile) VALUES ($1, $2, $3, $4::jsonb) RETURNING id, name, slug, logo_path, profile',
+          [name, slug, logoPath, JSON.stringify(parseCompanyProfile(req.body?.profile))],
+        );
+        if (req.user!.role === 'admin') {
+          await client.query(
+            'INSERT INTO user_companies (user_id, company_id) VALUES ($1, $2)',
+            [req.user!.id, result.rows[0].id],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
       res.status(201).json(result.rows[0]);
     } catch {
       if (req.file) {
@@ -159,11 +211,80 @@ router.post(
   },
 );
 
+
+/* Editar datos básicos y logotipo de una empresa sin afectar sus trabajadores. */
+router.patch(
+  '/companies/:companyId',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  requireRole('admin', 'superadmin'),
+  upload.single('logo'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId } = req.params;
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    const slug = typeof req.body?.slug === 'string' ? req.body.slug.trim() : '';
+    if (!name || !slug) {
+      if (req.file) fs.rmSync(req.file.path, { force: true });
+      res.status(400).json({ error: 'El nombre y el identificador son obligatorios' });
+      return;
+    }
+    try {
+      const logoPath = req.file ? `/api/admin/logos/${req.file.filename}` : null;
+      const profile = req.body?.profile == null ? null : JSON.stringify(parseCompanyProfile(req.body.profile));
+      const result = await pool.query(
+        `UPDATE companies
+         SET name = $1, slug = $2, logo_path = COALESCE($3, logo_path),
+             profile = CASE WHEN $5::jsonb IS NULL THEN profile ELSE COALESCE(profile, '{}'::jsonb) || $5::jsonb END
+         WHERE id = $4 AND is_active = TRUE
+         RETURNING id, name, slug, logo_path, profile`,
+        [name, slug, logoPath, companyId, profile],
+      );
+      if (!result.rows[0]) {
+        if (req.file) fs.rmSync(req.file.path, { force: true });
+        res.status(404).json({ error: 'Empresa no encontrada' });
+        return;
+      }
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      if (req.file) fs.rmSync(req.file.path, { force: true });
+      res.status(error?.code === '23505' ? 409 : 500).json({
+        error: error?.code === '23505' ? 'El identificador ya está en uso' : 'No se pudo actualizar la empresa',
+      });
+    }
+  },
+);
+
+/* Desactivar empresa sin borrar su historial ni sus trabajadores. */
+router.delete(
+  '/companies/:companyId',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    try {
+      const result = await pool.query(
+        `UPDATE companies SET is_active = FALSE
+         WHERE id = $1 AND is_active = TRUE
+         RETURNING id, name`,
+        [req.params.companyId],
+      );
+      if (!result.rows[0]) {
+        res.status(404).json({ error: 'Empresa no encontrada o ya desactivada' });
+        return;
+      }
+      res.json({ deleted: true, company: result.rows[0] });
+    } catch (error) {
+      console.error('Error desactivando empresa:', error);
+      res.status(500).json({ error: 'No fue posible desactivar la empresa' });
+    }
+  },
+);
+
 router.post(
   '/companies/:companyId/enrollment-codes',
   userAuthMiddleware,
   requirePasswordChangeComplete,
-  requireRole('admin'),
+  requireRole('admin', 'superadmin'),
   async (
     req: UserAuthRequest,
     res: Response,
@@ -350,7 +471,7 @@ router.post(
          VALUES (
            $1, $2, $3, $4, $5, $6, $7,
            $8, $9, $10, $11, $12, $13,
-           $14, $15, $16, $17, 100, NOW()
+           $14, $15, $16, $17, 300, NOW()
          )
          RETURNING *`,
         [
@@ -380,6 +501,7 @@ router.post(
 
       res.status(500).json({
         error: 'No fue posible crear el centro de trabajo',
+        detail: error instanceof Error ? error.message : String(error),
       });
     }
   },
@@ -396,10 +518,7 @@ router.get(
     req: UserAuthRequest,
     res: Response,
   ): Promise<void> => {
-    if (
-      req.user?.role !== 'admin' &&
-      req.user?.companyId !== req.params.companyId
-    ) {
+    if (!canAccessCompany(req, req.params.companyId)) {
       res.status(403).json({
         error: 'No puede consultar sitios de otra empresa',
       });
@@ -446,111 +565,150 @@ router.get(
   },
 );
 
-router.post(
-  '/users',
-  userAuthMiddleware,
-  requirePasswordChangeComplete,
-  requireRole('admin'),
-  async (
-    req: UserAuthRequest,
-    res: Response,
-  ): Promise<void> => {
-    const {
-      username,
-      password,
-      full_name,
-      role = 'operator',
-      site_id,
-      employee_code,
-      company_id,
-    } = req.body ?? {};
-
-    if (
-      !username ||
-      !password ||
-      !full_name ||
-      !company_id
-    ) {
-      res.status(400).json({
-        error:
-          'username, password, full_name y company_id son requeridos',
-      });
+// Solo el superadministrador crea cuentas de clientes, sin empresa inicial.
+router.post('/users', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { username, password, full_name } = req.body ?? {};
+    if (typeof username !== 'string' || !/^[a-zA-Z0-9_.-]{3,80}$/.test(username) ||
+        typeof password !== 'string' || password.length < 12 ||
+        typeof full_name !== 'string' || !full_name.trim()) {
+      res.status(400).json({ error: 'Usuario (3-80 caracteres), nombre y contraseña temporal de mínimo 12 caracteres requeridos' });
       return;
     }
-
-    if (!['administrator', 'operator'].includes(role)) {
-      res.status(400).json({
-        error: 'Rol inválido',
-      });
-      return;
-    }
-
-    const company = await pool.query(
-      'SELECT id FROM companies WHERE id = $1 AND is_active = TRUE',
-      [company_id],
-    );
-
-    if (!company.rows[0]) {
-      res.status(404).json({
-        error: 'Empresa no encontrada',
-      });
-      return;
-    }
-
-    if (site_id) {
-      const site = await pool.query(
-        'SELECT id FROM sites WHERE id = $1 AND company_id = $2',
-        [site_id, company_id],
-      );
-
-      if (!site.rows[0]) {
-        res.status(400).json({
-          error: 'El sitio no pertenece a la empresa',
-        });
-        return;
-      }
-    }
-
     try {
       const result = await pool.query(
-        `INSERT INTO users (
-           company_id,
-           site_id,
-           username,
-           password_hash,
-           full_name,
-           role,
-           employee_code
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING
-           id,
-           company_id,
-           username,
-           full_name,
-           role,
-           employee_code,
-           must_change_password`,
-        [
-          company_id,
-          site_id ?? null,
-          username,
-          await bcrypt.hash(password, 12),
-          full_name,
-          role,
-          employee_code ?? null,
-        ],
+        `INSERT INTO users (username, password_hash, full_name, role, company_id, site_id, must_change_password, is_active)
+         VALUES ($1,$2,$3,'admin',NULL,NULL,TRUE,TRUE)
+         RETURNING id, username, full_name, role, must_change_password, is_active`,
+        [username.trim(), await bcrypt.hash(password, 12), full_name.trim()],
       );
-
       res.status(201).json(result.rows[0]);
-    } catch {
-      res.status(409).json({
-        error:
-          'No fue posible crear el usuario; el nombre puede estar duplicado',
+    } catch (error: any) {
+      res.status(error?.code === '23505' ? 409 : 500).json({ error: 'No se pudo crear la cuenta' });
+    }
+  });
+
+router.get('/superadmin/users', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (_req: UserAuthRequest, res: Response): Promise<void> => {
+    try {
+      const result = await pool.query(`
+        SELECT id, username, full_name AS "fullName", is_active AS "isActive"
+        FROM users WHERE role = 'admin' ORDER BY created_at DESC
+      `);
+      res.json({ users: result.rows });
+    } catch (error) {
+      console.error('Error consultando administradores:', error);
+      res.status(500).json({ error: 'No fue posible consultar los administradores' });
+    }
+  });
+
+router.post('/superadmin/users', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const username = req.body?.username;
+    const fullName = req.body?.fullName;
+    if (typeof username !== 'string' || !/^[a-zA-Z0-9_.-]{3,80}$/.test(username) ||
+        typeof fullName !== 'string' || !fullName.trim()) {
+      res.status(400).json({ error: 'Usuario y nombre válidos requeridos' }); return;
+    }
+    const temporaryPassword = crypto.randomBytes(18).toString('base64url');
+    try {
+      const result = await pool.query(`
+        INSERT INTO users (username, password_hash, full_name, role, company_id, site_id, must_change_password, is_active)
+        VALUES ($1,$2,$3,'admin',NULL,NULL,TRUE,TRUE)
+        RETURNING username
+      `, [username.trim(), await bcrypt.hash(temporaryPassword, 12), fullName.trim()]);
+      res.status(201).json({ username: result.rows[0].username, temporaryPassword });
+    } catch (error: any) {
+      res.status(error?.code === '23505' ? 409 : 500).json({
+        error: error?.code === '23505' ? 'Ese nombre de usuario ya existe' : 'No fue posible crear la cuenta'
       });
     }
-  },
-);
+  });
+
+router.patch('/superadmin/users/:userId', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+    if (typeof req.body?.isActive !== 'boolean') {
+      res.status(400).json({ error: 'isActive debe ser booleano' }); return;
+    }
+    const result = await pool.query(`UPDATE users SET is_active=$1
+      WHERE id=$2 AND role='admin' RETURNING id, username, is_active AS "isActive"`,
+      [req.body.isActive, req.params.userId]);
+    if (!result.rowCount) { res.status(404).json({ error: 'Administrador no encontrado' }); return; }
+    res.json(result.rows[0]);
+  });
+
+router.post('/superadmin/users/:userId/reset-password', userAuthMiddleware,
+  requirePasswordChangeComplete, requireRole('superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const temporaryPassword = crypto.randomBytes(18).toString('base64url');
+    const result = await pool.query(`UPDATE users SET password_hash=$1, must_change_password=TRUE
+      WHERE id=$2 AND role='admin' RETURNING id, username`,
+      [await bcrypt.hash(temporaryPassword, 12), req.params.userId]);
+    if (!result.rowCount) { res.status(404).json({ error: 'Administrador no encontrado' }); return; }
+    res.json({ username: result.rows[0].username, temporaryPassword });
+  });
+
+router.get('/users', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (_req: UserAuthRequest, res: Response): Promise<void> => {
+    const result = await pool.query(
+      `SELECT id, username, full_name, role, is_active, must_change_password, created_at
+       FROM users ORDER BY created_at DESC`,
+    );
+    res.json(result.rows);
+  });
+
+router.patch('/users/:userId/status', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+    if (req.user!.id === req.params.userId) {
+      res.status(400).json({ error: 'No puede desactivar su propia cuenta' }); return;
+    }
+    if (typeof req.body?.is_active !== 'boolean') {
+      res.status(400).json({ error: 'is_active debe ser booleano' }); return;
+    }
+    const result = await pool.query(
+      `UPDATE users SET is_active=$1 WHERE id=$2 AND role='admin'
+       RETURNING id, username, is_active`,
+      [req.body.is_active, req.params.userId],
+    );
+    if (!result.rowCount) { res.status(404).json({ error: 'Administrador no encontrado' }); return; }
+    res.json(result.rows[0]);
+  });
+
+router.post('/users/:userId/reset-password', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (req: UserAuthRequest, res: Response): Promise<void> => {
+    if (req.user!.id === req.params.userId) {
+      res.status(400).json({ error: 'Use cambiar contraseña para su cuenta' }); return;
+    }
+    const temporaryPassword = crypto.randomBytes(18).toString('base64url');
+    const result = await pool.query(
+      `UPDATE users SET password_hash=$1, must_change_password=TRUE
+       WHERE id=$2 AND role='admin'
+       RETURNING id, username, must_change_password`,
+      [await bcrypt.hash(temporaryPassword, 12), req.params.userId],
+    );
+    if (!result.rowCount) { res.status(404).json({ error: 'Administrador no encontrado' }); return; }
+    res.json({ ...result.rows[0], temporary_password: temporaryPassword });
+  });
+
+// Listado global exclusivo para el panel de superadministración.
+router.get('/superadmin/companies', userAuthMiddleware, requirePasswordChangeComplete,
+  requireRole('superadmin'), async (_req: UserAuthRequest, res: Response): Promise<void> => {
+    try {
+      const result = await pool.query(`
+        SELECT c.id, c.name, c.is_active AS "isActive",
+               COALESCE(string_agg(DISTINCT u.username, ', '), '') AS "ownerUsername"
+        FROM companies c
+        LEFT JOIN user_companies uc ON uc.company_id = c.id
+        LEFT JOIN users u ON u.id = uc.user_id AND u.role = 'admin'
+        GROUP BY c.id, c.name, c.is_active
+        ORDER BY c.name, c.id
+      `);
+      res.json({ companies: result.rows });
+    } catch (error) {
+      console.error('Error consultando empresas de superadmin:', error);
+      res.status(500).json({ error: 'No fue posible consultar las empresas' });
+    }
+  });
 
 router.get(
   '/companies/:companyId/branding',
@@ -578,12 +736,19 @@ router.get(
   '/companies',
   userAuthMiddleware,
   requirePasswordChangeComplete,
-  requireRole('admin'),
-  async (_req, res) => {
+  requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response) => {
     const result = await pool.query(
-      'SELECT id, name, slug, logo_path, is_active FROM companies ORDER BY name',
+      `SELECT c.id, c.name, c.slug, c.logo_path, c.is_active, c.profile
+       FROM companies c
+       WHERE c.is_active = TRUE
+         AND ($1::text = 'superadmin' OR EXISTS (
+           SELECT 1 FROM user_companies uc
+           WHERE uc.company_id = c.id AND uc.user_id = $2
+         ))
+       ORDER BY c.name`,
+      [req.user!.role, req.user!.id],
     );
-
     res.json(result.rows);
   },
 );
@@ -596,10 +761,7 @@ router.get(
     req: UserAuthRequest,
     res: Response,
   ): Promise<void> => {
-    if (
-      req.user?.role !== 'admin' &&
-      req.user?.companyId !== req.params.companyId
-    ) {
+    if (!canAccessCompany(req, req.params.companyId)) {
       res.status(403).json({
         error:
           'No puede consultar dispositivos de otra empresa',
@@ -707,7 +869,7 @@ router.delete(
   '/companies/:companyId/employees/:employeeCode',
   userAuthMiddleware,
   requirePasswordChangeComplete,
-  requireRole('admin'),
+  requireRole('admin', 'superadmin'),
   async (
     req: UserAuthRequest,
     res: Response,
@@ -767,6 +929,7 @@ router.delete(
       /*
        * Eliminar configuración por día del trabajador.
        */
+      await client.query('DELETE FROM employee_day_categories WHERE employee_id = $1', [employee.id_remote]);
       await client.query(
         `DELETE FROM employee_work_sites
          WHERE employee_id = $1`,
@@ -847,14 +1010,118 @@ router.delete(
   },
 );
 
-function canAccessCompany(
-  req: UserAuthRequest,
-  companyId: string,
-): boolean {
-  return (
-    req.user?.role === 'admin' ||
-    req.user?.companyId === companyId
-  );
+/* Ausencias automáticas: 10:00 para turnos hasta las 10; otros turnos +2 h.
+   Ejecutar cada minuto y al arrancar. El índice único evita duplicados. */
+async function processAutomaticAbsences(): Promise<void> {
+  await pool.query(`
+    WITH day_context AS (
+      SELECT (NOW() AT TIME ZONE 'America/Mexico_City')::date AS today,
+             (NOW() AT TIME ZONE 'America/Mexico_City')::time AS local_time
+    ), candidates AS (
+      SELECT e.company_id,e.id_remote AS employee_id,
+             COALESCE(edc.category_id,e.category_id) AS category_id,
+             dc.today AS incident_date,
+             COALESCE(cw.start_time,c.start_time) AS start_time
+      FROM employees e CROSS JOIN day_context dc
+      LEFT JOIN employee_day_categories edc ON edc.employee_id=e.id_remote
+        AND edc.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+          CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END)
+      JOIN categories c ON c.id=COALESCE(edc.category_id,e.category_id)
+      JOIN category_workdays cw ON cw.category_id=c.id
+        AND cw.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+          CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END)
+      WHERE e.is_active=TRUE AND cw.is_workday=TRUE
+        AND (e.hire_date IS NULL OR e.hire_date::date<=dc.today)
+        AND NOT EXISTS (SELECT 1 FROM category_rest_days rd WHERE rd.category_id=c.id
+          AND rd.weekday IN (EXTRACT(ISODOW FROM dc.today)::int,
+            CASE WHEN EXTRACT(ISODOW FROM dc.today)::int=7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM employee_vacations v
+          WHERE v.employee_id=e.id_remote AND v.company_id=e.company_id
+            AND dc.today BETWEEN v.start_date AND v.end_date)
+        AND NOT EXISTS (SELECT 1 FROM qualified_incidents q
+          WHERE q.employee_id=e.id_remote AND q.company_id=e.company_id
+            AND q.incident_date=dc.today AND q.concept IN
+              ('Permiso médico justificado','Falta justificada','Permiso de salida'))
+    )
+    INSERT INTO attendance_auto_incidents
+      (company_id,employee_id,category_id,incident_date,concept,origin,notes)
+    SELECT c.company_id,c.employee_id,c.category_id,c.incident_date,
+      'Ausentismo','ABSENCE','Sin registro de entrada al cumplirse el plazo'
+    FROM candidates c CROSS JOIN day_context dc
+    WHERE c.start_time ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9]'
+      AND dc.local_time >= CASE
+        WHEN c.start_time::time <= TIME '10:00' THEN TIME '10:00'
+        ELSE (c.start_time::time + INTERVAL '2 hours')::time END
+      AND NOT EXISTS (SELECT 1 FROM attendance_records a
+        JOIN employees e2 ON e2.id_remote=c.employee_id
+        WHERE a.company_id=c.company_id AND a.event_type='CLOCK_IN'
+          AND a.employee_id IN (e2.id_local,e2.id_remote::text,e2.employee_code)
+          AND (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=c.incident_date)
+    ON CONFLICT DO NOTHING
+  `);
+}
+let absenceJobRunning = false;
+async function runAbsenceJob(): Promise<void> {
+  if(absenceJobRunning) return;
+  absenceJobRunning=true;
+  try { await processAutomaticAbsences(); await processMissingBreaks(); }
+  catch(error) { console.error('Error generando ausentismo automático:',error); }
+  finally { absenceJobRunning=false; }
+}
+let absenceInterval: ReturnType<typeof setInterval> | undefined;
+
+// Llamar únicamente después de initDb: las consultas del job no deben competir
+// con ALTER TABLE durante las migraciones de arranque.
+export function startAutomaticAbsenceJob(): void {
+  if (absenceInterval) return;
+  absenceInterval = setInterval(() => { void runAbsenceJob(); }, 60000);
+  absenceInterval.unref();
+  void runAbsenceJob();
+}
+
+router.get('/companies/:companyId/automatic-incidents',userAuthMiddleware,
+  requirePasswordChangeComplete,async(req:UserAuthRequest,res:Response):Promise<void>=>{
+    if(!canAccessCompany(req,req.params.companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+    const status=String(req.query.status??'pending');
+    if(!['pending','reviewed','all'].includes(status)){res.status(400).json({error:'Estado inválido'});return;}
+    try{
+      const data=await pool.query(`SELECT ai.*,a.occurred_at AS attendance_occurred_at,e.employee_code,e.full_name AS employee_name,
+        cat.name AS category_name
+        FROM attendance_auto_incidents ai
+        LEFT JOIN attendance_records a ON a.id_remote=ai.attendance_record_id AND a.company_id=ai.company_id
+        JOIN employees e ON e.id_remote=ai.employee_id
+        LEFT JOIN categories cat ON cat.id=ai.category_id
+        WHERE ai.company_id=$1 AND ($2='all' OR ai.status=$2)
+        ORDER BY ai.incident_date DESC,ai.created_at DESC LIMIT 500`,[req.params.companyId,status]);
+      res.json({records:data.rows});
+    }catch(error){console.error(error);res.status(500).json({error:'No se pudieron consultar incidencias automáticas'});}
+  });
+router.post('/companies/:companyId/automatic-incidents/:incidentId/review',
+  userAuthMiddleware,requirePasswordChangeComplete,requireRole('admin','superadmin'),
+  async(req:UserAuthRequest,res:Response):Promise<void>=>{
+    if(!canAccessCompany(req,req.params.companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+    const notes=String(req.body?.notes??'').trim();
+    if(!notes||notes.length>4000){res.status(400).json({error:'Escribe observaciones (máximo 4000 caracteres)'});return;}
+    const concept = String(req.body?.concept ?? '').trim();
+    if (concept && !(VALID_CONCEPTS as readonly string[]).includes(concept)) {
+      res.status(400).json({error:'Concepto de incidencia inválido'}); return;
+    }
+    try{
+      const result=await pool.query(`UPDATE attendance_auto_incidents
+        SET notes=$3,status='reviewed',reviewed_at=NOW(),reviewed_by=$4,
+            concept=COALESCE(NULLIF($5, ''), concept)
+        WHERE company_id=$1 AND id=$2 RETURNING *`,
+        [req.params.companyId,req.params.incidentId,notes,req.user!.id,concept]);
+      if(!result.rowCount){res.status(404).json({error:'Incidencia no encontrada'});return;}
+      res.json({saved:true,record:result.rows[0]});
+    }catch(error){console.error(error);res.status(500).json({error:'No se pudo guardar la revisión'});}
+  });
+
+function canAccessCompany(req: UserAuthRequest, companyId: string): boolean {
+  if (!req.user) return false;
+  if (req.user.role === 'superadmin') return true;
+  return req.user.role === 'admin' &&
+    Array.isArray(req.user.companyIds) && req.user.companyIds.includes(companyId);
 }
 
 function normalizeWeekday(
@@ -878,8 +1145,11 @@ const VALID_CONCEPTS = [
   'Retardo',
   'Permiso médico justificado',
   'Permiso médico no justificado',
-  'Permiso de salida',
   'Falta justificada',
+  'Salida no autorizada',
+  'Salida autorizada',
+  'Tiempo extraordinario',
+  'Historial',
 ] as const;
 
 router.get(
@@ -985,6 +1255,11 @@ router.get(
          start_time,
          end_time,
          tolerance_minutes,
+         meal_start_time,
+         meal_end_time,
+         rest_start_time,
+         rest_duration_minutes,
+         meal_duration_minutes,
          overtime_allowed,
          overtime_value
        FROM categories
@@ -1058,7 +1333,7 @@ router.put(
   '/companies/:companyId/categories/:categoryNumber/config',
   userAuthMiddleware,
   requirePasswordChangeComplete,
-  requireRole('admin'),
+  requireRole('admin', 'superadmin'),
   async (
     req: UserAuthRequest,
     res: Response,
@@ -1783,8 +2058,9 @@ router.post(
         'Retardo',
         'Permiso médico justificado',
         'Permiso médico no justificado',
-        'Permiso de salida',
         'Falta justificada',
+        'Salida no autorizada',
+        'Salida autorizada',
       ];
 
       for (const concept of concepts) {
@@ -1842,88 +2118,82 @@ router.delete(
   '/companies/:companyId/categories/:categoryNumber',
   userAuthMiddleware,
   requirePasswordChangeComplete,
+  requireRole('admin', 'superadmin'),
   async (req: UserAuthRequest, res: Response): Promise<void> => {
     const { companyId } = req.params;
-
     if (!canAccessCompany(req, companyId)) {
-      res.status(403).json({
-        error:
-          'No puede eliminar categorías de otra empresa',
-      });
+      res.status(403).json({ error: 'No puede eliminar categorías de otra empresa' });
       return;
     }
-
-    const categoryNumber = Number(
-      req.params.categoryNumber,
-    );
-
-    if (
-      !Number.isInteger(categoryNumber) ||
-      categoryNumber < 1
-    ) {
-      res.status(400).json({
-        error: 'Número de categoría inválido',
-      });
+    const number = Number(req.params.categoryNumber);
+    if (!Number.isInteger(number) || number < 1) {
+      res.status(400).json({ error: 'Número de categoría inválido' });
       return;
     }
-
-    const category = await pool.query(
-      `SELECT
-         id,
-         name
-       FROM categories
-       WHERE company_id = $1
-         AND category_number = $2
-       LIMIT 1`,
-      [
-        companyId,
-        categoryNumber,
-      ],
-    );
-
-    if (!category.rows[0]) {
-      res.status(404).json({
-        error: 'Categoría no encontrada',
-      });
-      return;
-    }
-
-    const used = await pool.query(
-      `SELECT
-         COUNT(*)::int AS total
-       FROM employees
-       WHERE company_id = $1
-         AND category_id = $2
-         AND is_active = TRUE`,
-      [
-        companyId,
-        category.rows[0].id,
-      ],
-    );
-
-    if (Number(used.rows[0].total) > 0) {
-      res.status(409).json({
-        error:
-          'No puede eliminar la categoría porque tiene trabajadores asignados',
-      });
-      return;
-    }
-
-    await pool.query(
-      `DELETE FROM categories
-       WHERE company_id = $1
-         AND category_number = $2`,
-      [
-        companyId,
-        categoryNumber,
-      ],
-    );
-
-    res.json({
-      deleted: true,
-      category_number: categoryNumber,
-      name: category.rows[0].name,
-    });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const found = await client.query(
+        `SELECT id, name FROM categories WHERE company_id=$1 AND category_number=$2 FOR UPDATE`,
+        [companyId, number],
+      );
+      const category = found.rows[0];
+      if (!category) {
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Categoría no encontrada' });
+        return;
+      }
+      // No permitir borrar categorías usadas como principal o en cualquier día.
+      const assigned = await client.query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM employees
+            WHERE company_id=$1 AND category_id=$2) AS principal,
+           (SELECT COUNT(*)::int FROM employee_day_categories edc
+            JOIN employees e ON e.id_remote=edc.employee_id
+            WHERE e.company_id=$1 AND edc.category_id=$2) AS semanal`,
+        [companyId, category.id],
+      );
+      const principal = Number(assigned.rows[0]?.principal || 0);
+      const semanal = Number(assigned.rows[0]?.semanal || 0);
+      if (principal > 0 || semanal > 0) {
+        await client.query('ROLLBACK');
+        res.status(409).json({
+          error: 'No puedes eliminar esta categoría porque tiene trabajadores asignados, ya sea como categoría principal o en algún día de la semana.',
+          assigned_principal: principal,
+          assigned_weekly: semanal,
+        });
+        return;
+      }
+      await client.query('DELETE FROM category_workdays WHERE category_id=$1', [category.id]);
+      await client.query('DELETE FROM category_rest_days WHERE category_id=$1', [category.id]);
+      await client.query('DELETE FROM category_incidence_values WHERE category_id=$1', [category.id]);
+      await client.query('DELETE FROM categories WHERE id=$1', [category.id]);
+      // Renumerar sin cambiar los UUID usados por trabajadores y configuraciones.
+      // Dos fases para no chocar con UNIQUE(company_id, category_number).
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`categories:${companyId}`]);
+      const remaining = await client.query(
+        'SELECT id, category_number FROM categories WHERE company_id=$1 ORDER BY category_number, id FOR UPDATE',
+        [companyId],
+      );
+      const maxNumber = Math.max(number, ...remaining.rows.map((r: any) => Number(r.category_number)));
+      const offset = maxNumber + remaining.rows.length + 100;
+      for (let i = 0; i < remaining.rows.length; i++) {
+        await client.query('UPDATE categories SET category_number=$1 WHERE id=$2',
+          [offset + i, remaining.rows[i].id]);
+      }
+      for (let i = 0; i < remaining.rows.length; i++) {
+        await client.query('UPDATE categories SET category_number=$1 WHERE id=$2',
+          [i + 1, remaining.rows[i].id]);
+      }
+      await client.query('COMMIT');
+      res.json({ deleted: true, category_number: number, name: category.name,
+        employees_without_category: 0 });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error eliminando categoría:', error);
+      res.status(500).json({ error: 'No fue posible eliminar la categoría',
+        detail: error instanceof Error ? error.message : String(error) });
+    } finally { client.release(); }
   },
 );
 
@@ -1962,6 +2232,9 @@ router.put(
       end_time = null,
       meal_start_time = null,
       meal_end_time = null,
+      rest_start_time = null,
+      rest_duration_minutes = 30,
+      meal_duration_minutes = 60,
       tolerance_minutes = 10,
       overtime_allowed = true,
       overtime_value = null,
@@ -2031,6 +2304,9 @@ router.put(
                end_time = $3,
                meal_start_time = $4,
                meal_end_time = $5,
+               rest_start_time = $11,
+               rest_duration_minutes = $12,
+               meal_duration_minutes = $13,
                tolerance_minutes = $6,
                overtime_allowed = $7,
                overtime_value = $8,
@@ -2052,6 +2328,9 @@ router.put(
             overtimeValue,
             companyId,
             categoryNumber,
+            rest_start_time || null,
+            Math.max(0, Number(rest_duration_minutes) || 0),
+            Math.max(0, Number(meal_duration_minutes) || 0),
           ],
         );
 
@@ -2277,6 +2556,7 @@ router.get(
            e.phone,
            e.department,
            e.hire_date,
+           e.daily_salary,
            e.category_id,
            e.site_id,
            e.is_active,
@@ -2399,6 +2679,14 @@ router.get(
       work_sites_by_day:
         sitesByDay.rows,
 
+      categories_by_day: (await pool.query(
+        `SELECT edc.weekday, c.category_number, c.name AS category_name
+         FROM employee_day_categories edc
+         JOIN categories c ON c.id = edc.category_id
+         WHERE edc.employee_id = $1 ORDER BY edc.weekday`,
+        [employee.id_remote],
+      )).rows,
+
       category_configuration:
         employee.category_id
           ? {
@@ -2476,8 +2764,20 @@ router.put(
       rfc,
       curp,
       nss,
+      daily_salary,
+      categories_by_day,
       work_sites_by_day = [],
     } = req.body ?? {};
+
+    const salaryProvided = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'daily_salary');
+    const salary = daily_salary === null || daily_salary === ''
+      ? null
+      : Number(daily_salary);
+    if (salaryProvided && (salary !== null &&
+        (!Number.isFinite(salary) || salary < 0 || salary > 9999999999.99))) {
+      res.status(400).json({ error: 'Sueldo diario inválido' });
+      return;
+    }
 
     const categoryNumber =
       Number(category_number);
@@ -2499,6 +2799,30 @@ router.put(
           'work_sites_by_day debe ser un arreglo',
       });
       return;
+    }
+
+    if (categories_by_day !== undefined && !Array.isArray(categories_by_day)) {
+      res.status(400).json({ error: 'categories_by_day debe ser un arreglo' });
+      return;
+    }
+    const dayCategoryNumbers = new Map<number, number>();
+    if (Array.isArray(categories_by_day)) {
+      for (const item of categories_by_day) {
+        const weekday = Number(item?.weekday);
+        const number = Number(item?.category_number);
+        if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7 ||
+            !Number.isInteger(number) || number < 1 || dayCategoryNumbers.has(weekday)) {
+          res.status(400).json({ error: 'Categorías por día inválidas o duplicadas' });
+          return;
+        }
+        dayCategoryNumbers.set(weekday, number);
+      }
+      const siteDays = new Set(work_sites_by_day.map((x: any) => Number(x?.weekday)));
+      if (siteDays.size !== dayCategoryNumbers.size ||
+          [...siteDays].some(day => !dayCategoryNumbers.has(day))) {
+        res.status(400).json({ error: 'Cada día con centro debe tener una categoría' });
+        return;
+      }
     }
 
     const client = await pool.connect();
@@ -2557,6 +2881,7 @@ router.put(
                  COALESCE($10, curp),
                nss =
                  COALESCE($11, nss),
+               daily_salary = CASE WHEN $14::boolean THEN $15::numeric ELSE daily_salary END,
                workdays_customized = TRUE,
                workdays_customized_at = NOW(),
                updated_at = NOW()
@@ -2570,7 +2895,8 @@ router.put(
              last_name_maternal,
              full_name,
              category_id,
-             hire_date`,
+             hire_date,
+             daily_salary`,
           [
             categoryResult.rows[0].id,
             hire_date || null,
@@ -2585,6 +2911,8 @@ router.put(
             nss ?? null,
             companyId,
             employeeCode,
+            salaryProvided,
+            salary,
           ],
         );
 
@@ -2599,6 +2927,30 @@ router.put(
             'Trabajador no encontrado',
         });
         return;
+      }
+
+      if (Array.isArray(categories_by_day)) {
+        const validCategories = await client.query(
+          `SELECT id, category_number FROM categories WHERE company_id = $1
+           AND category_number = ANY($2::int[])`,
+          [companyId, [...dayCategoryNumbers.values()]],
+        );
+        const ids = new Map<number, string>(validCategories.rows.map(
+          (row: any) => [Number(row.category_number), row.id],
+        ));
+        if ([...dayCategoryNumbers.values()].some(n => !ids.has(n))) {
+          await client.query('ROLLBACK');
+          res.status(400).json({ error: 'Una categoría diaria no existe en esta empresa' });
+          return;
+        }
+        await client.query('DELETE FROM employee_day_categories WHERE employee_id = $1', [employee.id_remote]);
+        for (const [weekday, number] of dayCategoryNumbers) {
+          await client.query(
+            `INSERT INTO employee_day_categories (employee_id, weekday, category_id)
+             VALUES ($1,$2,$3)`,
+            [employee.id_remote, weekday, ids.get(number)],
+          );
+        }
       }
 
       await client.query(
@@ -2771,6 +3123,7 @@ router.put(
              e.phone,
              e.department,
              e.hire_date,
+             e.daily_salary,
              e.category_id,
              e.site_id,
              e.is_active,
@@ -2810,9 +3163,15 @@ router.put(
       res.json({
         saved: true,
         ...savedEmployeeResult.rows[0],
-        work_sites_by_day:
-          savedSitesResult.rows,
-                });
+        work_sites_by_day: savedSitesResult.rows,
+        categories_by_day: (await pool.query(
+          `SELECT edc.weekday, c.category_number, c.name AS category_name
+           FROM employee_day_categories edc
+           JOIN categories c ON c.id = edc.category_id
+           WHERE edc.employee_id = $1 ORDER BY edc.weekday`,
+          [employee.id_remote],
+        )).rows,
+      });
 
     } catch (error) {
 
@@ -2880,6 +3239,10 @@ router.get(
       req.query.status ?? 'pending',
     ).toLowerCase();
 
+    if (!['pending', 'qualified', 'all'].includes(status)) {
+      res.status(400).json({ error: 'Estado inválido' }); return;
+    }
+
     const requestedLimit = Number(
       req.query.limit ?? 200,
     );
@@ -2934,7 +3297,9 @@ router.get(
 
          qi.notes,
 
-         qi.qualified_at
+         qi.qualified_at,
+         timing.late_minutes,
+         COALESCE(cat.tolerance_minutes, 10) AS tolerance_minutes
 
        FROM attendance_records a
 
@@ -2945,13 +3310,32 @@ router.get(
         AND (
           e.id_local = a.employee_id
           OR e.id_remote::text = a.employee_id
+          OR e.employee_code = a.employee_id
         )
 
        LEFT JOIN sites s
          ON s.id = a.site_id
 
-       LEFT JOIN categories cat
-         ON cat.id = e.category_id
+       LEFT JOIN LATERAL (
+         SELECT dc.category_id FROM employee_day_categories dc
+         WHERE dc.employee_id = e.id_remote
+           AND dc.weekday IN (EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int,
+             CASE WHEN EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int = 7 THEN 0 ELSE -1 END)
+         ORDER BY dc.weekday DESC LIMIT 1
+       ) daily ON TRUE
+       LEFT JOIN categories cat ON cat.id = COALESCE(daily.category_id, e.category_id)
+       LEFT JOIN category_workdays cw ON cw.category_id = cat.id
+         AND cw.weekday = EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(NULLIF(cw.start_time, ''), NULLIF(cat.start_time, ''), NULLIF(e.start_time, '')) AS start_time
+       ) schedule ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT CASE WHEN a.event_type = 'CLOCK_IN'
+           AND schedule.start_time ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$'
+           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (
+             (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::time
+             - schedule.start_time::time)) / 60))::int ELSE 0 END AS late_minutes
+       ) timing ON TRUE
 
        LEFT JOIN qualified_incidents qi
          ON qi.attendance_record_id = a.id_remote
@@ -2969,7 +3353,9 @@ router.get(
    * se conserva como salida normal y tampoco aparece
    * en Incidencias.
    */
-  AND UPPER(COALESCE(a.event_type, '')) <> 'CLOCK_OUT'
+  AND (qi.id IS NOT NULL OR (
+    a.event_type = 'CLOCK_IN' AND timing.late_minutes > COALESCE(cat.tolerance_minutes, 10)
+  ) OR COALESCE(a.late_return_minutes, 0) > 0)
 
   AND (
     ($2 = 'pending' AND qi.id IS NULL)
@@ -2993,7 +3379,14 @@ router.get(
     );
 
     res.json({
-      records: result.rows,
+      records: result.rows.map(record => ({
+        ...record,
+        incidence_type: record.concept || (
+          Number(record.late_minutes) > Math.max(0, Number(record.tolerance_minutes))
+            ? 'Incidencia'
+            : null
+        ),
+      })),
       status,
       limit,
     });
@@ -3022,7 +3415,7 @@ router.post(
 
   requirePasswordChangeComplete,
 
-  requireRole('admin'),
+  requireRole('admin', 'superadmin'),
 
   async (
     req: UserAuthRequest,
@@ -3043,18 +3436,18 @@ router.post(
         ? req.body.notes.trim() || null
         : null;
 
-    if (
-      !VALID_CONCEPTS.includes(
-        concept as any,
-      ) &&
-      concept !== 'Tiempo extraordinario'
-    ) {
+    if (!VALID_CONCEPTS.includes(concept as any)) {
 
       res.status(400).json({
         error:
           'Concepto de incidencia inválido',
       });
 
+      return;
+    }
+
+    if (!notes) {
+      res.status(400).json({ error: 'Las observaciones son obligatorias' });
       return;
     }
 
@@ -3070,7 +3463,7 @@ router.post(
           `SELECT
              a.id_remote,
 
-             to_timestamp(a.occurred_at / 1000.0)::date AS incident_date,
+             (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date AS incident_date,
 
              e.id_remote AS employee_id,
 
@@ -3135,7 +3528,11 @@ router.post(
         return;
       }
     let appliedValue = 0;
-if (
+if (concept === 'Historial' || concept === 'Salida autorizada' ||
+    concept === 'Permiso médico justificado' || concept === 'Falta justificada') {
+  // Registro administrativo sin sanción.
+  appliedValue = 0;
+} else if (
   concept === 'Tiempo extraordinario'
 ) {
 
@@ -3314,9 +3711,6 @@ const result =
        concept =
          EXCLUDED.concept,
 
-       incident_date =
-         EXCLUDED.incident_date,
-
        applied_value =
          EXCLUDED.applied_value,
 
@@ -3351,6 +3745,13 @@ const result =
       req.user?.id ?? null,
     ],
 
+    );
+
+    await client.query(
+      `UPDATE attendance_auto_incidents
+       SET status='reviewed',concept=$3,notes=$4,reviewed_at=NOW(),reviewed_by=$5
+       WHERE company_id=$1 AND attendance_record_id=$2`,
+      [companyId,attendanceRecordId,concept,notes,req.user?.id ?? null]
     );
 
     await client.query('COMMIT');
@@ -3500,9 +3901,11 @@ router.get(
          ('Retardo'),
          ('Permiso médico justificado'),
          ('Permiso médico no justificado'),
-         ('Permiso de salida'),
          ('Falta justificada'),
-         ('Tiempo extraordinario')
+         ('Salida no autorizada'),
+         ('Salida autorizada'),
+         ('Tiempo extraordinario'),
+         ('Historial')
 
      ),
 
@@ -3609,6 +4012,257 @@ router.get(
 
   },
 
+);
+
+/* Ausentismo real: días laborales concluidos sin ninguna entrada registrada.
+   No crea incidencias automáticamente durante una consulta. */
+router.get('/companies/:companyId/absences', userAuthMiddleware,
+  requirePasswordChangeComplete, async (req: UserAuthRequest, res: Response): Promise<void> => {
+  const companyId = req.params.companyId;
+  if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+  const read = (key: string) => typeof req.query[key] === 'string' ? String(req.query[key]).trim() : '';
+  const from = read('from') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const to = read('to') || new Date().toISOString().slice(0, 10);
+  const employee = read('employee');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to ||
+      (Date.parse(to) - Date.parse(from)) / 86400000 > 366) {
+    res.status(400).json({ error: 'Rango inválido (máximo 366 días)' }); return;
+  }
+  try {
+    const result = await pool.query(`
+      WITH days AS (
+        SELECT generate_series($2::date, LEAST($3::date, (NOW() AT TIME ZONE 'America/Mexico_City')::date - 1), interval '1 day')::date AS work_date
+      ), scheduled AS (
+        SELECT e.id_remote AS employee_id, e.employee_code, e.full_name AS employee_name,
+               e.company_id, e.site_id, d.work_date, c.id AS category_id,
+               cw.end_time,
+               COALESCE(cw.is_workday, FALSE) AS is_workday
+        FROM employees e
+        CROSS JOIN days d
+        JOIN categories c ON c.id = COALESCE(
+          (SELECT edc.category_id FROM employee_day_categories edc
+           WHERE edc.employee_id = e.id_remote
+             AND edc.weekday IN (EXTRACT(ISODOW FROM d.work_date)::int,
+               CASE WHEN EXTRACT(ISODOW FROM d.work_date)::int = 7 THEN 0 ELSE -1 END)
+           ORDER BY CASE WHEN edc.weekday = EXTRACT(ISODOW FROM d.work_date)::int THEN 0 ELSE 1 END
+           LIMIT 1), e.category_id)
+        JOIN category_workdays cw ON cw.category_id = c.id
+          AND cw.weekday IN (EXTRACT(ISODOW FROM d.work_date)::int,
+            CASE WHEN EXTRACT(ISODOW FROM d.work_date)::int = 7 THEN 0 ELSE -1 END)
+        WHERE e.company_id = $1 AND e.is_active = TRUE
+          AND (e.hire_date IS NULL OR e.hire_date::date <= d.work_date)
+          AND ($4::text = '' OR e.employee_code = $4 OR e.full_name ILIKE '%' || $4 || '%')
+          AND NOT EXISTS (SELECT 1 FROM category_rest_days rd WHERE rd.category_id = c.id
+            AND rd.weekday IN (EXTRACT(ISODOW FROM d.work_date)::int,
+              CASE WHEN EXTRACT(ISODOW FROM d.work_date)::int = 7 THEN 0 ELSE -1 END))
+      )
+      SELECT s.employee_id, s.employee_code, s.employee_name, s.work_date,
+             s.category_id, s.site_id, 'Ausentismo'::text AS concept,
+             qi.id AS incident_id, qi.notes, qi.applied_value, qi.qualified_at,
+             CASE WHEN qi.id IS NULL THEN 'pending' ELSE 'qualified' END AS status
+      FROM scheduled s
+      LEFT JOIN LATERAL (
+        SELECT q.id, q.notes, q.applied_value, q.qualified_at
+        FROM qualified_incidents q
+        WHERE q.company_id = s.company_id AND q.employee_id = s.employee_id
+          AND q.incident_date = s.work_date AND q.concept IN ('Ausentismo', 'Falta justificada')
+          AND q.attendance_record_id IS NULL
+        ORDER BY q.qualified_at DESC LIMIT 1
+      ) qi ON TRUE
+      WHERE s.is_workday
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance_records a
+          WHERE a.company_id = s.company_id
+            AND a.employee_id IN (s.employee_id::text,
+              (SELECT e2.id_local FROM employees e2 WHERE e2.id_remote = s.employee_id), s.employee_code)
+            AND a.event_type = 'CLOCK_IN'
+            AND (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date = s.work_date
+        )
+      ORDER BY s.work_date DESC, s.employee_name LIMIT 20000`, [companyId, from, to, employee]);
+    res.json({ records: result.rows, absences: result.rows, count: result.rows.length });
+  } catch (error) {
+    console.error('Error consultando ausentismo:', error);
+    res.status(500).json({ error: 'No se pudo consultar el ausentismo' });
+  }
+});
+
+/* Registrar observaciones de una ausencia sin generar duplicados. */
+router.post('/companies/:companyId/absences/notes', userAuthMiddleware,
+  requirePasswordChangeComplete, async (req: UserAuthRequest, res: Response): Promise<void> => {
+  const { companyId } = req.params;
+  if (!canAccessCompany(req, companyId)) { res.status(403).json({ error: 'Acceso denegado' }); return; }
+  const employeeId = String(req.body?.employee_id ?? req.body?.employeeId ?? '');
+  const workDate = String(req.body?.work_date ?? req.body?.workDate ?? '');
+  const notes = String(req.body?.notes ?? '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(employeeId) || !/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !notes || notes.length > 4000) {
+    res.status(400).json({ error: 'Trabajador, fecha y observaciones válidos son obligatorios' }); return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`absence:${companyId}:${employeeId}:${workDate}`]);
+    const check = await client.query(`SELECT e.id_remote, COALESCE(edc.category_id, e.category_id) AS category_id
+      FROM employees e
+      LEFT JOIN employee_day_categories edc ON edc.employee_id = e.id_remote
+        AND edc.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+          CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END)
+      WHERE e.company_id = $1 AND e.id_remote = $2 AND e.is_active = TRUE
+        AND $3::date < (NOW() AT TIME ZONE 'America/Mexico_City')::date
+        AND EXISTS (SELECT 1 FROM category_workdays cw
+          WHERE cw.category_id = COALESCE(edc.category_id, e.category_id) AND cw.is_workday
+            AND cw.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+              CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM category_rest_days rd
+          WHERE rd.category_id = COALESCE(edc.category_id, e.category_id)
+            AND rd.weekday IN (EXTRACT(ISODOW FROM $3::date)::int,
+              CASE WHEN EXTRACT(ISODOW FROM $3::date)::int = 7 THEN 0 ELSE -1 END))
+        AND NOT EXISTS (SELECT 1 FROM attendance_records a
+          WHERE a.company_id = $1 AND a.event_type = 'CLOCK_IN'
+            AND a.employee_id IN (e.id_remote::text, e.id_local, e.employee_code)
+            AND (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date = $3::date)
+      LIMIT 1`, [companyId, employeeId, workDate]);
+    if (!check.rows.length) {
+      await client.query('ROLLBACK'); res.status(409).json({ error: 'No corresponde a una ausencia laboral concluida sin entrada' }); return;
+    }
+    const previous = await client.query(`SELECT id FROM qualified_incidents
+      WHERE company_id = $1 AND employee_id = $2 AND incident_date = $3::date
+        AND attendance_record_id IS NULL AND concept IN ('Ausentismo', 'Falta justificada')
+      ORDER BY qualified_at DESC LIMIT 1 FOR UPDATE`, [companyId, employeeId, workDate]);
+    const result = previous.rows.length
+      ? await client.query(`UPDATE qualified_incidents SET notes = $2, qualified_at = NOW(), qualified_by = $3
+          WHERE id = $1 RETURNING *`, [previous.rows[0].id, notes, req.user?.id ?? null])
+      : await client.query(`INSERT INTO qualified_incidents
+          (company_id, attendance_record_id, employee_id, category_id, concept, incident_date, applied_value, notes, qualified_by)
+          VALUES ($1, NULL, $2, $3, 'Ausentismo', $4::date, 0, $5, $6) RETURNING *`,
+          [companyId, employeeId, check.rows[0].category_id, workDate, notes, req.user?.id ?? null]);
+    await client.query('COMMIT'); res.json({ saved: true, record: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK'); console.error('Error guardando observaciones de ausentismo:', error);
+    res.status(500).json({ error: 'No se pudieron guardar las observaciones' });
+  } finally { client.release(); }
+});
+
+/* Exportación del historial para el Excel generado en administración. */
+router.get(
+  '/companies/:companyId/history-export',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId } = req.params;
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' });
+      return;
+    }
+    const param = (name: string): string =>
+      typeof req.query[name] === 'string' ? String(req.query[name]).trim() : '';
+    const from = param('from');
+    const to = param('to');
+    const employee = param('employee');
+    const role = param('role');
+    const worksite = param('worksite');
+    const concept = param('concept');
+    const onlyIncidents = param('only_incidents') === 'true';
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if ((from && !datePattern.test(from)) || (to && !datePattern.test(to)) || (from && to && from > to)) {
+      res.status(400).json({ error: 'El rango de fechas no es válido' });
+      return;
+    }
+    try {
+      // La consulta del historial no debe depender de generar alertas nuevas.
+      // Esa labor se ejecuta periódicamente y después de sincronizar checadas.
+      const result = await pool.query(
+        `WITH movements AS (
+          SELECT a.*, e.id_remote AS worker_id, e.employee_code, e.full_name,
+                 e.category_id, e.site_id AS employee_site_id,
+                 cat.name AS category_name,
+                 timing.late_minutes,
+                 (a.event_type = 'CLOCK_IN' AND timing.late_minutes > COALESCE(cat.tolerance_minutes, 10)) AS is_late
+          FROM attendance_records a
+          JOIN employees e ON e.company_id = a.company_id
+            AND a.employee_id IN (e.id_local, e.id_remote::text, e.employee_code)
+       LEFT JOIN LATERAL (
+         SELECT dc.category_id FROM employee_day_categories dc
+         WHERE dc.employee_id = e.id_remote
+           AND dc.weekday IN (EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int,
+             CASE WHEN EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int = 7 THEN 0 ELSE -1 END)
+         ORDER BY dc.weekday DESC LIMIT 1
+       ) daily ON TRUE
+       LEFT JOIN categories cat ON cat.id = COALESCE(daily.category_id, e.category_id)
+       LEFT JOIN category_workdays cw ON cw.category_id = cat.id
+         AND cw.weekday = EXTRACT(ISODOW FROM to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::int
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(NULLIF(cw.start_time, ''), NULLIF(cat.start_time, ''), NULLIF(e.start_time, '')) AS start_time
+       ) schedule ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT CASE WHEN a.event_type = 'CLOCK_IN'
+           AND schedule.start_time ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$'
+           THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (
+             (to_timestamp(a.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::time
+             - schedule.start_time::time)) / 60))::int ELSE 0 END AS late_minutes
+       ) timing ON TRUE
+          WHERE a.company_id = $1
+        ), history AS (
+          SELECT a.employee_code, a.full_name, a.event_type, a.occurred_at,
+                 COALESCE(qi.concept, ai.concept, CASE WHEN a.is_late THEN
+                   'Incidencia'
+                   WHEN a.late_return_minutes > 0 THEN 'Retardo' END) AS concept,
+                 qi.applied_value, COALESCE(qi.notes, ai.notes) AS notes,
+                 COALESCE(qi.qualified_at, ai.reviewed_at) AS qualified_at,
+                 a.category_name, a.category_id, COALESCE(a.site_id, a.employee_site_id) AS site_id,
+                 COALESCE(a.is_late, FALSE) AS is_late,
+                 qi.id IS NOT NULL OR ai.id IS NOT NULL OR COALESCE(a.is_late, FALSE) OR a.late_return_minutes > 0 AS is_incident,
+                 CASE WHEN qi.id IS NOT NULL OR ai.status = 'reviewed' THEN 'qualified'
+                   WHEN ai.id IS NOT NULL OR a.is_late OR a.late_return_minutes > 0 THEN 'pending'
+                   ELSE 'normal' END AS review_status, a.break_kind
+          FROM movements a
+          LEFT JOIN qualified_incidents qi ON qi.attendance_record_id = a.id_remote AND qi.company_id = $1
+          LEFT JOIN LATERAL (
+            SELECT i.* FROM attendance_auto_incidents i
+            WHERE i.company_id = $1 AND i.attendance_record_id = a.id_remote 
+            ORDER BY i.reviewed_at DESC LIMIT 1
+          ) ai ON TRUE
+          UNION ALL
+          SELECT e.employee_code, e.full_name, 'INCIDENT',
+                 EXTRACT(EPOCH FROM (qi.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
+                 qi.concept, qi.applied_value, qi.notes, qi.qualified_at,
+                 cat.name, e.category_id, e.site_id, FALSE, TRUE, 'qualified', NULL::text
+          FROM qualified_incidents qi
+          JOIN employees e ON e.id_remote = qi.employee_id AND e.company_id = qi.company_id
+          LEFT JOIN categories cat ON cat.id = qi.category_id
+          WHERE qi.company_id = $1 AND qi.attendance_record_id IS NULL
+          UNION ALL
+          SELECT e.employee_code, e.full_name, 'INCIDENT',
+                 EXTRACT(EPOCH FROM (ai.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
+                 ai.concept, NULL, ai.notes, ai.reviewed_at,
+                 cat.name, e.category_id, e.site_id, FALSE, TRUE,
+                 CASE WHEN ai.status = 'reviewed' THEN 'qualified' ELSE 'pending' END, NULL::text
+          FROM attendance_auto_incidents ai
+          JOIN employees e ON e.id_remote = ai.employee_id AND e.company_id = ai.company_id
+          LEFT JOIN categories cat ON cat.id = ai.category_id
+          WHERE ai.company_id = $1 AND ai.attendance_record_id IS NULL
+            AND NOT EXISTS (SELECT 1 FROM qualified_incidents qi
+              WHERE qi.company_id = ai.company_id AND qi.employee_id = ai.employee_id
+                AND qi.incident_date = ai.incident_date AND qi.attendance_record_id IS NULL
+                AND qi.concept = ai.concept)
+        )
+        SELECT * FROM history h
+        WHERE h.review_status <> 'pending'
+          AND ($2::text = '' OR (to_timestamp(h.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date >= NULLIF($2, '')::date)
+          AND ($3::text = '' OR (to_timestamp(h.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date <= NULLIF($3, '')::date)
+          AND ($4::text = '' OR h.employee_code = $4 OR h.full_name ILIKE '%' || $4 || '%')
+          AND ($5::text = '' OR h.category_name = $5 OR h.category_id::text = $5)
+          AND ($6::text = '' OR h.site_id::text = $6 OR EXISTS (SELECT 1 FROM sites st WHERE st.id = h.site_id AND st.name = $6))
+          AND ($7::text = '' OR h.concept = $7)
+          AND (NOT $8::boolean OR h.is_incident)
+        ORDER BY h.occurred_at DESC LIMIT 20000`,
+        [companyId, from, to, employee, role, worksite, concept, onlyIncidents],
+      );
+      res.json({ records: result.rows, count: result.rows.length });
+    } catch (error) {
+      console.error('Error exportando historial:', error);
+      res.status(500).json({ error: 'No se pudo generar el historial de asistencias' });
+    }
+  },
 );
 
 /* =========================================================
@@ -3959,6 +4613,373 @@ router.post(
     }
   },
 );
+
+/* Políticas sincronizadas por empresa en PostgreSQL. */
+router.get('/companies/:companyId/policies', userAuthMiddleware, requirePasswordChangeComplete,
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const {companyId}=req.params;
+    if(!canAccessCompany(req,companyId)){res.status(403).json({error:'Sin acceso a la empresa'});return;}
+    try {
+      const result=await pool.query('SELECT id, title, text, created_at, updated_at FROM company_policies WHERE company_id=$1 ORDER BY created_at,id',[companyId]);
+      res.json(result.rows);
+    } catch(error){console.error('Consultando políticas:',error);res.status(500).json({error:'No se pudieron consultar las políticas. ¿Ejecutaste la migración SQL?'});}
+  });
+router.put('/companies/:companyId/policies', userAuthMiddleware, requirePasswordChangeComplete,
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const {companyId}=req.params;
+    if(!canAccessCompany(req,companyId)){res.status(403).json({error:'Sin acceso a la empresa'});return;}
+    const rows=req.body?.policies;
+    if(!Array.isArray(rows)||rows.length>100||rows.some((p:any)=>typeof p?.title!=='string'||typeof p?.text!=='string'||p.title.length>500||p.text.length>100000)){
+      res.status(400).json({error:'Lista de políticas inválida'});return;
+    }
+    const client=await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM companies WHERE id=$1 FOR UPDATE',[companyId]);
+      await client.query('DELETE FROM company_policies WHERE company_id=$1',[companyId]);
+      for(const p of rows){
+        await client.query('INSERT INTO company_policies(company_id,title,text) VALUES ($1,$2,$3)',[companyId,p.title,p.text]);
+      }
+      await client.query('COMMIT');
+      res.json({saved:true,count:rows.length});
+    }catch(error){await client.query('ROLLBACK');console.error('Guardando políticas:',error);res.status(500).json({error:'No se pudieron guardar las políticas'});}
+    finally{client.release();}
+  });
+
+
+/* ==============================================================
+   Datos complementarios del portal (sin sustituir tablas oficiales).
+   Todos los accesos se restringen a la empresa autorizada.
+   Se usan versiones para evitar sobrescribir datos de otra PC.
+============================================================== */
+router.get('/companies/:companyId/portal-data/:storageKey',
+ userAuthMiddleware, requirePasswordChangeComplete,
+ async (req: UserAuthRequest,res: Response): Promise<void> => {
+  const {companyId,storageKey}=req.params;
+  if(!canAccessCompany(req,companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+  if(!/^[a-zA-Z0-9_-]{1,150}$/.test(storageKey)){res.status(400).json({error:'Clave inválida'});return;}
+  try {
+   const result=await pool.query('SELECT data, revision, updated_at FROM company_portal_data WHERE company_id=$1 AND storage_key=$2',[companyId,storageKey]);
+   if(!result.rowCount){res.json({exists:false,data:null,updated_at:null,revision:null});return;}
+   res.json({exists:true,...result.rows[0]});
+  } catch(e){console.error('portal-data GET',e);res.status(500).json({error:'Error consultando datos del portal'});}
+ });
+router.put('/companies/:companyId/portal-data/:storageKey',
+ userAuthMiddleware, requirePasswordChangeComplete,
+ async (req: UserAuthRequest,res: Response): Promise<void> => {
+  const {companyId,storageKey}=req.params;
+  if(!canAccessCompany(req,companyId)){res.status(403).json({error:'Acceso denegado'});return;}
+  if(!/^[a-zA-Z0-9_-]{1,150}$/.test(storageKey)){res.status(400).json({error:'Clave inválida'});return;}
+  const {data,expected_revision}=req.body||{};
+  if(data===undefined || JSON.stringify(data).length>1500000){res.status(400).json({error:'Datos ausentes o demasiado grandes'});return;}
+  if(expected_revision!==null && expected_revision!==undefined && (!Number.isSafeInteger(expected_revision)||expected_revision<1)){
+    res.status(400).json({error:'Revisión inválida'});return;
+  }
+  try {
+   // Si expected_revision es null, solo crea la primera versión.
+   // Si se proporciona una fecha, actualiza solo si coincide.
+   const result=await pool.query(`INSERT INTO company_portal_data(company_id,storage_key,data)
+    VALUES ($1,$2,$3::jsonb)
+    ON CONFLICT(company_id,storage_key) DO UPDATE
+    SET data=EXCLUDED.data,revision=company_portal_data.revision+1,updated_at=NOW()
+    WHERE ($4::bigint IS NOT NULL AND company_portal_data.revision=$4::bigint)
+    RETURNING revision,updated_at`,[companyId,storageKey,JSON.stringify(data),expected_revision??null]);
+   if(!result.rowCount){res.status(409).json({error:'Hay una versión más reciente en PostgreSQL. Recarga antes de guardar.'});return;}
+   res.json({saved:true,revision:result.rows[0].revision,updated_at:result.rows[0].updated_at});
+  } catch(e){console.error('portal-data PUT',e);res.status(500).json({error:'Error guardando datos del portal'});}
+ });
+
+
+/* ============================================================
+   CHECADORES COMPARTIDOS - independientes de devices y de
+   device_enrollment_codes (app Android).
+   Requiere shared_checkers y shared_checker_enrollment_codes.
+============================================================ */
+router.get('/companies/:companyId/shared-checkers', userAuthMiddleware,
+  requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    if (!canAccessCompany(req, req.params.companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' }); return;
+    }
+    try {
+      const result = await pool.query(`
+        SELECT sc.id, sc.company_id, sc.site_id, sc.device_name,
+               sc.is_active, sc.created_at, sc.linked_at, s.name AS site_name
+        FROM shared_checkers sc
+        JOIN sites s ON s.id = sc.site_id AND s.company_id = sc.company_id
+        WHERE sc.company_id = $1 ORDER BY sc.created_at DESC`,
+        [req.params.companyId]);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error listando checadores compartidos:', error);
+      res.status(500).json({ error: 'No se pudieron consultar los checadores' });
+    }
+  });
+
+router.post('/companies/:companyId/shared-checkers', userAuthMiddleware,
+  requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const companyId = req.params.companyId;
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' }); return;
+    }
+    const deviceName = typeof req.body?.device_name === 'string' ? req.body.device_name.trim() : '';
+    const siteId = typeof req.body?.site_id === 'string' ? req.body.site_id : '';
+    if (!deviceName || deviceName.length > 80 || !/^[0-9a-f-]{36}$/i.test(siteId)) {
+      res.status(400).json({ error: 'Nombre o centro de trabajo inválido' }); return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const site = await client.query(`SELECT s.id FROM sites s
+        JOIN companies c ON c.id=s.company_id AND c.is_active=TRUE
+        WHERE s.id=$1 AND s.company_id=$2`, [siteId, companyId]);
+      if (!site.rowCount) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: 'Centro de trabajo no válido para esta empresa' }); return;
+      }
+      const created = await client.query(`INSERT INTO shared_checkers
+        (company_id, site_id, device_name) VALUES ($1,$2,$3) RETURNING id`,
+        [companyId, siteId, deviceName]);
+      // Código de 8 caracteres: 40 bits de entropía; un solo uso, 10 minutos.
+      const plainCode = crypto.randomBytes(5).toString('hex').toUpperCase();
+      const codeHash = crypto.createHash('sha256').update(plainCode).digest('hex');
+      const enrollment = await client.query(`INSERT INTO shared_checker_enrollment_codes
+        (checker_id, code_hash, expires_at)
+        VALUES ($1,$2,NOW()+INTERVAL '10 minutes') RETURNING expires_at`,
+        [created.rows[0].id, codeHash]);
+      await client.query('COMMIT');
+      res.status(201).json({ checker_id: created.rows[0].id,
+        enrollment_code: plainCode, expires_at: enrollment.rows[0].expires_at });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error creando checador compartido:', error);
+      res.status(500).json({ error: 'No se pudo generar el código' });
+    } finally { client.release(); }
+  });
+
+router.delete('/companies/:companyId/shared-checkers/:checkerId', userAuthMiddleware,
+  requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    if (!canAccessCompany(req, req.params.companyId)) {
+      res.status(403).json({ error: 'No tiene acceso a esta empresa' }); return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        'SELECT id FROM shared_checkers WHERE id=$1 AND company_id=$2 FOR UPDATE',
+        [req.params.checkerId, req.params.companyId]
+      );
+      if (!result.rowCount) {
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Checador no encontrado' }); return;
+      }
+      await client.query('DELETE FROM shared_checker_enrollment_codes WHERE checker_id=$1', [req.params.checkerId]);
+      await client.query('DELETE FROM shared_checkers WHERE id=$1 AND company_id=$2',
+        [req.params.checkerId, req.params.companyId]);
+      await client.query('COMMIT');
+      res.json({ deleted: true });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error eliminando checador:', error);
+      res.status(500).json({ error: 'No se pudo eliminar el checador' });
+    } finally { client.release(); }
+  });
+
+// Pública únicamente para canjear un código. NO permite registrar asistencias.
+router.post('/shared-checkers/redeem', async (req: Request, res: Response): Promise<void> => {
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+  if (!/^[A-F0-9]{10}$/.test(code)) {
+    res.status(400).json({ error: 'Código inválido' }); return;
+  }
+  const hash = crypto.createHash('sha256').update(code).digest('hex');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found = await client.query(`SELECT ec.id, sc.id AS checker_id, sc.company_id,
+       sc.site_id, sc.device_name
+       FROM shared_checker_enrollment_codes ec
+       JOIN shared_checkers sc ON sc.id=ec.checker_id
+       JOIN companies c ON c.id=sc.company_id AND c.is_active=TRUE
+       WHERE ec.code_hash=$1 AND ec.used_at IS NULL AND ec.expires_at>NOW()
+         AND sc.is_active=FALSE AND sc.device_token_hash IS NULL
+       FOR UPDATE OF ec, sc`, [hash]);
+    if (!found.rowCount) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Código inválido, vencido o utilizado' }); return;
+    }
+    const row = found.rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await client.query('UPDATE shared_checker_enrollment_codes SET used_at=NOW() WHERE id=$1', [row.id]);
+    await client.query(`UPDATE shared_checkers SET device_token_hash=$1,
+      is_active=TRUE, linked_at=NOW() WHERE id=$2`, [tokenHash, row.checker_id]);
+    await client.query('COMMIT');
+    res.json({ linked: true, device_token: token, checker_id: row.checker_id,
+      company_id: row.company_id, site_id: row.site_id, device_name: row.device_name });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error canjeando código compartido:', error);
+    res.status(500).json({ error: 'No se pudo vincular el dispositivo' });
+  } finally { client.release(); }
+});
+
+
+/* ============================================================
+   ASIGNACIÓN DE TRABAJADORES A TABLET COMPARTIDA
+   No almacena rostros ni acepta marcajes sin prueba biométrica.
+============================================================ */
+function validUuid(value: unknown): value is string {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+router.get('/companies/:companyId/shared-checkers/:checkerId/employees',
+  userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId, checkerId } = req.params;
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'Sin acceso a esta empresa' }); return;
+    }
+    if (!validUuid(checkerId)) {
+      res.status(400).json({ error: 'Checador inválido' }); return;
+    }
+    try {
+      const found = await pool.query(
+        `SELECT e.id_remote AS employee_id, e.employee_code, e.full_name,
+                sce.enabled, sce.enrolled_at
+         FROM shared_checker_employees sce
+         JOIN employees e ON e.id_remote = sce.employee_id AND e.company_id = sce.company_id
+         JOIN shared_checkers sc ON sc.id = sce.checker_id AND sc.company_id = sce.company_id
+         WHERE sce.company_id = $1 AND sce.checker_id = $2
+         ORDER BY e.full_name`, [companyId, checkerId]);
+      res.json(found.rows);
+    } catch (error) {
+      console.error('Error consultando trabajadores del checador:', error);
+      res.status(500).json({ error: 'No se pudo consultar la asignación' });
+    }
+  });
+
+router.post('/companies/:companyId/shared-checkers/:checkerId/employees',
+  userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId, checkerId } = req.params;
+    const employeeCode = typeof req.body?.employee_code === 'string'
+      ? req.body.employee_code.trim() : '';
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'Sin acceso a esta empresa' }); return;
+    }
+    if (!validUuid(checkerId) || !employeeCode || employeeCode.length > 100) {
+      res.status(400).json({ error: 'Checador o código de empleado inválido' }); return;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const checker = await client.query(
+        `SELECT id, site_id FROM shared_checkers
+         WHERE id=$1 AND company_id=$2 AND is_active=TRUE FOR UPDATE`,
+        [checkerId, companyId]);
+      if (!checker.rowCount) {
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Tablet no vinculada o inexistente' }); return;
+      }
+      const employees = await client.query(
+        `SELECT id_remote, employee_code, full_name FROM employees
+         WHERE company_id=$1 AND employee_code=$2`,
+        [companyId, employeeCode]);
+      if (employees.rowCount !== 1) {
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Código de empleado no encontrado o ambiguo' }); return;
+      }
+      const employee = employees.rows[0];
+      const existing = await client.query(
+        `SELECT checker_id FROM shared_checker_employees
+         WHERE employee_id=$1 FOR UPDATE`, [employee.id_remote]);
+      if (existing.rowCount && existing.rows[0].checker_id !== checkerId) {
+        await client.query('ROLLBACK');
+        res.status(409).json({
+          error: 'Este trabajador ya está asignado a otra tablet. Primero libera su asignación.'
+        }); return;
+      }
+      await client.query(
+        `INSERT INTO shared_checker_employees (employee_id, checker_id, company_id, enabled)
+         VALUES ($1,$2,$3,TRUE)
+         ON CONFLICT (employee_id) DO UPDATE SET enabled=TRUE`,
+        [employee.id_remote, checkerId, companyId]);
+      await client.query('COMMIT');
+      res.status(201).json({
+        assigned: true, employee_id: employee.id_remote,
+        employee_code: employee.employee_code, full_name: employee.full_name,
+        checker_id: checkerId
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error asignando trabajador al checador:', error);
+      res.status(500).json({ error: 'No se pudo asignar el trabajador' });
+    } finally { client.release(); }
+  });
+
+router.delete('/companies/:companyId/shared-checkers/:checkerId/employees/:employeeId',
+  userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin', 'superadmin'),
+  async (req: UserAuthRequest, res: Response): Promise<void> => {
+    const { companyId, checkerId, employeeId } = req.params;
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({ error: 'Sin acceso a esta empresa' }); return;
+    }
+    if (!validUuid(checkerId) || !validUuid(employeeId)) {
+      res.status(400).json({ error: 'Identificador inválido' }); return;
+    }
+    try {
+      const removed = await pool.query(
+        `DELETE FROM shared_checker_employees
+         WHERE company_id=$1 AND checker_id=$2 AND employee_id=$3
+         RETURNING employee_id`, [companyId, checkerId, employeeId]);
+      if (!removed.rowCount) {
+        res.status(404).json({ error: 'Asignación no encontrada' }); return;
+      }
+      res.json({
+        removed: true,
+        warning: 'La tablet debe eliminar también la plantilla facial local del trabajador.'
+      });
+    } catch (error) {
+      console.error('Error quitando asignación:', error);
+      res.status(500).json({ error: 'No se pudo quitar la asignación' });
+    }
+  });
+
+// La tablet solo puede consultar trabajadores asignados a ella.
+// Este endpoint NO certifica identidad facial ni autoriza registrar asistencia.
+router.post('/shared-checkers/employee-lookup',
+  async (req: Request, res: Response): Promise<void> => {
+    const token = typeof req.body?.device_token === 'string' ? req.body.device_token : '';
+    const code = typeof req.body?.employee_code === 'string'
+      ? req.body.employee_code.trim() : '';
+    if (!/^[a-f0-9]{64}$/i.test(token) || !code || code.length > 100) {
+      res.status(400).json({ error: 'Datos de consulta inválidos' }); return;
+    }
+    try {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const result = await pool.query(
+        `SELECT e.id_remote AS employee_id, e.full_name, e.employee_code,
+                sc.id AS checker_id, sc.site_id
+         FROM shared_checkers sc
+         JOIN shared_checker_employees sce
+           ON sce.checker_id=sc.id AND sce.company_id=sc.company_id AND sce.enabled=TRUE
+         JOIN employees e
+           ON e.id_remote=sce.employee_id AND e.company_id=sc.company_id
+         JOIN companies c ON c.id=sc.company_id AND c.is_active=TRUE
+         WHERE sc.device_token_hash=$1 AND sc.is_active=TRUE
+           AND e.employee_code=$2 LIMIT 1`,
+        [tokenHash, code]);
+      if (!result.rowCount) {
+        res.status(404).json({ error: 'Empleado no habilitado para esta tablet' }); return;
+      }
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error buscando empleado del checador:', error);
+      res.status(500).json({ error: 'No se pudo consultar al trabajador' });
+    }
+  });
+
 export default router;
-
-

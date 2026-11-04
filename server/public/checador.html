@@ -1,0 +1,1352 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>COOATII Check · Checador compartido</title>
+
+<style>
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #101827;
+  color: #fff;
+  font: 16px system-ui, Arial;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.panel {
+  width: min(550px, 100%);
+  background: #1d2939;
+  border: 1px solid #344255;
+  padding: 24px;
+  border-radius: 22px;
+}
+
+h1 {
+  font-size: 26px;
+  margin: 0;
+}
+
+h2 {
+  font-size: 21px;
+  margin: 0 0 10px;
+}
+
+.sub {
+  color: #aebfd0;
+  margin: 5px 0 22px;
+}
+
+.field {
+  display: block;
+  font-weight: 700;
+  margin: 18px 0 8px;
+}
+
+input {
+  display: block;
+  width: 100%;
+  border: 1px solid #64748b;
+  border-radius: 12px;
+  background: #111c2d;
+  color: white;
+  font: 700 22px system-ui;
+  padding: 15px;
+}
+
+button {
+  border: 0;
+  border-radius: 12px;
+  color: white;
+  font: 700 16px system-ui;
+  padding: 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.primary {
+  width: 100%;
+  background: #2366ad;
+  margin-top: 16px;
+}
+
+.camera {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #05070b;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+}
+
+.camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0 12px;
+}
+
+.actions button {
+  flex: 1;
+}
+
+.entry {
+  background: #14834b;
+}
+
+.exit {
+  background: #b91c1c;
+}
+
+.voice {
+  width: 100%;
+  background: #334155;
+}
+
+.info {
+  background: #121f31;
+  border: 1px solid #35465b;
+  padding: 13px;
+  border-radius: 12px;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 16px;
+}
+
+.status {
+  min-height: 24px;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+.device {
+  color: #b8e4c9;
+  font-size: 14px;
+}
+
+/* SUBTÍTULOS DE TODOS LOS MENSAJES */
+
+.subtitle {
+  min-height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #101c2c;
+  border: 1px solid #48617c;
+  border-radius: 12px;
+  padding: 13px;
+  margin: 0 0 16px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.subtitle.speaking {
+  border-color: #60a5fa;
+  background: #172d49;
+}
+
+.subtitle.error {
+  border-color: #f87171;
+  background: #452027;
+}
+
+.subtitle.success {
+  border-color: #4ade80;
+  background: #123b2b;
+}
+
+.hidden,
+[hidden] {
+  display: none !important;
+}
+</style>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+
+<body>
+
+<main class="panel">
+
+  <h1>COOATII CHECK</h1>
+  <p class="sub">Checador compartido</p>
+
+  <section id="pair">
+    <h2>Vincular dispositivo</h2>
+    <p>Introduce el código generado por el administrador.</p>
+
+    <label class="field" for="code">
+      Código de vinculación
+    </label>
+
+    <input
+      id="code"
+      maxlength="10"
+      placeholder="XXXXXXXXXX"
+      autocapitalize="characters"
+    >
+
+    <button class="primary" id="link">
+      Vincular dispositivo
+    </button>
+  </section>
+
+  <section id="linked" hidden>
+
+    <p class="device" id="details"></p>
+
+    <div class="camera">
+      <video
+        id="camera"
+        autoplay
+        muted
+        playsinline
+      ></video>
+    </div>
+
+    <div class="actions">
+      <button class="entry" id="entrada" disabled>
+        ENTRADA
+      </button>
+
+      <button class="exit" id="salida" disabled>
+        SALIDA
+      </button>
+    </div>
+
+    <!-- TODOS LOS SUBTÍTULOS AQUÍ -->
+    <div
+      id="subtitle"
+      class="subtitle"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      Mira a la cámara
+    </div>
+
+    <button class="primary" id="enroll">
+      Registrar rostro por primera vez
+    </button>
+
+    <div id="enrollPanel" hidden>
+
+      <label class="field" for="employeeCode">
+        Código de empleado
+      </label>
+
+      <input
+        id="employeeCode"
+        autocomplete="off"
+      >
+
+      <button class="primary" id="saveFace">
+        Capturar y registrar rostro
+      </button>
+
+      <button
+        class="voice"
+        id="cancelEnroll"
+        style="margin-top:8px"
+      >
+        Cancelar
+      </button>
+
+    </div>
+
+    <button
+      class="voice"
+      id="voice"
+      style="margin-top:12px"
+    >
+      🔊 Voz activada
+    </button>
+
+    <div class="info">
+      Los rostros se almacenan en este dispositivo.
+      No borres los datos del navegador.
+    </div>
+
+  </section>
+
+  <p
+    id="message"
+    class="status"
+    role="status"
+    aria-live="polite"
+  ></p>
+
+</main>
+
+<script>
+'use strict';
+
+/* ==========================================
+   CONFIGURACIÓN GENERAL
+========================================== */
+
+const $ = id => document.getElementById(id);
+
+const storageKey = 'cooatii_shared_checker_v1';
+
+const MODEL_URL =
+  'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+
+const MATCH_THRESHOLD = .48;
+
+let stream = null;
+let modelReady = false;
+let busy = false;
+let muted = false;
+let employees = [];
+
+let speechQueue = Promise.resolve();
+let speechGeneration = 0;
+
+/* ==========================================
+   DISPOSITIVO
+========================================== */
+
+function readDevice() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(storageKey) || 'null'
+    );
+  } catch {
+    return null;
+  }
+}
+
+/* ==========================================
+   SUBTÍTULOS Y MENSAJES
+========================================== */
+
+function caption(text, type = '') {
+  const element = $('subtitle');
+
+  if (!element) return;
+
+  element.textContent = String(text || '');
+
+  element.classList.remove(
+    'speaking',
+    'error',
+    'success'
+  );
+
+  if (type) {
+    element.classList.add(type);
+  }
+}
+
+function message(text) {
+  $('message').textContent = String(text || '');
+}
+
+function errorText(error) {
+  return error?.message ||
+    'No fue posible completar la operación';
+}
+
+/*
+  Esta función reproduce una frase y muestra
+  exactamente la misma frase en subtítulos.
+
+  Las frases se procesan en orden.
+  Una frase no comienza antes de que termine
+  la anterior.
+
+  Si la voz está silenciada, los subtítulos
+  siguen funcionando.
+*/
+
+function speak(text, type = '') {
+  const phrase = String(text || '').trim();
+
+  if (!phrase) {
+    return Promise.resolve();
+  }
+
+  const generation = speechGeneration;
+
+  const job = () => new Promise(resolve => {
+
+    if (generation !== speechGeneration) {
+      resolve();
+      return;
+    }
+
+    caption(phrase, type || 'speaking');
+
+    if (
+      muted ||
+      !('speechSynthesis' in window)
+    ) {
+      resolve();
+      return;
+    }
+
+    const utterance =
+      new SpeechSynthesisUtterance(phrase);
+
+    utterance.lang = 'es-MX';
+    utterance.rate = .9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    let finished = false;
+
+    const finish = () => {
+      if (finished) return;
+
+      finished = true;
+
+      if (generation === speechGeneration) {
+        $('subtitle')?.classList.remove(
+          'speaking'
+        );
+      }
+
+      resolve();
+    };
+
+    utterance.onend = finish;
+    utterance.onerror = finish;
+
+    try {
+      speechSynthesis.speak(utterance);
+    } catch {
+      finish();
+    }
+  });
+
+  speechQueue = speechQueue.then(job, job);
+
+  return speechQueue;
+}
+
+/*
+  Mensajes de error:
+  - Se muestran completos.
+  - Se pronuncian completos.
+  - Permanecen visibles.
+*/
+
+async function showError(text) {
+  const phrase = String(text || '');
+
+  message(phrase);
+
+  await speak(phrase, 'error');
+
+  caption(phrase, 'error');
+}
+
+/*
+  Mensajes de confirmación:
+  - Aparecen completos.
+  - Se pronuncian completos.
+*/
+
+async function showSuccess(text) {
+  const phrase = String(text || '');
+
+  message(phrase);
+
+  await speak(phrase, 'success');
+
+  caption(phrase, 'success');
+}
+
+function wait(ms) {
+  return new Promise(resolve =>
+    setTimeout(resolve, ms)
+  );
+}
+
+/* ==========================================
+   PETICIONES AL SERVIDOR
+========================================== */
+
+async function api(path, body) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw Error(
+      'No se pudo leer la respuesta del servidor'
+    );
+  }
+
+  if (!response.ok) {
+    throw Error(
+      data.error ||
+      'No se pudo conectar con el servidor'
+    );
+  }
+
+  return data;
+}
+
+/* ==========================================
+   BASE DE DATOS LOCAL DE ROSTROS
+========================================== */
+
+function database() {
+  return new Promise((resolve, reject) => {
+
+    if (!window.indexedDB) {
+      reject(Error(
+        'Este navegador no permite guardar rostros.'
+      ));
+      return;
+    }
+
+    const request =
+      indexedDB.open('cooatii_faces_v1', 1);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains('faces')) {
+        db.createObjectStore('faces', {
+          keyPath: 'key'
+        });
+      }
+    };
+
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+        Error('No se pudo abrir el almacenamiento local')
+      );
+    };
+  });
+}
+
+async function storeFace(row) {
+  const db = await database();
+
+  return new Promise((resolve, reject) => {
+
+    const tx = db.transaction(
+      'faces',
+      'readwrite'
+    );
+
+    tx.objectStore('faces').put(row);
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+
+    tx.onerror = () => {
+      db.close();
+      reject(
+        tx.error ||
+        Error('No se pudo guardar el rostro')
+      );
+    };
+  });
+}
+
+async function loadFaces() {
+  const db = await database();
+
+  return new Promise((resolve, reject) => {
+
+    const tx = db.transaction(
+      'faces',
+      'readonly'
+    );
+
+    const request =
+      tx.objectStore('faces').getAll();
+
+    request.onsuccess = () => {
+      const rows = request.result;
+      db.close();
+      resolve(rows);
+    };
+
+    request.onerror = () => {
+      db.close();
+      reject(
+        request.error ||
+        Error('No se pudieron cargar los rostros')
+      );
+    };
+  });
+}
+
+/* ==========================================
+   MODELOS DE RECONOCIMIENTO FACIAL
+========================================== */
+
+async function initModels() {
+  if (modelReady) return;
+
+  if (!window.faceapi) {
+    throw Error(
+      'No se pudo cargar la librería facial. Comprueba la conexión.'
+    );
+  }
+
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(
+      MODEL_URL
+    ),
+    faceapi.nets.faceLandmark68Net.loadFromUri(
+      MODEL_URL
+    ),
+    faceapi.nets.faceRecognitionNet.loadFromUri(
+      MODEL_URL
+    )
+  ]);
+
+  modelReady = true;
+}
+
+/* ==========================================
+   DETECCIÓN DE ROSTROS
+========================================== */
+
+async function detect() {
+  const video = $('camera');
+
+  if (
+    !video.videoWidth ||
+    video.readyState < 2
+  ) {
+    throw Error(
+      'La cámara todavía no está lista.'
+    );
+  }
+
+  const options =
+    new faceapi.TinyFaceDetectorOptions({
+      inputSize: 320,
+      scoreThreshold: .65
+    });
+
+  return faceapi
+    .detectAllFaces(video, options)
+    .withFaceLandmarks()
+    .withFaceDescriptors();
+}
+
+async function oneFace() {
+  const faces = await detect();
+
+  if (faces.length !== 1) {
+    throw Error(
+      faces.length
+        ? 'Debe aparecer una sola persona'
+        : 'No se detecta ningún rostro'
+    );
+  }
+
+  if (faces[0].detection.score < .75) {
+    throw Error(
+      'Acércate y mejora la iluminación'
+    );
+  }
+
+  return faces[0];
+}
+
+function yaw(face) {
+  const positions =
+    face.landmarks.positions;
+
+  const nose = positions[30];
+  const left = positions[0];
+  const right = positions[16];
+
+  return (
+    nose.x - (left.x + right.x) / 2
+  ) / Math.max(
+    1,
+    right.x - left.x
+  );
+}
+
+async function stableFace(timeoutMs = 4500) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      return await oneFace();
+    } catch (error) {
+
+      const recoverable =
+        /No se detecta ningún rostro|Acércate y mejora la iluminación|Debe aparecer una sola persona/.test(
+          String(error.message)
+        );
+
+      if (!recoverable) {
+        throw error;
+      }
+    }
+
+    await wait(220);
+  }
+
+  throw Error(
+    'No se detectó tu rostro de frente. Mira a la cámara con buena iluminación.'
+  );
+}
+
+/* ==========================================
+   VERIFICACIÓN DE MOVIMIENTO
+========================================== */
+
+async function gesture() {
+  const random =
+    crypto.getRandomValues(
+      new Uint8Array(1)
+    )[0];
+
+  const direction =
+    random % 2
+      ? 'izquierda'
+      : 'derecha';
+
+  const baseline = [];
+
+  await speak(
+    'Mira de frente a la cámara'
+  );
+
+  for (let i = 0; i < 3; i++) {
+    const face = await stableFace();
+
+    baseline.push(yaw(face));
+
+    await wait(180);
+  }
+
+  const center =
+    baseline.reduce(
+      (a, b) => a + b,
+      0
+    ) / baseline.length;
+
+  let moved = false;
+  let missed = 0;
+
+  await speak(
+    'Gira ligeramente tu cabeza a la ' +
+    direction +
+    ' y vuelve al centro'
+  );
+
+  const deadline = Date.now() + 14000;
+
+  while (Date.now() < deadline) {
+    let face;
+
+    try {
+      face = await oneFace();
+    } catch (error) {
+
+      const recoverable =
+        /No se detecta ningún rostro|Acércate y mejora la iluminación|Debe aparecer una sola persona/.test(
+          String(error.message)
+        );
+
+      if (!recoverable) {
+        throw error;
+      }
+
+      missed++;
+
+      caption(
+        'Mantén tu rostro dentro de la cámara'
+      );
+
+      await wait(220);
+      continue;
+    }
+
+    const delta = yaw(face) - center;
+
+    if (Math.abs(delta) > .055 && !moved) {
+      moved = true;
+
+      await speak(
+        'Ahora vuelve al centro'
+      );
+    }
+
+    if (
+      moved &&
+      Math.abs(delta) < .04
+    ) {
+      await speak(
+        'Movimiento detectado'
+      );
+
+      return;
+    }
+
+    await wait(180);
+  }
+
+  throw Error(
+    missed
+      ? 'No se completó el giro. Mantén tu rostro en la cámara.'
+      : 'No se comprobó el giro. Intenta nuevamente.'
+  );
+}
+
+/* ==========================================
+   ACTUALIZAR TRABAJADORES
+========================================== */
+
+async function refreshEmployees() {
+  const device = readDevice();
+
+  if (!device?.device_token) {
+    throw Error(
+      'El dispositivo no está vinculado'
+    );
+  }
+
+  const result = await api(
+    '/api/shared-checker/employees',
+    {
+      device_token: device.device_token
+    }
+  );
+
+  employees = result.employees || [];
+}
+
+/* ==========================================
+   INICIAR CÁMARA Y CHECADOR
+========================================== */
+
+async function start() {
+  try {
+    caption(
+      'Iniciando cámara y reconocimiento facial'
+    );
+
+    stream = await navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: {
+            ideal: 640
+          }
+        },
+        audio: false
+      });
+
+    $('camera').srcObject = stream;
+
+    await $('camera').play();
+
+    caption(
+      'Cargando reconocimiento facial'
+    );
+
+    await initModels();
+    await refreshEmployees();
+
+    $('entrada').disabled = false;
+    $('salida').disabled = false;
+
+    caption(
+      'Mira a la cámara'
+    );
+
+    message(
+      'Dispositivo listo. ' +
+      employees.length +
+      ' trabajadores asignados.'
+    );
+
+  } catch (error) {
+    const detail = errorText(error);
+
+    message(detail);
+
+    await speak(
+      'No se pudo iniciar el reconocimiento. ' +
+      detail,
+      'error'
+    );
+
+    caption(
+      'No se pudo iniciar el reconocimiento. ' +
+      detail,
+      'error'
+    );
+  }
+}
+
+/* ==========================================
+   BLOQUEO DE BOTONES
+========================================== */
+
+function lock(value) {
+  busy = value;
+
+  $('entrada').disabled =
+    value || !modelReady;
+
+  $('salida').disabled =
+    value || !modelReady;
+
+  $('saveFace').disabled = value;
+  $('enroll').disabled = value;
+}
+
+/* ==========================================
+   REGISTRAR ROSTRO
+========================================== */
+
+async function enroll() {
+  if (busy) return;
+
+  lock(true);
+
+  try {
+    const device = readDevice();
+
+    const code = $('employeeCode')
+      .value
+      .trim()
+      .toUpperCase();
+
+    if (!code) {
+      throw Error(
+        'Introduce el código del empleado'
+      );
+    }
+
+    const employee = await api(
+      '/api/admin/shared-checkers/employee-lookup',
+      {
+        device_token: device.device_token,
+        employee_code: code
+      }
+    );
+
+    await refreshEmployees();
+
+    const assigned = employees.some(
+      item =>
+        String(item.employee_id) ===
+        String(employee.employee_id)
+    );
+
+    if (!assigned) {
+      throw Error(
+        'Este empleado no está asignado a este dispositivo.'
+      );
+    }
+
+    await speak(
+      'Mira de frente a la cámara'
+    );
+
+    const first = await stableFace();
+
+    await gesture();
+
+    const current = await stableFace();
+
+    const distance =
+      faceapi.euclideanDistance(
+        first.descriptor,
+        current.descriptor
+      );
+
+    if (distance > .5) {
+      throw Error(
+        'El rostro cambió durante el registro'
+      );
+    }
+
+    const key =
+      device.checker_id +
+      ':' +
+      employee.employee_id;
+
+    const faces = await loadFaces();
+
+    for (
+      const old of faces.filter(
+        item =>
+          item.key !== key &&
+          item.checker_id === device.checker_id
+      )
+    ) {
+      const oldDescriptor =
+        new Float32Array(old.descriptor);
+
+      const similarity =
+        faceapi.euclideanDistance(
+          oldDescriptor,
+          current.descriptor
+        );
+
+      if (similarity < MATCH_THRESHOLD) {
+        throw Error(
+          'Este rostro ya está registrado para otro trabajador'
+        );
+      }
+    }
+
+    await storeFace({
+      key,
+      checker_id: device.checker_id,
+      employee_id: employee.employee_id,
+      descriptor: Array.from(
+        current.descriptor
+      )
+    });
+
+    const successText =
+      'Rostro registrado correctamente: ' +
+      employee.full_name;
+
+    await showSuccess(successText);
+
+    $('enrollPanel').hidden = true;
+    $('employeeCode').value = '';
+
+  } catch (error) {
+    const detail = errorText(error);
+
+    const errorMessage =
+      'No se pudo registrar el rostro. ' +
+      detail;
+
+    await showError(errorMessage);
+
+    console.error(
+      'Error de registro facial:',
+      error
+    );
+
+  } finally {
+    lock(false);
+  }
+}
+
+/* ==========================================
+   REGISTRAR ENTRADA O SALIDA
+========================================== */
+
+async function attendance(type) {
+  if (busy) return;
+
+  lock(true);
+
+  try {
+    await refreshEmployees();
+
+    const device = readDevice();
+
+    const allFaces = await loadFaces();
+
+    const faces = allFaces.filter(
+      item =>
+        item.checker_id === device.checker_id &&
+        employees.some(
+          employee =>
+            String(employee.employee_id) ===
+            String(item.employee_id)
+        )
+    );
+
+    if (!faces.length) {
+      throw Error(
+        'Primero registra el rostro de los trabajadores'
+      );
+    }
+
+    await speak(
+      'Mira de frente a la cámara'
+    );
+
+    const first = await stableFace();
+
+    await gesture();
+
+    const current = await stableFace();
+
+    const change =
+      faceapi.euclideanDistance(
+        first.descriptor,
+        current.descriptor
+      );
+
+    if (change > .5) {
+      throw Error(
+        'El rostro cambió durante la verificación'
+      );
+    }
+
+    const sorted = faces.map(face => ({
+      ...face,
+      distance: faceapi.euclideanDistance(
+        new Float32Array(face.descriptor),
+        current.descriptor
+      )
+    })).sort(
+      (a, b) => a.distance - b.distance
+    );
+
+    const best = sorted[0];
+
+    if (
+      best.distance >= MATCH_THRESHOLD ||
+      (
+        sorted[1] &&
+        sorted[1].distance -
+        best.distance < .08
+      )
+    ) {
+      throw Error(
+        'Rostro no identificado'
+      );
+    }
+
+    const result = await api(
+      '/api/shared-checker/attendance',
+      {
+        device_token: device.device_token,
+        employee_id: best.employee_id,
+        event_type: type
+      }
+    );
+
+    const action =
+      type === 'CLOCK_IN'
+        ? 'Entrada'
+        : 'Salida';
+
+    const successText =
+      action +
+      ' registrada correctamente, ' +
+      result.employee_name;
+
+    await showSuccess(successText);
+
+  } catch (error) {
+    const detail = errorText(error);
+
+    const unknown =
+      detail === 'Rostro no identificado' ||
+      detail ===
+        'El rostro cambió durante la verificación';
+
+    if (unknown) {
+      await showError(
+        'Rostro no identificado. Inténtalo nuevamente.'
+      );
+    } else {
+      await showError(
+        'No se pudo completar la asistencia. ' +
+        detail
+      );
+    }
+
+    console.error(
+      'Error al verificar asistencia:',
+      error
+    );
+
+  } finally {
+    lock(false);
+  }
+}
+
+/* ==========================================
+   VINCULAR DISPOSITIVO
+========================================== */
+
+$('link').onclick = async () => {
+  const code = $('code')
+    .value
+    .trim()
+    .toUpperCase();
+
+  if (!/^[A-F0-9]{10}$/.test(code)) {
+    message(
+      'Introduce el código de 10 caracteres'
+    );
+    return;
+  }
+
+  try {
+    $('link').disabled = true;
+
+    const device = await api(
+      '/api/admin/shared-checkers/redeem',
+      { code }
+    );
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify(device)
+    );
+
+    message(
+      'Dispositivo vinculado correctamente'
+    );
+
+    render();
+
+  } catch (error) {
+    message(errorText(error));
+
+  } finally {
+    $('link').disabled = false;
+  }
+};
+
+/* ==========================================
+   ACTIVAR O SILENCIAR VOZ
+========================================== */
+
+$('voice').onclick = () => {
+  muted = !muted;
+
+  $('voice').textContent = muted
+    ? '🔇 Voz silenciada'
+    : '🔊 Voz activada';
+
+  if (
+    muted &&
+    'speechSynthesis' in window
+  ) {
+    speechGeneration++;
+    speechSynthesis.cancel();
+    speechQueue = Promise.resolve();
+  }
+
+  /*
+    Aunque se silencie la voz,
+    los subtítulos continúan funcionando.
+  */
+};
+
+/* ==========================================
+   BOTONES DEL CHECADOR
+========================================== */
+
+$('enroll').onclick = () => {
+  $('enrollPanel').hidden = false;
+};
+
+$('cancelEnroll').onclick = () => {
+  $('enrollPanel').hidden = true;
+};
+
+$('saveFace').onclick = enroll;
+
+$('entrada').onclick = () => {
+  attendance('CLOCK_IN');
+};
+
+$('salida').onclick = () => {
+  attendance('CLOCK_OUT');
+};
+
+/* ==========================================
+   MOSTRAR DISPOSITIVO VINCULADO
+========================================== */
+
+function render() {
+  const device = readDevice();
+
+  $('pair').hidden =
+    !!device?.device_token;
+
+  $('linked').hidden =
+    !device?.device_token;
+
+  if (device?.device_token) {
+    $('details').textContent =
+      'Dispositivo vinculado: ' +
+      device.device_name;
+
+    start();
+  }
+}
+
+/* ==========================================
+   CERRAR CÁMARA
+========================================== */
+
+window.addEventListener(
+  'pagehide',
+  () => {
+    stream?.getTracks().forEach(
+      track => track.stop()
+    );
+
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
+  }
+);
+
+/* ==========================================
+   INICIAR
+========================================== */
+
+render();
+
+</script>
+</body>
+</html>

@@ -1541,16 +1541,14 @@ select:focus{
     padding-top:12px;
 }
 .incidence-filterbar-new{
-    grid-template-columns:
-        minmax(145px,1.1fr)
-        minmax(120px,.9fr)
-        minmax(130px,.95fr)
-        minmax(150px,1.05fr)
-        minmax(175px,1.2fr)
-        minmax(125px,.85fr)
-        minmax(125px,.85fr) !important;
+    grid-template-columns:repeat(8,minmax(0,1fr)) !important;
     margin-top:0 !important;
 }
+.coo-export-line{margin:12px 0 16px;display:flex;justify-content:flex-start}
+.coo-export-line button{min-height:40px;padding:9px 18px}
+@media(max-width:1200px){.incidence-filterbar-new{grid-template-columns:repeat(4,minmax(0,1fr)) !important}}
+@media(max-width:650px){.incidence-filterbar-new{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}
+
 .incidence-filterbar-new .compact-filter input,
 .incidence-filterbar-new .compact-filter select{
     height:32px !important;
@@ -1580,6 +1578,15 @@ select:focus{
 
 
 
+
+
+/* Filtros de incidencias: una fila, fondo azul completo, sin barra horizontal en escritorio */
+.coo-filter-scroll{width:100%;overflow:visible;padding:0;background:var(--blue-50,#f0f7ff);border:1px solid var(--blue-200,#cce0ff);border-radius:16px}
+.incidence-filterbar-new{display:grid !important;grid-template-columns:minmax(100px,1.08fr) minmax(115px,1.14fr) minmax(80px,.85fr) minmax(105px,1.05fr) minmax(105px,1.07fr) minmax(100px,1fr) minmax(100px,1fr) minmax(110px,1.05fr) !important;min-width:0 !important;width:100%;gap:8px !important;align-items:end;padding:12px !important;margin:0 !important}
+.incidence-filterbar-new .compact-filter{min-width:0 !important;width:100%}
+.incidence-filterbar-new .compact-filter span{font-size:clamp(10px,.85vw,14px);white-space:nowrap}
+.incidence-filterbar-new .compact-filter input,.incidence-filterbar-new .compact-filter select{width:100% !important;min-width:0 !important;max-width:100%;height:38px !important;min-height:38px !important;padding:5px 7px !important;font-size:clamp(10px,.85vw,13px) !important;text-overflow:ellipsis}
+@media(max-width:1020px){.coo-filter-scroll{overflow-x:auto}.incidence-filterbar-new{min-width:1020px !important}}
 
 /* =========================
    POLÍTICAS
@@ -1935,7 +1942,7 @@ select{
     left:50%;
     bottom:28px;
     transform:translate(-50%,18px);
-    z-index:12000;
+    z-index:2147483647;
     width:min(520px,calc(100vw - 32px));
     display:flex;
     align-items:flex-start;
@@ -2126,7 +2133,7 @@ select{
 .worker-apply-all{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin:12px 0;padding:12px;border:1px solid var(--blue-200);border-radius:12px;background:var(--blue-50);}
 .worker-apply-all select{min-width:220px;}
 #worker-day-rows{display:flex;flex-direction:column;gap:9px;}
-.worker-day-site{display:grid;grid-template-columns:150px minmax(220px,1fr) auto;gap:10px;align-items:center;}
+.worker-day-site{display:grid;grid-template-columns:110px minmax(140px,1fr) minmax(160px,1fr) auto;gap:10px;align-items:center;}
 .worker-days-note{padding:10px 12px;border:1px solid var(--blue-200);border-radius:11px;background:#f8fbff;color:var(--blue-800);font-weight:800;}
 @media(max-width:700px){.worker-apply-all{grid-template-columns:1fr}.worker-day-site{grid-template-columns:1fr}.worker-day-site .worker-day-remove{justify-self:start}}
 
@@ -2137,7 +2144,7 @@ select{
 .worker-days-note{display:block;width:100%;margin-bottom:12px;padding:11px 13px;}
 .worker-apply-all{display:grid !important;grid-template-columns:minmax(0,1fr) auto !important;gap:10px !important;margin:0 0 14px !important;padding:12px !important;}
 #worker-day-rows{display:flex;flex-direction:column;gap:9px;width:100%;}
-#worker-day-rows .worker-day-site{display:grid !important;grid-template-columns:120px minmax(0,1fr) 92px !important;gap:10px !important;align-items:center !important;width:100%;margin:0 !important;}
+#worker-day-rows .worker-day-site{display:grid !important;grid-template-columns:100px minmax(120px,1fr) minmax(160px,1fr) 92px !important;gap:10px !important;align-items:center !important;width:100%;margin:0 !important;}
 #worker-day-rows .worker-day-site b{font-size:13px;}
 #worker-day-rows .worker-day-site select{width:100%;min-width:0;}
 #worker-day-rows .worker-day-remove{width:92px !important;min-width:92px !important;}
@@ -2297,6 +2304,61 @@ select{
     background:#fff;
     border:1px solid var(--blue-200);
 }
+
+/* Categorías y centros independientes por día */
+#worker-day-rows .worker-day-site{grid-template-columns:100px minmax(130px,1fr) minmax(160px,1fr) 92px!important}
+#worker-day-rows [data-worker-day-category]{min-width:0;width:100%}
+@media(max-width:760px){#worker-day-rows .worker-day-site{grid-template-columns:1fr!important}}
+
+/* Ocultar únicamente la descripción de la lista de categorías */
+.settings-workers-panel > .settings-intro { display: none !important; }
+
+/* NOTIFICACIONES FLOTANTES GLOBALES COOATII */
+#status { display:none !important; }
+#cooatii-toast-stack {
+ position:fixed; top:18px; right:20px; z-index:2147483647;
+ width:min(430px,calc(100vw - 30px)); display:flex; flex-direction:column; gap:10px;
+ pointer-events:none;
+}
+.cooatii-toast { pointer-events:auto; display:flex; align-items:flex-start; gap:12px;
+ padding:15px 15px; border-radius:15px; border:1px solid #b6d9f6;
+ background:#f1f8ff; color:#17456a; box-shadow:0 14px 40px rgba(10,35,70,.22);
+ font-size:14px; line-height:1.45; animation:cooatii-toast-in .18s ease-out;
+}
+.cooatii-toast.success {background:#ebfff5;border-color:#86e1b3;color:#126747;}
+.cooatii-toast.error {background:#fff0f0;border-color:#ffaaaa;color:#a91d27;}
+.cooatii-toast.info {background:#eff7ff;border-color:#a6d4f8;color:#16476f;}
+.cooatii-toast-symbol {font-size:19px;font-weight:900;line-height:1.1;flex-shrink:0;}
+.cooatii-toast-message {flex:1;min-width:0;overflow-wrap:anywhere;font-weight:700;}
+.cooatii-toast-close {background:transparent;border:0;color:inherit;font-size:22px;line-height:1;padding:0 1px;cursor:pointer;opacity:.75;}
+@keyframes cooatii-toast-in {from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:580px){#cooatii-toast-stack{top:12px;right:12px;width:calc(100vw - 24px)}}
+
+
+/* Checadores compartidos: asignaciones compactas y separadas */
+.shared-device-card{margin-bottom:14px!important;padding:16px 18px!important;border:1px solid #d1e2f3!important;border-left:4px solid #367fb4!important;background:#fff!important;box-shadow:0 3px 12px rgba(24,79,120,.05)}
+.shared-device-card > strong{color:#163f61;font-size:15px}
+.shared-device-workers{margin-top:14px!important;padding-top:14px!important;border-top:2px solid #dceafb!important}
+.checker-assigned-title{display:block;color:#184f78;font-weight:850;font-size:13px;margin-bottom:9px}
+.checker-assigned-list{display:flex;flex-direction:column;gap:7px}
+.checker-worker-buttons{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;flex-shrink:0}.checker-worker-buttons .btn{min-height:34px;white-space:nowrap}
+.checker-assigned-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap;padding:9px 11px;border:1px solid #e2eaf3;border-radius:10px;background:#f9fbff;color:#334155}
+.checker-add-box{margin-top:14px;padding:12px 14px;border:1px solid #cfe2fb;border-radius:11px;background:#f2f7fd}
+.checker-add-title{font-weight:850;color:#184f78;font-size:13px;margin-bottom:9px}
+.checker-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center}
+.checker-add-row select{margin:0;min-height:38px;height:38px;font-size:12px;min-width:0}
+.checker-add-row button{margin:0!important;min-height:38px;white-space:nowrap}
+.checker-assigned-name{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}.checker-worker-buttons .btn{padding:7px 9px!important;font-size:11px!important;min-width:0!important}
+@media(max-width:620px){.checker-add-row{grid-template-columns:1fr}.checker-add-row button{width:100%}}
+
+/* Guía de vinculación integrada bajo el formulario */
+.shared-kiosk-guide{margin-top:16px;padding:16px;border:1px solid var(--blue-200);border-radius:13px;background:var(--blue-50)}
+.shared-kiosk-guide .card-title{margin-bottom:11px;padding-bottom:9px;border-bottom:1px solid var(--blue-200)}
+.shared-kiosk-guide .card-title h3{font-size:16px;margin:0}
+.shared-kiosk-guide .inline-actions{gap:8px}
+.shared-kiosk-guide .inline-actions .btn{font-size:12px;padding:9px 12px}
+
+
 </style>
 </head>
 
@@ -2316,7 +2378,7 @@ select{
     <div class="brand">
 
         <img
-            src="/img/cooatiilogo.png?v=3"
+            src="/img/cooatiilogo.jpeg"
             alt="COATI Check"
             class="brand-logo"
         >
@@ -2408,12 +2470,12 @@ select{
             Inicio
         </button>
 
-        <button data-page="users-page">
-            ＋ Agregar administrador
-        </button>
-
         <button data-page="connect-page">
             Conectar dispositivos
+        </button>
+
+        <button data-page="shared-kiosk-page">
+            Checadores compartidos
         </button>
 
         <button data-page="companies-page">
@@ -2421,7 +2483,7 @@ select{
         </button>
 
         <button data-page="devices-page">
-            Trabajador
+            Trabajadores
         </button>
 
         <button data-page="settings-page">
@@ -2434,6 +2496,10 @@ select{
 
         <button data-page="attendance-page">
             Incidencias
+        </button>
+
+        <button data-page="users-page">
+            ＋ Agregar administrador
         </button>
 
     </nav>
@@ -2647,16 +2713,109 @@ select{
 
 </section>
 
+<!-- CHECADORES COMPARTIDOS: VINCULACIÓN REAL -->
+<section id="shared-kiosk-page" class="section-page">
+  <div class="grid">
+    <div class="card blue-card span-6">
+      <div class="card-title"><div><h3>Agregar nuevo checador</h3><span>Genera un código válido por 10 minutos.</span></div></div>
+      <label for="shared-kiosk-name">Nombre del dispositivo</label>
+      <input id="shared-kiosk-name" placeholder="Ej. Tablet recepción" maxlength="80">
+      <label for="shared-kiosk-company">Empresa</label>
+      <select id="shared-kiosk-company"><option value="">Selecciona una empresa</option></select>
+      <label for="shared-kiosk-site">Centro de trabajo</label>
+      <select id="shared-kiosk-site"><option value="">Selecciona un centro de trabajo</option></select>
+      <div class="inline-actions"><button type="button" class="btn btn-primary" id="shared-kiosk-create-btn">Generar código de vinculación</button></div>
+      <div id="shared-kiosk-code-box" class="hidden" style="margin-top:18px;padding:18px;border:1px solid #a9c9f0;border-radius:14px;background:#f3f8ff">
+        <div style="font-size:13px;font-weight:800">Código temporal de vinculación</div>
+        <div id="shared-kiosk-code" style="font-size:30px;font-weight:900;letter-spacing:3px;overflow-wrap:anywhere;margin:10px 0 12px"></div>
+        <button type="button" class="btn btn-primary" id="shared-kiosk-copy-btn" style="display:block;margin-bottom:16px">Copiar código</button>
+        <div id="shared-kiosk-expiry" style="font-size:13px;color:#64748b;margin-bottom:12px"></div>
+        <p style="font-size:13px;line-height:1.6;margin:0 0 8px">
+          Para vincular tu dispositivo, entra a
+          <a href="https://cooatii.com/checador" target="_blank" rel="noopener noreferrer"><strong>cooatii.com/checador</strong></a>
+          desde la tablet o celular que usarás como checador. Introduce el código y presiona
+          <strong>Vincular este dispositivo</strong>. Quedará vinculado a tu empresa y centro de trabajo.
+        </p>
+        <div style="font-size:12px;color:#64748b">El código es de un solo uso.</div>
+      </div>
+      <p id="shared-kiosk-message" style="font-size:13px;color:#475569" role="status"></p>
+  <div class="shared-kiosk-guide">
+    <div class="card-title"><div><h3>Vincula tu dispositivo</h3></div></div>
+    <div style="display:grid;gap:9px;line-height:1.45;color:var(--text);font-size:13px">
+      <div><strong>1. Genera el código</strong> desde «Agregar nuevo checador».</div>
+      <div><strong>2. Abre el checador</strong> desde la tablet o celular:<br>
+        <a href="https://cooatii.com/checador" target="_blank" rel="noopener noreferrer" style="color:var(--blue-700);font-weight:800;overflow-wrap:anywhere">https://cooatii.com/checador</a>
+      </div>
+      <div><strong>3. Ingresa el código</strong> en esa página. ¡Listo! El dispositivo quedará vinculado.</div>
+    </div>
+    <div class="inline-actions" style="margin-top:12px">
+      <a class="btn btn-primary" href="https://cooatii.com/checador" target="_blank" rel="noopener noreferrer">Abrir checador</a>
+      <button type="button" class="btn btn-soft" id="shared-kiosk-copy-url-btn">Copiar enlace</button>
+    </div>
+  </div>
+    </div>
+    <div class="card blue-card span-6">
+      <div class="card-title"><div><h3>Mis dispositivos</h3></div></div>
+      <div class="records-filter" style="margin:0 0 16px!important"><label for="shared-kiosk-filter-company">Empresa</label><select id="shared-kiosk-filter-company"><option value="">Selecciona una empresa</option></select></div>
+      <div id="shared-kiosk-list" style="font-size:13px;color:#64748b">Selecciona una empresa para ver sus dispositivos.</div>
+    </div>
+  </div>
+
+</section>
+
 <!-- TRABAJADORES -->
 
 <section id="devices-page" class="section-page">
+<div class="card blue-card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div><h3 style="margin:0;color:var(--blue-800)">Trabajadores</h3><p style="margin:5px 0 0;color:var(--muted);font-size:13px">Consulta y registra trabajadores.</p></div>
+  <button type="button" id="worker-open-create" class="btn btn-primary">Agregar trabajador</button>
+</div>
+<div id="worker-create-overlay" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="worker-create-title">
+  <div class="modal-card" style="width:min(720px,100%);max-height:90vh;overflow:auto">
+    <div class="modal-header"><div><h3 id="worker-create-title">Agregar trabajador</h3><span>Se registrará en la empresa y tablet seleccionadas.</span></div><button type="button" class="modal-close" id="worker-create-close" aria-label="Cerrar">×</button></div>
+    <form id="worker-create-form">
+      <div class="form-grid">
+        <div><label>Empresa *</label><select id="worker-create-company" required><option value="">Selecciona una empresa</option></select></div>
+        <div><label>Dispositivo vinculado *</label><select id="worker-create-checker" required><option value="">Selecciona un dispositivo</option></select></div>
+        <div><label>Código de empleado (automático)</label><input class="auto-employee-code" value="Se asignará al guardar" readonly tabindex="-1"></div>
+        <div><label>Nombre(s) *</label><input name="first_name" required maxlength="120"></div>
+        <div><label>Apellido paterno *</label><input name="last_name_paternal" required maxlength="120"></div>
+        <div><label>Apellido materno</label><input name="last_name_maternal" maxlength="120"></div>
+        <div><label>RFC</label><input name="rfc" maxlength="13" style="text-transform:uppercase"></div>
+        <div><label>CURP</label><input name="curp" maxlength="18" style="text-transform:uppercase"></div>
+        <div><label>NSS</label><input name="nss" maxlength="11" inputmode="numeric"></div>
+        <div><label>Cargo</label><input name="department" maxlength="120"></div>
+        <div><label>Teléfono</label><input name="phone" type="tel" maxlength="30"></div>
+        <div><label>Fecha de ingreso</label><input name="hire_date" type="date"></div>
+        <div><label>Sueldo diario ($)</label><input name="daily_salary" type="number" min="0" step="0.01" placeholder="0.00" required></div>
+        <div><label>Salario diario integrado (automático)</label><div class="salary-result auto-sdi">Ingresa fecha y sueldo diario</div></div>
+        <div class="full"><strong style="color:var(--blue-800)">Categoría y centro de trabajo por día</strong><p class="mini-note">Elige una categoría y un centro para cada día que trabaje.</p></div>
+        <div class="full tablet-worker-days"></div>
+      </div>
+      <p id="worker-create-feedback" role="status" style="color:var(--blue-800);font-size:13px"></p>
+      <div class="modal-actions"><button type="button" class="btn btn-soft" id="worker-create-cancel">Cancelar</button><button type="submit" class="btn btn-primary" id="worker-create-save">Guardar trabajador</button></div>
+    </form>
+  </div>
+</div>
+
 
 <div class="card blue-card records-card">
 
-    <div class="records-filter">
-        <label>Empresa</label>
+    <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <div class="records-filter" style="margin:0">
+        <label for="devices-company">Empresa</label>
         <select id="devices-company"></select>
+      </div>
+      <div class="records-filter" style="margin:0">
+        <label for="workers-checker-filter">Dispositivo</label>
+        <select id="workers-checker-filter" aria-label="Filtrar trabajadores por dispositivo">
+          <option value="all">Todos</option>
+          <option value="other">Independientes</option>
+          <option value="shared">Compartido</option>
+        </select>
+      </div>
     </div>
+    <div id="workers-checker-filter-status" role="status" style="font-size:13px;color:var(--muted);margin:-4px 0 12px" aria-live="polite"></div>
 
     <div class="table-wrap blue-table-wrap">
         <table class="data-table blue-table" style="min-width:1780px">
@@ -2862,7 +3021,7 @@ select{
                             <option value="">Selecciona</option>
                             <option value="CALLE">Calle</option>
                             <option value="AVENIDA">Avenida</option>
-                            <option value="BOULEVARD">Boulevard</option>
+                            <option value="BOULEVARD">Boulevard</option><option value="CALZADA">Calzada</option>
                             <option value="CARRETERA">Carretera</option>
                             <option value="CAMINO">Camino</option>
                             <option value="PRIVADA">Privada</option>
@@ -2989,15 +3148,16 @@ select{
 
 <div class="card incidence-card incidence-card-tight">
 
-    <div class="incidence-filterbar incidence-filterbar-new">
+    <div class="coo-filter-scroll"><div class="incidence-filterbar incidence-filterbar-new">
         <div class="compact-filter">
             <span>Empresa</span>
             <select id="report-company"></select>
         </div>
 
         <div class="compact-filter">
-            <span>Apellido paterno</span>
-            <input id="attendance-paternal" type="search" placeholder="Apellido">
+            <span>Trabajador</span>
+            <select id="coo-report-worker"><option value="">Todos los trabajadores</option></select>
+            <input id="attendance-paternal" type="hidden" value="">
         </div>
 
         <div class="compact-filter">
@@ -3016,11 +3176,12 @@ select{
             <span>Tipo de incidencia</span>
             <select id="attendance-incidence-type">
                 <option value="">Todas</option>
+                <option value="Incidencia">Incidencia pendiente por calificar</option>
                 <option value="Ausentismo">Ausentismo</option>
                 <option value="Retardo">Retardo</option>
                 <option value="Permiso médico justificado">Permiso médico justificado</option>
                 <option value="Permiso médico no justificado">Permiso médico no justificado</option>
-                <option value="Permiso de salida">Permiso de salida</option>
+                <option value="Salida autorizada">Salida autorizada</option>
                 <option value="Falta justificada">Falta justificada</option>
                 <option value="Tiempo extraordinario">Tiempo extraordinario</option>
             </select>
@@ -3035,14 +3196,20 @@ select{
             <span>Hasta</span>
             <input id="attendance-date-to" type="date">
         </div>
-    </div>
+        <div class="compact-filter">
+            <span>Tipo de reporte</span>
+            <select id="coo-report-type"><option value="all">Historial completo</option><option value="incidents">Solo incidencias</option></select>
+        </div>
+    </div></div>
 
+    <div class="coo-export-line"><button type="button" class="btn btn-primary" id="coo-export">Descargar reporte</button></div>
     <div class="incidence-view-tabs" role="tablist" aria-label="Estado de incidencias">
-        <button id="incidence-tab-pending" class="incidence-view-tab active" type="button">Pendientes</button>
+        <button id="incidence-tab-pending" class="incidence-view-tab active" type="button">Pendientes por calificar</button>
         <button id="incidence-tab-justified" class="incidence-view-tab" type="button">Calificadas</button>
+<button id="coo-tab-history" class="incidence-view-tab" type="button">Historial</button>
     </div>
 
-    <div id="attendance-count" class="history-count compact-count"></div>
+<div id="attendance-count" class="history-count compact-count"></div>
     <ul id="attendance" class="data-list incidence-list"></ul>
 </div>
 
@@ -3064,7 +3231,7 @@ select{
                     <option value="Retardo">Retardo</option>
                     <option value="Permiso médico justificado">Permiso médico justificado</option>
                     <option value="Permiso médico no justificado">Permiso médico no justificado</option>
-                    <option value="Permiso de salida">Permiso de salida</option>
+                    <option value="Salida autorizada">Salida autorizada</option>
                     <option value="Falta justificada">Falta justificada</option>
                     <option value="Tiempo extraordinario">Tiempo extraordinario</option>
                 </select>
@@ -3072,6 +3239,7 @@ select{
             </div>
         </div>
 
+        <div class="modal-field full"><label for="incidence-modal-note">Observaciones obligatorias</label><textarea id="incidence-modal-note" required maxlength="2000" style="width:100%;min-height:95px;border:1px solid #cbdced;border-radius:10px;padding:10px;font:inherit" placeholder="Escribe el motivo o aclaración"></textarea></div>
         <div class="modal-actions">
             <button id="incidence-modal-cancel" class="btn btn-soft" type="button">Cancelar</button>
             <button id="incidence-modal-save" class="btn btn-primary" type="button">Guardar</button>
@@ -3102,8 +3270,9 @@ select{
             <div class="modal-field"><label>NSS</label><input id="worker-edit-nss"></div>
             <div class="modal-field"><label>Teléfono</label><input id="worker-edit-phone"></div>
             <div class="modal-field"><label>Fecha de ingreso a la empresa</label><input id="worker-edit-hire-date" type="date"></div>
-            <div class="modal-field"><label>Categoría</label><select id="worker-edit-category"><option value="">Selecciona categoría</option></select></div>
-            <div class="modal-field full"><label>Centros de trabajo por día</label><div id="worker-edit-worksites-by-day" class="worker-day-sites"></div><div class="mini-note">Puedes asignar un centro distinto a cada día laboral del trabajador.</div></div>
+            <div class="modal-field full hidden" id="worker-edit-linked-device-field"><label>Dispositivo vinculado</label><select id="worker-edit-linked-device"><option value="">Cargando dispositivos…</option></select><small id="worker-edit-device-note" style="display:block;margin-top:6px;color:#64748b">Selecciona otro dispositivo compartido si necesitas trasladar al trabajador.</small></div>
+            <div class="modal-field" style="display:none" aria-hidden="true"><select id="worker-edit-category" tabindex="-1"><option value="">Selecciona categoría</option></select></div>
+            <div class="modal-field full"><label>Categoría y centro de trabajo por día</label><div id="worker-edit-worksites-by-day" class="worker-day-sites"></div></div>
         </div>
         <div id="worker-save-state" class="worker-save-state hidden">✓ Datos guardados</div>
         <div id="worker-save-feedback" class="save-feedback"></div>
@@ -3117,6 +3286,18 @@ select{
 <!-- CONFIGURACIÓN -->
 
 <section id="settings-page" class="section-page">
+<div class="card" style="margin-bottom:18px;border-color:var(--blue-200);background:linear-gradient(120deg,#f0f7ff,#ffffff)">
+  <div class="card-title" style="margin-bottom:8px">
+    <h3>Empresa seleccionada</h3>
+    <span>Configuración y políticas de esta empresa</span>
+  </div>
+  <label for="settings-company" style="margin-top:4px">Seleccionar empresa</label>
+  <select id="settings-company" aria-label="Seleccionar empresa">
+    <option value="">Cargando empresas...</option>
+  </select>
+  <div id="settings-company-feedback" class="mini-note" role="status">Las categorías, centros de trabajo y políticas corresponden a la empresa seleccionada.</div>
+</div>
+
 
 <div class="settings-shell">
     <div class="settings-workers-panel">
@@ -3218,7 +3399,7 @@ select{
                                 <span id="cfg-absence-count" class="incidence-live-text danger">1 al mes · 0 usados · 1 restante</span>
                             </div>
                         </td>
-                        <td>Se lleva el conteo mensual igual que en los permisos. Los retardos acumulados también pueden generar ausentismo.</td>
+                        <td>Se lleva el conteo mensual igual que en los permisos. El administrador califica las incidencias antes de contabilizarlas.</td>
                     </tr>
                     <tr>
                         <td>Retardos</td>
@@ -3228,7 +3409,7 @@ select{
                                 <span id="cfg-late-count" class="incidence-live-text warning">Llevas 0 retardos · 3 más y se considera 1 ausentismo</span>
                             </div>
                         </td>
-                        <td><div class="mini-note">El número indica cuántos retardos equivalen a 1 ausentismo. Un retardo mayor a 45 minutos sigue contando directamente como ausentismo.</div></td>
+                        <td><div class="mini-note">El número indica cuántos retardos equivalen a 1 ausentismo. La clasificación de cada incidencia la realiza el administrador.</div></td>
                     </tr>
                     <tr>
                         <td>Permisos de salida</td>
@@ -3351,7 +3532,8 @@ document.querySelectorAll(".menu button").forEach(button => {
         const titles = {
             dashboard:"Panel general",
             "companies-page":"Empresas",
-            "devices-page":"Trabajador",
+            "shared-kiosk-page":"Checadores compartidos",
+            "devices-page":"Trabajadores",
             "users-page":"＋ Agregar administrador",
             "connect-page":"Conectar dispositivos",
             "settings-page":"Configuración",
@@ -3380,7 +3562,7 @@ function showPage(pageId){
     document.querySelectorAll(".section-page").forEach(page=>page.classList.remove("active"));
     document.getElementById(pageId)?.classList.add("active");
     document.querySelectorAll(".menu button").forEach(button=>button.classList.toggle("active",button.dataset.page===pageId));
-    const titles={dashboard:"Panel general","companies-page":"Empresas","devices-page":"Trabajador","users-page":"＋ Agregar administrador","connect-page":"Conectar dispositivos","settings-page":"Configuración","worksites-page":"Centros de trabajo","attendance-page":"Incidencias"};
+    const titles={dashboard:"Panel general","companies-page":"Empresas","devices-page":"Trabajadores","users-page":"＋ Agregar administrador","connect-page":"Conectar dispositivos","settings-page":"Configuración","worksites-page":"Centros de trabajo","attendance-page":"Incidencias"};
     const title=document.querySelector("#page-title");
     if(title) title.textContent=titles[pageId]||"COOATII Check";
 }
@@ -3497,20 +3679,41 @@ form.addEventListener("submit",async event=>{
    STATUS
 ========================= */
 
-function setStatus(text){
-
-    status.textContent=text;
-
-    if(text){
-
-        setTimeout(()=>{
-
-            if(status.textContent===text){
-                status.textContent="";
-            }
-
-        },6000);
-    }
+function setStatus(text, type){
+  if(!text) return;
+  const message = String(text);
+  // Compatibilidad con todas las llamadas existentes a setStatus.
+  const errorWords = /error|incorrect|no se pudo|no fue posible|no se guard|no se encontr|fall[oó]|inv[aá]lid|obligatori|selecciona|primero verifica|sin permiso|denegad|faltan|no coinciden|no hay empresa/i;
+  const successWords = /guardad|actualizad|cread|eliminad|registrad|correctamente|enviad|completad|[ée]xito|configurad|sincronizad/i;
+  const kind = type === 'error' || type === 'success' || type === 'info'
+    ? type : errorWords.test(message) ? 'error' : successWords.test(message) ? 'success' : 'info';
+  let stack = document.getElementById('cooatii-toast-stack');
+  if(!stack){
+    stack = document.createElement('div');
+    stack.id = 'cooatii-toast-stack';
+    stack.setAttribute('role','region');
+    stack.setAttribute('aria-label','Notificaciones');
+    document.body.appendChild(stack);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'cooatii-toast ' + kind;
+  toast.setAttribute('role',kind === 'error' ? 'alert' : 'status');
+  const symbol = document.createElement('span');
+  symbol.className = 'cooatii-toast-symbol';
+  symbol.textContent = kind === 'success' ? '✓' : kind === 'error' ? '!' : 'i';
+  const content = document.createElement('span');
+  content.className = 'cooatii-toast-message';
+  content.textContent = message;
+  const close = document.createElement('button');
+  close.className = 'cooatii-toast-close';
+  close.type = 'button';
+  close.textContent = '×';
+  close.setAttribute('aria-label','Cerrar notificación');
+  close.addEventListener('click',()=>toast.remove());
+  toast.append(symbol,content,close);
+  stack.prepend(toast);
+  while(stack.children.length > 3) stack.lastElementChild.remove();
+  setTimeout(()=>toast.remove(),kind === 'error' ? 9500 : 5500);
 }
 
 
@@ -3696,6 +3899,8 @@ document.querySelector("#company-form")
         "slug",
         document.querySelector("#company-slug").value
     );
+
+    body.append("profile", JSON.stringify(readCompanyFormProfile()));
 
     body.append(
         "latitude",
@@ -4041,14 +4246,7 @@ function minutesLateForRecord(record){
     return Math.floor((day-scheduled)/60000);
 }
 function recordRepresentsLateArrival(record){
-    const raw=normalizeSearchText(rawIncidentType(record));
-    if(raw.includes("retardo")) return true;
-    const event=normalizeSearchText(record.event_type||"");
-    const label=normalizeSearchText(eventLabels[record.event_type]||"");
-    const isEntry=event.includes("clock_in") || event.includes("check_in") || event.includes("entrada") || label.includes("entro a trabajar");
-    if(!isEntry) return false;
-    const late=minutesLateForRecord(record);
-    return late!==null && late>=11 && late<=45;
+    return Boolean(record.qualified_incident_id) && normalizeSearchText(record.concept||'').includes('retardo');
 }
 function lateDaysForWorker(worker,month=currentMonthKey()){
     const identity=String(workerIdentity(worker)||worker.id||"");
@@ -4081,7 +4279,7 @@ function absenceDaysForWorker(worker,month=currentMonthKey()){
         const event=normalizeSearchText(record.event_type||"");
         const label=normalizeSearchText(eventLabels[record.event_type]||"");
         const isEntry=event.includes("clock_in") || event.includes("check_in") || event.includes("entrada") || label.includes("entro a trabajar");
-        const isAbsence=type.includes("ausentismo") || (isEntry && late!==null && late>45);
+        const isAbsence=Boolean(record.qualified_incident_id) && type.includes("ausentismo");
         if(isAbsence) days.add(day);
     });
     return [...days].sort();
@@ -4172,7 +4370,7 @@ function renderWorkerConfigSummary(worker,scroll=false){
         item("Descanso",dayLabels(restDays)),
         item("Ausentismos",`${absenceLimit} al mes · ${absenceCount} usado${absenceCount===1?"":"s"} · ${absenceRemaining} restante${absenceRemaining===1?"":"s"}`),
         item("Retardos",lateProgressText(lateCount,lateThreshold),true),
-        item("Permiso de salida",permissionAllowanceText(worker,"leave",Number(cfg.leave??1))),
+        item("Salida autorizada",permissionAllowanceText(worker,"leave",Number(cfg.leave??1))),
         item("Permiso médico",permissionAllowanceText(worker,"medical",Number(cfg.medicalPermits??cfg.medicalJustified??1))),
         item("Vacaciones",vacStart&&vacEnd?`${vacStart} al ${vacEnd} · ${vacDays} día${vacDays===1?"":"s"}`:"Sin periodo",true)
     ].join("");
@@ -4263,12 +4461,7 @@ function updateCalculatedWorkday(){
 }
 
 function latenessClassification(minutesLate){
-    const m=Number(minutesLate)||0;
-    if(m<=10) return {type:"Sin retardo",value:0};
-    if(m<=15) return {type:"Retardo",value:0.25};
-    if(m<=30) return {type:"Retardo",value:0.50};
-    if(m<=45) return {type:"Retardo",value:0.75};
-    return {type:"Ausentismo",value:1};
+    return {type:Number(minutesLate)>10?"Incidencia":"Sin retardo",value:0};
 }
 
 function populateConfigWorksites(w,selectedId=""){
@@ -4417,11 +4610,12 @@ updateVacationDaysDisplay();
 function showConfigToast(title="Configuración guardada",text="Los cambios se guardaron correctamente."){
     const toast=document.querySelector("#config-toast");
     if(!toast) return;
+    if(!title.startsWith("No se guardaron")){toast.style.background="";toast.style.borderColor="";toast.style.color="";}
     document.querySelector("#config-toast-title").textContent=title;
     document.querySelector("#config-toast-text").textContent=text;
     toast.classList.add("show");
     clearTimeout(showConfigToast._timer);
-    showConfigToast._timer=setTimeout(()=>toast.classList.remove("show"),3200);
+    showConfigToast._timer=setTimeout(()=>toast.classList.remove("show"),5200);
 }
 
 function resetWorkerConfigForm(){
@@ -4469,12 +4663,7 @@ document.querySelector("#worker-config-form")?.addEventListener("submit",event=>
         absenceLimit:Math.max(0,Math.floor(Number(document.querySelector("#cfg-absence-limit")?.value||0))),
         absenceMonthlyLimit:Math.max(0,Math.floor(Number(document.querySelector("#cfg-absence-limit")?.value||0))),
         lateThreshold:Math.max(1,Math.floor(Number(document.querySelector("#cfg-late-threshold")?.value||3))),
-        lateRules:[
-            {from:11,to:15,value:0.25,type:"Retardo"},
-            {from:16,to:30,value:0.50,type:"Retardo"},
-            {from:31,to:45,value:0.75,type:"Retardo"},
-            {from:46,to:null,value:1,type:"Ausentismo"}
-        ],
+        lateRules:[],
         medicalPermits:Number(document.querySelector("#cfg-medical")?.value||0),
         leave:Number(document.querySelector("#cfg-leave")?.value||0),
         medicalJustified:Number(document.querySelector("#cfg-medical")?.value||0),
@@ -4707,9 +4896,40 @@ async function loadDevices(){
     const companyId=document.querySelector("#devices-company").value;
     deviceRecords=[];
     if(companyId){
-        const response=await authorizedFetch(`/api/admin/companies/${companyId}/devices`);
-        const data=await response.json().catch(()=>[]);
-        if(response.ok && Array.isArray(data)) deviceRecords=data;
+        const base=`/api/admin/companies/${encodeURIComponent(companyId)}`;
+        const [deviceResult,employeeResult]=await Promise.allSettled([
+            authorizedFetch(`${base}/devices`),
+            authorizedFetch(`${base}/employees`)
+        ]);
+        const devicesResponse=deviceResult.status==='fulfilled'?deviceResult.value:null;
+        const employeesResponse=employeeResult.status==='fulfilled'?employeeResult.value:null;
+        const mobileRows=devicesResponse?.ok?await devicesResponse.json().catch(()=>[]):[];
+        const employeeRows=employeesResponse?.ok?await employeesResponse.json().catch(()=>[]):[];
+        // Los empleados de tablets no tienen necesariamente un celular registrado.
+        // Combinar por empleado evita duplicar a quienes sí tienen celular.
+        const byEmployee=new Map();
+        for(const d of (Array.isArray(mobileRows)?mobileRows:[])){
+            const key=String(d.employee_code||d.employee_id_remote||d.id_remote||'');
+            if(key)byEmployee.set(key,d);
+        }
+        for(const e of (Array.isArray(employeeRows)?employeeRows:[])){
+            const key=String(e.employee_code||e.id_remote||'');
+            if(!key)continue;
+            const old=byEmployee.get(key)||{};
+            byEmployee.set(key,{
+                ...old,...e,company_id:companyId,
+                employee_name:e.full_name,
+                employee_site_name:e.site_name||old.employee_site_name||'',
+                employee_site_id:e.site_id||old.employee_site_id||'',
+                device_name:old.device_name||'',
+                id_local:old.id_local||'',
+                created_at:old.created_at||''
+            });
+        }
+        deviceRecords=[...byEmployee.values()];
+        if(!employeesResponse?.ok){
+            console.warn('No se pudo cargar el catálogo de trabajadores de la empresa.');
+        }
     }
     renderDevicesTable();
     renderSettingsWorkers();
@@ -4914,6 +5134,7 @@ function renderAttendance(){
                 ${hasCoordinates?`<a class="location-link" href="${mapsUrl}" target="_blank">Ver en Maps</a>`:""}
             </div>
 
+            ${record.notes ? `<div class="data-item-subtitle">${escapeHtml(record.notes)}</div>` : ""}
             <div class="incidence-result-actions">
                 <button class="btn btn-primary btn-small incidence-rate-btn" type="button">
                     Calificar
@@ -4974,6 +5195,22 @@ async function loadAttendance(){
                 ? data.records
                 : [];
 
+        {
+            const automaticStatus = incidenceView === 'pending' ? 'pending' : 'reviewed';
+            const autoResponse = await authorizedFetch('/api/admin/companies/'+encodeURIComponent(companyId)+'/automatic-incidents?status='+automaticStatus, {cache:'no-store'});
+            const automatic = await autoResponse.json().catch(()=>({}));
+            if (!autoResponse.ok) throw Error(automatic.error || 'No se pudieron cargar las faltas pendientes');
+            const linkedIds = new Set((automatic.records || []).map(a=>String(a.attendance_record_id||'')).filter(Boolean));
+            if (automaticStatus === 'pending') attendanceRecords = attendanceRecords.filter(r=>!linkedIds.has(String(r.attendance_record_id)));
+            const qualifiedAttendanceIds = new Set(attendanceRecords.filter(r=>r.qualified_incident_id).map(r=>String(r.attendance_record_id)));
+            attendanceRecords.push(...(automatic.records || []).filter(a=>!(automaticStatus==='reviewed'&&a.attendance_record_id&&qualifiedAttendanceIds.has(String(a.attendance_record_id)))).map(a=>({
+                ...a, automatic_incident_id:a.id, event_type:'AUTO_INCIDENT',
+                incidence_type:automaticStatus==='pending'?'Incidencia':a.concept,
+                qualified_incident_id:automaticStatus==='reviewed'?'auto:'+a.id:null,
+                occurred_at:a.attendance_occurred_at??Date.parse(String(a.incident_date).slice(0,10)+'T00:00:00-06:00'),
+                company_id:companyId
+            })));
+        }
         fillWorksiteFilter();
         renderAttendance();
         await checkAutomaticLateAlerts();
@@ -5009,6 +5246,7 @@ let incidenceQualificationContext=null;
 
 function openIncidenceQualification(workerName, record, preset=""){
     incidenceQualificationContext={workerName,record};
+    document.querySelector("#incidence-modal-note").value=record.notes||"";
 
     const modal=document.querySelector("#incidence-modal");
     const worker=document.querySelector("#incidence-modal-worker");
@@ -5129,6 +5367,17 @@ document.querySelector("#company-geocode")?.addEventListener("click",()=>geocode
     document.querySelector("#company-latitude"),
     document.querySelector("#company-longitude")
 ));
+
+function readCompanyFormProfile(){
+  const get=id=>document.getElementById(id)?.value?.trim()||'';
+  const person_type=get('company-person-type')||'fisica';
+  return {person_type,rfc:person_type==='moral'?get('company-rfc-moral'):get('company-rfc-physical'),
+    name:get('company-physical-name'),curp:get('company-curp'),nss:get('company-nss'),
+    business_name:get('company-business-name'),trade_name:get('company-trade-name'),
+    employer_registration:get('company-employer-registration'),postal_code:get('company-postal-code'),
+    street:get('company-street'),number:get('company-street-number'),
+    radius_m:get('company-radius'),latitude:get('company-latitude'),longitude:get('company-longitude')};
+}
 
 /* Prepara la API actual y conserva los nuevos datos en el navegador. */
 document.querySelector("#company-form")?.addEventListener("submit",()=>{
@@ -5301,7 +5550,7 @@ function normalizeRoadTypeValue(value){
     const map={
         "CALLE":"CALLE",
         "AVENIDA":"AVENIDA",
-        "BOULEVARD":"BOULEVARD",
+        "BOULEVARD":"BOULEVARD", "CALZADA":"CALZADA",
         "CARRETERA":"CARRETERA",
         "CAMINO":"CAMINO",
         "PRIVADA":"PRIVADA",
@@ -5692,13 +5941,10 @@ function renderDevicesTable(){
             <td>${escapeHtml(w.created_at?new Date(w.created_at).toLocaleString("es-MX"):"-")}</td>
             <td class="worker-actions-cell">
                 <div class="worker-row-actions">
-                    <button class="btn btn-soft btn-small worker-config-btn" type="button">Ver configuración</button>
                     <button class="btn btn-primary btn-small worker-edit-btn" type="button">Editar</button>
                     <button class="btn btn-soft btn-small worker-delete-btn" type="button">Eliminar</button>
                 </div>
             </td>`;
-
-        tr.querySelector(".worker-config-btn")?.addEventListener("click",()=>renderWorkerConfigSummary(w,true));
         tr.querySelector(".worker-edit-btn")?.addEventListener("click",()=>openWorkerEdit(w));
         tr.querySelector(".worker-delete-btn")?.addEventListener("click",()=>deleteWorkerFromPortal(w));
         devices.appendChild(tr);
@@ -5856,7 +6102,7 @@ function isRecordDuringVacation(record){
 }
 function isJustifiedType(type){
     const key=normalizeSearchText(type);
-    return key.includes("medico justificado") ||
+    return key === "historial" || key.includes("medico justificado") ||
            key.includes("permiso de salida") ||
            key.includes("falta justificada") ||
            key.includes("vacacion");
@@ -5990,9 +6236,9 @@ function renderAttendance(){
 
     filtered.sort((a,b)=>{
         const A=workerMetaForAttendance(a),B=workerMetaForAttendance(b);
-        return normalizeSearchText(A.paternal).localeCompare(normalizeSearchText(B.paternal),"es") ||
-               normalizeSearchText(A.name).localeCompare(normalizeSearchText(B.name),"es") ||
-               recordDate(b)-recordDate(a);
+        return recordDate(b)-recordDate(a) ||
+               normalizeSearchText(A.paternal).localeCompare(normalizeSearchText(B.paternal),"es") ||
+               normalizeSearchText(A.name).localeCompare(normalizeSearchText(B.name),"es");
     });
 
     if(count){
@@ -6037,8 +6283,10 @@ function renderAttendance(){
                 <span>${date.toLocaleString("es-MX")}</span>
                 ${locationLine}
             </div>
+            ${record.notes ? `<div class="data-item-subtitle">${escapeHtml(record.notes)}</div>` : ""}
             <div class="incidence-result-actions">
                 <button class="btn btn-primary btn-small incidence-rate-btn" type="button">${state.reviewed?"Editar calificación":"Calificar"}</button>
+
             </div>`;
 
         item.querySelector(".incidence-rate-btn")?.addEventListener("click",()=>openIncidenceQualification(m.name,record,type));
@@ -6052,6 +6300,7 @@ function updateIncidenceModalStatus(){
     const type=document.querySelector("#incidence-modal-type")?.value||"";
     const out=document.querySelector("#incidence-modal-status");
     if(!out) return;
+    if(!type){out.textContent='Selecciona la calificación que corresponde a esta incidencia.';return;}
     if(isJustifiedType(type)){
         out.innerHTML='<span class="justified-badge">Justificada</span> Esta incidencia se moverá a Calificadas.';
     }else{
@@ -6063,9 +6312,10 @@ function openIncidenceQualification(workerName,record,preset=""){
     document.querySelector("#incidence-modal-worker").textContent=workerName||"";
     const type=document.querySelector("#incidence-modal-type");
     const state=effectiveIncidentState(record);
-    const preferred=state.type||preset||"Ausentismo";
+    const preferred=state.reviewed?state.type:"";
     if(type){
-        type.value=[...type.options].some(o=>o.value===preferred)?preferred:"Ausentismo";
+        if(![...type.options].some(o=>o.value===''))type.insertBefore(new Option('Selecciona una calificación',''),type.firstChild);
+        type.value=[...type.options].some(o=>o.value===preferred)?preferred:"";
     }
     updateIncidenceModalStatus();
     document.querySelector("#incidence-modal")?.classList.remove("hidden");
@@ -6521,7 +6771,7 @@ const BMC_DAYS=[
 ];
 const BMC_INCIDENCES=[
   "Ausentismo","Retardo","Permiso médico justificado","Permiso médico no justificado",
-  "Permiso de salida","Falta justificada","Tiempo extraordinario"
+  "Salida autorizada","Falta justificada","Tiempo extraordinario"
 ];
 const BMC_V7_POLICY_TITLE="Reglamento de BMC. De asistencia y ausentismo.";
 const BMC_V7_POLICY_TEXT=`1. La jornada será la establecida de forma individual.\n\n2. La tolerancia para la hora de entrada es de 10 minutos.\n\n3. Se considera retardo a partir del minuto 11 de la hora de entrada y el tiempo de retraso se repondrá doble a la hora de salida del mismo día en que ocurrió el retardo y se pierde la tolerancia, es decir se computará el tiempo a reponer a partir de la hora de entrada.\n\n4. Con tres retardos se considera un día de falta sin goce de sueldo por semana.\n\n5. El ausentismo justificado será de dos tipos:\n   1) Por razones médicas y trayendo un justificante médico expedido de IMSS, (cita, incapacidad), no se aceptarán comprobantes de médicos privados sin excepción;\n   2) y el segundo es bajo previa negociación con la C.P. Rosario Moreno Xolalpa con al menos 24 horas de anticipación.\n\n6. Solicitar ante el IMSS el turno vespertino, para que de esta forma las citas solicitadas interfieran en lo mínimo con la jornada laboral, si se cuenta con turno matutino, se deberá solicitar el cambio lo antes posible.\n\n7. Los permisos para citas médicas deberán informarse con una anticipación mínima de 24 horas con la C.P. Rosario Moreno Xolalpa, excepto en casos de urgencia médica.\n\n8. El ausentismo injustificado implicará descuento directo en nómina, y con 3 días de faltas consecutivas en un periodo de 30 días será causa de rescisión de contrato.`;
@@ -6649,7 +6899,7 @@ function bmcFillFormExtras(cfg={}){
   const mealMinutes=document.querySelector("#bmc-meal-minutes"); if(mealMinutes)mealMinutes.value=cfg.meal_duration_minutes??60;
   const tolerance=document.querySelector("#bmc-tolerance-minutes"); if(tolerance)tolerance.value=cfg.tolerance_minutes??10;
   const values=Object.fromEntries((cfg.incidence_values||[]).map(x=>[x.concept,Number(x.value)]));
-  BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario").forEach((name,i)=>{const input=document.querySelector(`#bmc-inc-${i}`);if(input){const zero=["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].includes(name);input.value=values[name]??(zero?0:1);}});
+  BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario").forEach((name,i)=>{const input=document.querySelector(`#bmc-inc-${i}`);if(input){const zero=["Permiso médico justificado","Permiso médico no justificado","Salida autorizada","Falta justificada"].includes(name);input.value=values[name]??(zero?0:1);}});
   const overtime=document.querySelector("#bmc-overtime-enabled"); if(overtime)overtime.value=cfg.overtime_allowed===false?"no":"si";
   const overtimeValue=document.querySelector(`#bmc-inc-${BMC_INCIDENCES.indexOf("Tiempo extraordinario")}`); if(overtimeValue)overtimeValue.value=cfg.overtime_value??0;
   bmcToggleOvertimeValue(); updateCalculatedWorkday?.(); syncInheritedDays?.();
@@ -6664,6 +6914,12 @@ async function bmcLoadCategories(companyId=bmcCompanyId()){
     bmcCategoriesCache={}; (Array.isArray(data)?data:[]).forEach(c=>bmcCategoriesCache[String(c.category_number)]=c);
     try{localStorage.setItem(`coati_category_cache_${companyId}`,JSON.stringify(bmcCategoriesCache));}catch{}
     renderSettingsWorkers();
+    // Actualizar selectores semanales sin perder lo que se está editando.
+    document.querySelectorAll('[data-worker-day-category]').forEach(el=>{
+      const current=el.value;
+      el.innerHTML=bmcCategoryDayOptions(current);
+      if([...el.options].some(o=>o.value===current))el.value=current;
+    });
   }catch(error){
     console.error(error);
     try{
@@ -6769,12 +7025,23 @@ function bmcCategoryRestDays(categoryNumber){
     ? [...new Set(cfg.rest_days.map(Number).filter(n=>Number.isInteger(n)&&n>=1&&n<=7))].sort((a,b)=>a-b)
     : [];
 }
-function bmcWorkerDayRow(num,siteId=""){
+function bmcCategoryDayOptions(selected){
+  const choices=Object.values(bmcCategoriesCache||{})
+    .filter(c=>Number.isInteger(Number(c.category_number)) && Number(c.category_number)>0)
+    .sort((a,b)=>Number(a.category_number)-Number(b.category_number))
+    .map(c=>({value:String(c.category_number),textContent:String(c.name||`Categoría ${c.category_number}`)}));
+  return '<option value="">Sin categoría</option>'+choices.map(o=>`<option value="${escapeHtml(o.value)}" ${Number(o.value)===Number(selected)?"selected":""}>${escapeHtml(o.textContent.trim())}</option>`).join("");
+}
+function bmcWorkerDayCategoryMap(){
+  return [...document.querySelectorAll("[data-worker-day-category]")].map(el=>({weekday:Number(el.dataset.workerDayCategory),category_number:el.value?Number(el.value):null}));
+}
+function bmcWorkerDayRow(num,siteId="",categoryNum=null){
   const day=BMC_DAYS.find(x=>x[2]===Number(num));
   if(!day)return "";
   return `<div class="worker-day-site" data-worker-day-row="${num}">
     <b>${escapeHtml(day[1])}</b>
-    <select data-worker-day-site="${num}">${bmcSiteOptions(siteId)}</select>
+    <select data-worker-day-category="${num}" aria-label="Categoría para ${escapeHtml(day[1])}">${bmcCategoryDayOptions(categoryNum)}</select>
+    <select data-worker-day-site="${num}" aria-label="Centro para ${escapeHtml(day[1])}">${bmcSiteOptions(siteId)}</select>
     <button class="btn btn-soft btn-small worker-day-remove" type="button" data-remove-day="${num}">Quitar</button>
   </div>`;
 }
@@ -6795,9 +7062,11 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
   const box=document.querySelector("#worker-edit-worksites-by-day");
   if(!box)return;
 
-  const category=Number(document.querySelector("#worker-edit-category")?.value||cfg.category_number||0);
+  const category=Number(cfg.category_number||0);
   const categoryDays=bmcCategoryWorkdays(category);
   const savedRows=Array.isArray(cfg.work_sites_by_day)?cfg.work_sites_by_day:[];
+  const categoryRows=Array.isArray(cfg.categories_by_day)?cfg.categories_by_day:[];
+  const categoryMap=Object.fromEntries(categoryRows.map(x=>[Number(x.weekday),Number(x.category_number)]));
   const savedMap=Object.fromEntries(
     savedRows
       .map(x=>[Number(x.weekday),String(x.work_mode||"SITE").toUpperCase()==="FOREIGN" ? "__FOREIGN__" : (x.site_id||"")])
@@ -6814,7 +7083,7 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
 
   let days = (!forceCategoryDays && hasExplicitCustomDays)
     ? [...new Set(savedRows.map(x=>Number(x.weekday)).filter(n=>Number.isInteger(n)&&n>=1&&n<=7))].sort((a,b)=>a-b)
-    : categoryDays;
+    : [1,2,3,4,5,6,7];
 
   const rests=bmcCategoryRestDays(category);
   const restText=rests.length
@@ -6822,23 +7091,25 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
     : "Sin descansos configurados";
 
   box.innerHTML=`
-    <div class="worker-days-note">
-      <strong>Categoría ${category||"—"}:</strong>
-      ${hasExplicitCustomDays ? "Días personalizados guardados:" : "Días laborales de la categoría:"}
-      ${days.length ? `${days.map(n=>BMC_DAYS.find(x=>x[2]===n)?.[1]).filter(Boolean).join(", ")}.` : "ninguno."}
-      Descansos: ${escapeHtml(restText)}.
-    </div>
 
     <div class="worker-apply-all">
       <div>
-        <label>Aplicar el mismo centro o modalidad foránea a todos los días</label>
+        <label>Centro de trabajo</label>
         <select id="worker-all-sites-select">${bmcSiteOptions("")}</select>
       </div>
       <button id="worker-apply-all-btn" class="btn btn-soft" type="button">Aplicar a todos</button>
     </div>
+    <div class="worker-apply-all">
+      <div>
+        <label>Categoría</label>
+        <select id="worker-all-categories-select">${bmcCategoryDayOptions("")}</select>
+      </div>
+      <button id="worker-apply-all-categories-btn" class="btn btn-soft" type="button">Aplicar a todos</button>
+    </div>
 
+    <div class="mini-note">Día · Categoría · Centro de trabajo</div>
     <div id="worker-day-rows">
-      ${days.length ? days.map(n=>bmcWorkerDayRow(n,savedMap[n]||"")).join("") : '<div class="worker-days-empty">No hay días laborales. Usa “Agregar otro día” si necesitas añadir uno.</div>'}
+      ${days.length ? days.map(n=>bmcWorkerDayRow(n,savedMap[n]||"",categoryMap[n]||category)).join("") : '<div class="worker-days-empty">No hay días laborales. Usa “Agregar otro día” si necesitas añadir uno.</div>'}
     </div>
 
     <div class="worker-days-toolbar">
@@ -6870,6 +7141,13 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
       return;
     }
 
+    if(event.target.closest?.("#worker-apply-all-categories-btn")){
+      event.preventDefault();
+      const value=document.querySelector("#worker-all-categories-select")?.value||"";
+      document.querySelectorAll("#worker-day-rows [data-worker-day-category]").forEach(sel=>{sel.value=value;});
+      return;
+    }
+
     if(event.target.closest?.("#worker-days-add-btn")){
       event.preventDefault();
       const sel=document.querySelector("#worker-days-add-select");
@@ -6878,12 +7156,98 @@ function bmcRenderDaySitesFromConfig(cfg={}, forceCategoryDays=false){
       const rows=document.querySelector("#worker-day-rows");
       rows?.querySelector(".worker-days-empty")?.remove();
       if(!rows?.querySelector(`[data-worker-day-row="${num}"]`)){
-        rows?.insertAdjacentHTML("beforeend",bmcWorkerDayRow(num,savedMap[num]||""));
+        rows?.insertAdjacentHTML("beforeend",bmcWorkerDayRow(num,savedMap[num]||"",categoryMap[num]||category));
       }
       if(sel)sel.value="";
       bmcRefreshAddDayOptions();
     }
   };
+}
+/* Asignación de dispositivo desde Editar trabajador, usando las rutas existentes. */
+const bmcDeviceAssignments=new Map();
+async function bmcDeviceApi(url,options={}){
+  const response=await authorizedFetch(url,options);
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(payload.error||`Error HTTP ${response.status}`);
+  return payload;
+}
+async function bmcLoadLinkedDevice(worker){
+  const field=document.querySelector('#worker-edit-linked-device-field');
+  const select=document.querySelector('#worker-edit-linked-device');
+  const note=document.querySelector('#worker-edit-device-note');
+  if(!field||!select||!note)return;
+  field.classList.add('hidden');
+  const companyId=String(worker?.company_id||bmcCompanyId());
+  const code=bmcEmployeeCode(worker).toUpperCase();
+  select.disabled=true;
+  select.replaceChildren(new Option('Cargando dispositivos…',''));
+  if(!companyId||!code)return;
+  const base=`/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers`;
+  const key=companyId+'|'+code;
+  bmcDeviceAssignments.delete(key);
+  try{
+    const checkers=await bmcDeviceApi(base);
+    if(!Array.isArray(checkers))throw new Error('Respuesta de dispositivos no válida.');
+    const groups=await Promise.all(checkers.map(d=>bmcDeviceApi(`${base}/${encodeURIComponent(d.id)}/employees`)));
+    let assignment=null;
+    checkers.forEach((d,i)=>{
+      const workers=Array.isArray(groups[i])?groups[i]:[];
+      const w=workers.find(x=>String(x.employee_code||'').trim().toUpperCase()===code && x.enabled!==false);
+      if(w)assignment={checkerId:String(d.id),employeeId:String(w.employee_id)};
+    });
+    // El selector NO se muestra a los trabajadores independientes.
+    if(!assignment)return;
+    field.classList.remove('hidden');
+    select.replaceChildren();
+    checkers.forEach(d=>{
+      if(d.is_active||String(d.id)===assignment.checkerId){
+        select.add(new Option(`${d.device_name}${d.site_name?' · '+d.site_name:''}${!d.is_active?' (sin vincular)':''}`,String(d.id)));
+      }
+    });
+    select.value=assignment.checkerId;
+    select.disabled=false;
+    bmcDeviceAssignments.set(key,{original:assignment,companyId,code});
+    note.textContent='Selecciona otro dispositivo compartido para trasladar a este trabajador.';
+  }catch(error){
+    // No permitir guardar un cambio de dispositivo si falló su consulta.
+    field.classList.remove('hidden');
+    select.replaceChildren(new Option('No se pudieron cargar los dispositivos',''));
+    select.disabled=true;
+    note.textContent='No se pudo consultar el dispositivo vinculado: '+error.message;
+    throw error;
+  }
+}
+async function bmcSaveLinkedDevice(worker,companyId,code){
+  const select=document.querySelector('#worker-edit-linked-device');
+  const field=document.querySelector('#worker-edit-linked-device-field');
+  if(!select||field?.classList.contains('hidden'))return;
+  if(select.disabled)throw new Error('No se pudo verificar el dispositivo vinculado. Vuelve a abrir Editar.');
+  const key=companyId+'|'+String(code).toUpperCase();
+  const record=bmcDeviceAssignments.get(key);
+  if(!record)throw new Error('No se cargó la asignación del dispositivo. Vuelve a abrir Editar.');
+  const previous=record.original;
+  const target=select.value;
+  if(!previous||!target)throw new Error('Selecciona un dispositivo compartido válido.');
+  if(previous.checkerId===target)return;
+  const base=`/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers`;
+  if(previous){
+    await bmcDeviceApi(`${base}/${encodeURIComponent(previous.checkerId)}/employees/${encodeURIComponent(previous.employeeId)}`,{method:'DELETE'});
+  }
+  try{
+    if(target){
+      await bmcDeviceApi(`${base}/${encodeURIComponent(target)}/employees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_code:code})});
+    }
+  }catch(error){
+    if(previous){
+      try{await bmcDeviceApi(`${base}/${encodeURIComponent(previous.checkerId)}/employees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_code:code})});}
+      catch(rollbackError){throw new Error('No se asignó el nuevo dispositivo y tampoco se pudo restaurar el anterior. Revisa la asignación: '+rollbackError.message);}
+    }
+    throw new Error('No se pudo cambiar el dispositivo: '+error.message);
+  }
+  // El registro facial permanece en el almacenamiento local del dispositivo anterior.
+  // Se deberá eliminar de allí y enrolar de nuevo al empleado en el nuevo dispositivo.
+  record.original=target?{checkerId:target,employeeId:previous?.employeeId||''}:null;
+  await bmcLoadLinkedDevice(worker);
 }
 const bmcOriginalOpenWorkerEdit=openWorkerEdit;
 openWorkerEdit=async function(worker){
@@ -6902,6 +7266,7 @@ openWorkerEdit=async function(worker){
     feedback.classList.add("show");
   }
   modal?.classList.remove("hidden");
+  document.querySelector("#worker-edit-linked-device-field")?.classList.add("hidden");
 
   const companyId=String(worker?.company_id||bmcCompanyId());
   if(companyId){
@@ -6917,6 +7282,8 @@ openWorkerEdit=async function(worker){
 
   const setValue=(selector,value)=>{const el=document.querySelector(selector);if(el)el.value=value??"";};
   setValue("#worker-edit-hire-date",cfg.hire_date?String(cfg.hire_date).slice(0,10):"");
+  setValue("#worker-edit-daily-salary",cfg.daily_salary ?? "");
+  document.querySelector("#worker-edit-daily-salary")?.dispatchEvent(new Event("input"));
   setValue("#worker-edit-category",(Number.isInteger(Number(cfg.category_number))&&Number(cfg.category_number)>0)?String(cfg.category_number):"");
   setValue("#worker-edit-phone",cfg.phone||"");
   setValue("#worker-edit-name",cfg.first_name||"");
@@ -6929,6 +7296,7 @@ openWorkerEdit=async function(worker){
 
   document.querySelector("#worker-save-state")?.classList.toggle("hidden",!cfg.category_number);
   bmcRenderDaySitesFromConfig(cfg);
+  try{await bmcLoadLinkedDevice(worker);}catch(error){console.error(error);}
 
   if(feedback){
     feedback.textContent="✓ Configuración cargada desde PostgreSQL.";
@@ -6938,10 +7306,7 @@ openWorkerEdit=async function(worker){
   }
 };
 
-document.querySelector("#worker-edit-category")?.addEventListener("change",()=>{
-  const category=Number(document.querySelector("#worker-edit-category")?.value||0);
-  bmcRenderDaySitesFromConfig({category_number:category,work_sites_by_day:[]},true);
-});
+// La categoría se configura exclusivamente por día.
 
 async function bmcPersistWorkerConfig(){
   const identity=document.querySelector("#worker-edit-identity")?.value||"";
@@ -6949,7 +7314,6 @@ async function bmcPersistWorkerConfig(){
   if(!worker)return;
   const companyId=String(worker.company_id||bmcCompanyId()), code=bmcEmployeeCode(worker), category=Number(document.querySelector("#worker-edit-category")?.value||0);
   if(!companyId||!code)return;
-  if(!Number.isInteger(category)||category<1){setStatus("Selecciona una categoría válida.");return;}
   let work_sites_by_day=[...document.querySelectorAll("[data-worker-day-site]")].map(el=>{
     const value=String(el.value||"");
     return {
@@ -6973,11 +7337,22 @@ async function bmcPersistWorkerConfig(){
   const paternal=document.querySelector("#worker-edit-paternal")?.value.trim()||null;
   const maternal=document.querySelector("#worker-edit-maternal")?.value.trim()||null;
   const computedFullName=[firstName,paternal,maternal].filter(Boolean).join(" ")||null;
-  const body={category_number:category,hire_date:document.querySelector("#worker-edit-hire-date")?.value||null,phone:document.querySelector("#worker-edit-phone")?.value.trim()||null,first_name:firstName,last_name_paternal:paternal,last_name_maternal:maternal,full_name:computedFullName,department:document.querySelector("#worker-edit-role")?.value.trim()||null,rfc:document.querySelector("#worker-edit-rfc")?.value.trim().toUpperCase()||null,curp:document.querySelector("#worker-edit-curp")?.value.trim().toUpperCase()||null,nss:document.querySelector("#worker-edit-nss")?.value.trim()||null,work_sites_by_day};
+  const salaryInput=document.querySelector("#worker-edit-daily-salary");
+  const salaryRaw=salaryInput?.value.trim()??"";
+  const salaryValue=salaryRaw===""?null:Number(salaryRaw);
+  if(salaryValue!==null&&(!Number.isFinite(salaryValue)||salaryValue<0||salaryValue>9999999999.99)){setStatus("Ingresa un salario diario válido.");return;}
+  const categories_by_day=bmcWorkerDayCategoryMap();
+  if(categories_by_day.some(x=>!x.category_number)){setStatus("Asigna una categoría a cada día activo.");return;}
+  // Compatibilidad con la API actual: la primera categoría diaria alimenta
+  // el campo heredado category_number; no es una categoría principal del formulario.
+  const legacyCategory=categories_by_day.find(x=>Number.isInteger(x.category_number)&&x.category_number>0)?.category_number||0;
+  if(!legacyCategory){setStatus("Asigna al menos una categoría a los días activos.");return;}
+  const body={categories_by_day,daily_salary:salaryValue,category_number:legacyCategory,hire_date:document.querySelector("#worker-edit-hire-date")?.value||null,phone:document.querySelector("#worker-edit-phone")?.value.trim()||null,first_name:firstName,last_name_paternal:paternal,last_name_maternal:maternal,full_name:computedFullName,department:document.querySelector("#worker-edit-role")?.value.trim()||null,rfc:document.querySelector("#worker-edit-rfc")?.value.trim().toUpperCase()||null,curp:document.querySelector("#worker-edit-curp")?.value.trim().toUpperCase()||null,nss:document.querySelector("#worker-edit-nss")?.value.trim()||null,work_sites_by_day};
   try{
     const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.detail ? `${data.error||"No se pudo guardar el trabajador"}: ${data.detail}` : (data.error||"No se pudo guardar el trabajador"));
+    if(!Array.isArray(data.categories_by_day)){throw new Error("El backend aún no admite categorías por día. Se necesita actualizar la API antes de usar esta función.");}
     const expectedDays=[...new Set(work_sites_by_day.map(x=>Number(x.weekday)).filter(Boolean))].sort((a,b)=>a-b);
     await loadDevices(); await bmcLoadCategories(companyId);
     const savedCfg=await bmcLoadWorkerConfig(worker);
@@ -6986,6 +7361,18 @@ async function bmcPersistWorkerConfig(){
       throw new Error("El backend respondió, pero no fue posible verificar la configuración guardada.");
     }
 
+    if(JSON.stringify(categories_by_day.map(x=>[x.weekday,x.category_number]).sort((a,b)=>a[0]-b[0]))!==JSON.stringify((savedCfg.categories_by_day||[]).map(x=>[Number(x.weekday),Number(x.category_number)]).sort((a,b)=>a[0]-b[0])))throw new Error("Las categorías por día no se guardaron en PostgreSQL. Debes actualizar el backend.");
+    // Verificar también centro y modalidad por cada día; no dar éxito si la API los ignora.
+    const normalizeSites=rows=>(rows||[]).map(x=>({
+      weekday:Number(x.weekday),
+      work_mode:String(x.work_mode||"SITE").toUpperCase(),
+      site_id:x.site_id==null?null:String(x.site_id).toLowerCase()
+    })).sort((a,b)=>a.weekday-b.weekday);
+    const sentSites=normalizeSites(work_sites_by_day);
+    const storedSites=normalizeSites(savedCfg.work_sites_by_day);
+    if(JSON.stringify(sentSites)!==JSON.stringify(storedSites)){
+      throw new Error("Los centros de trabajo o modalidades por día no se guardaron correctamente en PostgreSQL. Revisa que el backend admita work_sites_by_day.");
+    }
     const returnedDays=[...new Set((savedCfg.work_sites_by_day||[]).map(x=>Number(x.weekday)).filter(Boolean))].sort((a,b)=>a-b);
     if(JSON.stringify(expectedDays)!==JSON.stringify(returnedDays)){
       throw new Error(`Los días no quedaron guardados correctamente. Enviados: ${expectedDays.join(",")||"ninguno"}; devueltos: ${returnedDays.join(",")||"ninguno"}.`);
@@ -7004,7 +7391,8 @@ async function bmcPersistWorkerConfig(){
       ["NSS",body.nss,savedCfg.nss],
       ["teléfono",body.phone,savedCfg.phone],
       ["fecha de ingreso",expectedHire,returnedHire],
-      ["categoría",String(category),String(savedCfg.category_number||"")],
+      ["categoría de compatibilidad",String(legacyCategory),String(savedCfg.category_number||"")],
+      ["salario diario",body.daily_salary===null?"":Number(body.daily_salary).toFixed(2),savedCfg.daily_salary==null?"":Number(savedCfg.daily_salary).toFixed(2)],
     ];
     const mismatch=scalarChecks.find(([,expected,returned])=>!sameText(expected,returned));
     if(mismatch){
@@ -7021,17 +7409,23 @@ async function bmcPersistWorkerConfig(){
       const nssEl=document.querySelector("#worker-edit-nss"); if(nssEl)nssEl.value=savedCfg.nss||"";
       const phoneEl=document.querySelector("#worker-edit-phone"); if(phoneEl)phoneEl.value=savedCfg.phone||"";
       const hireEl=document.querySelector("#worker-edit-hire-date"); if(hireEl)hireEl.value=savedCfg.hire_date?String(savedCfg.hire_date).slice(0,10):"";
-      const catEl=document.querySelector("#worker-edit-category"); if(catEl)catEl.value=String(savedCfg.category_number||category);
+      const catEl=document.querySelector("#worker-edit-category"); if(catEl)catEl.value=String(savedCfg.category_number||legacyCategory);
+      const salaryEl=document.querySelector("#worker-edit-daily-salary"); if(salaryEl){salaryEl.value=savedCfg.daily_salary??"";salaryEl.dispatchEvent(new Event("input"));}
       bmcRenderDaySitesFromConfig(savedCfg);
     }
+    await bmcSaveLinkedDevice(worker,companyId,code);
     renderDevicesTable(); renderSettingsWorkers(); bmcRenderVacationSummary(); bmcRenderIncidentCounts();
-    setStatus("✓ Trabajador y centros por día guardados en PostgreSQL.");
+    setStatus("Datos Guardados...");
+    showConfigToast("Cambios guardados", "Se verificaron las categorías, los centros y los días en PostgreSQL.");
     return true;
   }catch(error){
     console.error(error);
     const feedback=document.querySelector("#worker-save-feedback");
     if(feedback){feedback.textContent=error.message||"No se pudo guardar el trabajador.";feedback.classList.add("show","save-error");}
     setStatus(error.message||"No se pudo guardar el trabajador.");
+    showConfigToast("No se guardaron los cambios", error.message||"Revisa los datos e inténtalo otra vez.");
+    const toast=document.querySelector("#config-toast");
+    if(toast){toast.style.background="#fff1f2";toast.style.borderColor="#fecdd3";toast.style.color="#9f1239";}
     throw error;
   }
 }
@@ -7077,11 +7471,7 @@ document.addEventListener("click",async event=>{
   }finally{btn.disabled=false;}
 },true);
 
-document.querySelector("#worker-edit-category")?.addEventListener("change",()=>{
-  // Al cambiar de categoría se cargan SOLO los días laborales configurados en esa categoría.
-  const cfg=bmcEditingWorker?bmcWorkerConfigCache[bmcEmployeeCode(bmcEditingWorker)]||{}:{};
-  bmcRenderDaySitesFromConfig(cfg,true);
-});
+// No se reconstruyen los días al cambiar la categoría heredada.
 
 
 async function bmcRenderVacationSummary(){
@@ -7724,7 +8114,18 @@ function bmcEnhanceIncidenceModal(){
   const score=document.querySelector("#incidence-modal-score")?.closest(".modal-field"); if(score)score.style.display="none";
 }
 bmcEnhanceIncidenceModal();
+for(const name of ['Permiso no autorizado','Salida no autorizada','Historial']){
+ const select=document.querySelector('#incidence-modal-type');
+ if(select && ![...select.options].some(o=>o.value===name))select.add(new Option(name,name));
+}
 
+
+// Opciones finales de calificación: Historial sustituye Archivar.
+(function(){
+ const sel=document.getElementById('incidence-modal-type');if(!sel)return;
+ const names=['Ausentismo','Retardo','Permiso médico justificado','Permiso médico no justificado','Permiso no autorizado','Falta justificada','Salida no autorizada','Salida autorizada','Tiempo extraordinario','Historial'];
+ sel.replaceChildren(...names.map(name=>new Option(name,name)));
+})();
 
 async function bmcQualifyIncidenceBackend(event){
 
@@ -7752,7 +8153,7 @@ async function bmcQualifyIncidenceBackend(event){
 
   const concept =
     document.querySelector("#incidence-modal-type")?.value ||
-    "Ausentismo";
+    "";
 
   const notes =
     document.querySelector("#incidence-modal-note")?.value?.trim() ||
@@ -7764,6 +8165,8 @@ async function bmcQualifyIncidenceBackend(event){
   const saveBtn =
     document.querySelector("#incidence-modal-save");
 
+  if(!concept){if(feedback)feedback.textContent="Selecciona una calificación.";return;}
+  if(!notes){ if(feedback)feedback.textContent="Escribe las observaciones antes de guardar."; return; }
   if(!companyId){
     if(feedback) feedback.textContent = "No se encontró la empresa.";
     return;
@@ -7794,7 +8197,9 @@ async function bmcQualifyIncidenceBackend(event){
 
     const response = await authorizedFetch(
       `/api/admin/companies/${encodeURIComponent(companyId)}` +
-      `/incidents/${encodeURIComponent(attendanceId)}/qualify`,
+      (record.automatic_incident_id
+        ? `/automatic-incidents/${encodeURIComponent(record.automatic_incident_id)}/review`
+        : `/incidents/${encodeURIComponent(attendanceId)}/qualify`),
       {
         method: "POST",
         headers: {
@@ -7944,7 +8349,7 @@ function bmcV15Inject(){
   const incidenceRow=[...table.querySelectorAll("tr")].find(r=>r.querySelector(".bmc-concept-value-grid"));
   if(incidenceRow && !document.querySelector("#bmc-absence-value")){
     const normal=BMC_INCIDENCES.filter(x=>!["Ausentismo","Retardo","Tiempo extraordinario"].includes(x));
-    incidenceRow.cells[0].innerHTML=`<div class="incidence-values-grid bmc-concept-value-grid"><div class="incidence-values-head">Concepto</div><div class="incidence-values-head">Valor</div><div>Ausentismo</div><div><input id="bmc-absence-value" type="number" min="0" step="0.01"></div><div>Retardo</div><div class="input-unit"><input id="bmc-late-per-week" type="number" min="1" step="1" value="3"><span>veces</span></div>${normal.map(n=>{const i=BMC_INCIDENCES.indexOf(n);const zero=["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].includes(n);return `<div>${escapeHtml(n)}</div><input id="bmc-inc-${i}" type="number" min="0" step="0.01" value="${zero?0:1}">`;}).join("")}<div>Tiempo extraordinario</div><div class="bmc-overtime-cell"><select id="bmc-overtime-enabled"><option value="si">Sí</option><option value="no">No</option></select></div></div>`;
+    incidenceRow.cells[0].innerHTML=`<div class="incidence-values-grid bmc-concept-value-grid"><div class="incidence-values-head">Concepto</div><div class="incidence-values-head">Valor</div><div>Ausentismo</div><div><input id="bmc-absence-value" type="number" min="0" step="0.01"></div><div>Retardo</div><div class="input-unit"><input id="bmc-late-per-week" type="number" min="1" step="1" value="3"><span>veces</span></div>${normal.map(n=>{const i=BMC_INCIDENCES.indexOf(n);const zero=["Permiso médico justificado","Permiso médico no justificado","Salida autorizada","Falta justificada"].includes(n);return `<div>${escapeHtml(n)}</div><input id="bmc-inc-${i}" type="number" min="0" step="0.01" value="${zero?0:1}">`;}).join("")}<div>Tiempo extraordinario</div><div class="bmc-overtime-cell"><select id="bmc-overtime-enabled"><option value="si">Sí</option><option value="no">No</option></select></div></div>`;
     document.querySelector("#bmc-overtime-enabled")?.addEventListener("change",bmcToggleOvertimeValue);
   }
   document.querySelector("#bmc-meal-minutes")?.addEventListener("input",bmcV15MealEnd);
@@ -7980,7 +8385,7 @@ bmcFillFormExtras=function(cfg={}){
   const values=Object.fromEntries((cfg.incidence_values||[]).map(x=>[x.concept,x]));
   const abs=document.querySelector("#bmc-absence-value"); if(abs){abs.dataset.manual="0";abs.value=bmcV15AbsenceAuto().toFixed(2);}
   const late=document.querySelector("#bmc-late-per-week"); if(late)late.value=cfg.late_per_week??values.Retardo?.late_per_week??3;
-  ["Permiso médico justificado","Permiso médico no justificado","Permiso de salida","Falta justificada"].forEach(name=>{const i=BMC_INCIDENCES.indexOf(name),el=document.querySelector(`#bmc-inc-${i}`);if(el&&values[name]==null)el.value=0;});
+  ["Permiso médico justificado","Permiso médico no justificado","Salida autorizada","Falta justificada"].forEach(name=>{const i=BMC_INCIDENCES.indexOf(name),el=document.querySelector(`#bmc-inc-${i}`);if(el&&values[name]==null)el.value=0;});
   bmcV15RefreshAbsenceFormula(true); bmcV15MealEnd();
 };
 setTimeout(()=>{bmcV15Inject();},0);
@@ -8284,7 +8689,7 @@ bmcInjectOvertimeReport();
 <script>
 /* ===== V16 FINAL: categorías administrables + centros 100% backend ===== */
 (function(){
-  const ZERO_INCIDENCES=new Set(['Permiso médico justificado','Permiso médico no justificado','Permiso de salida','Falta justificada']);
+  const ZERO_INCIDENCES=new Set(['Permiso médico justificado','Permiso médico no justificado','Salida autorizada','Falta justificada']);
   const metaKey=()=>`coati_category_meta_${bmcCompanyId()||'global'}`;
   const readMeta=()=>{try{return JSON.parse(localStorage.getItem(metaKey())||'{}')||{}}catch{return {}}};
   const writeMeta=v=>localStorage.setItem(metaKey(),JSON.stringify(v||{}));
@@ -8589,14 +8994,14 @@ bmcInjectOvertimeReport();
     const zeroConcepts=[
       "Permiso médico justificado",
       "Permiso médico no justificado",
-      "Permiso de salida",
+      "Salida autorizada",
       "Falta justificada"
     ];
     const values=new Map((cfg?.incidence_values||[]).map(x=>[String(x.concept),Number(x.value)]));
     const concepts=[
       "Ausentismo","Retardo",
       "Permiso médico justificado","Permiso médico no justificado",
-      "Permiso de salida","Falta justificada"
+      "Salida autorizada","Falta justificada"
     ];
     return {
       name:String(name||cfg?.name||"").trim(),
@@ -9357,7 +9762,7 @@ routeRows.forEach((row,index)=>{
   else setTimeout(hydratePortal,0);
 })();
 </script>
-\n<script>
+<script>
 /* ===== COOATII V20 — ajustes de incidencias y foráneos ===== */
 (function(){
   function isMealEventV20(record){
@@ -9394,7 +9799,7 @@ routeRows.forEach((row,index)=>{
     if(typeof refreshForeignWorkers==='function')refreshForeignWorkers();
   });
 })();
-</script>\n
+</script>
 <script>
 /* ===== COOATII V21 — Foráneo visible + comida solo como registro ===== */
 (function(){
@@ -9536,7 +9941,7 @@ routeRows.forEach((row,index)=>{
     "Retardo",
     "Permiso médico justificado",
     "Permiso médico no justificado",
-    "Permiso de salida",
+    "Salida autorizada",
     "Falta justificada",
     "Tiempo extraordinario"
   ];
@@ -9717,5 +10122,826 @@ routeRows.forEach((row,index)=>{
 })();
 </script>
 
+
+<style>
+.company-row{display:flex;align-items:center;gap:12px}.company-row .company-logo{width:58px!important;height:58px!important;max-width:58px!important;max-height:58px!important;object-fit:contain!important;flex:0 0 58px!important;background:#fff;border-radius:9px}.company-row .company-data{flex:1;min-width:0}.company-row .company-delete-btn{margin-left:auto;color:#b42318;border:1px solid #fecaca;background:#fff1f2;border-radius:9px;padding:8px 10px;font-weight:700}
+.salary-result{background:#eff6ff;border:1px solid #cfe2fb;border-radius:11px;min-height:44px;padding:12px;font-weight:800;color:#163f61}.salary-note{font-size:11px;color:#64748b;margin-top:5px}.salary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;grid-column:1/-1}@media(max-width:520px){.salary-grid{grid-template-columns:1fr}}
+</style>
+<script>
+/* Ajustes de nómina y administración: no altera las otras secciones. */
+(function(){
+function vacationDays(y){if(y<1)return 12;if(y<=5)return 10+2*y;if(y<=10)return 20+2*Math.floor((y-1)/5);return 22+2*Math.floor((y-6)/5);}
+function updateSalary(){const hire=document.querySelector('#worker-edit-hire-date')?.value, raw=document.querySelector('#worker-edit-daily-salary')?.value.trim(), salary=Number(raw),out=document.querySelector('#worker-edit-sdi');if(!out)return;
+if(!hire||!raw||!Number.isFinite(salary)||salary<=0){out.textContent='Ingresa fecha y sueldo diario';return;}
+const start=new Date(hire+'T12:00:00'),now=new Date(),years=Math.max(0,now.getFullYear()-start.getFullYear()-(now.getMonth()<start.getMonth()||(now.getMonth()===start.getMonth()&&now.getDate()<start.getDate())?1:0));
+const days=vacationDays(years),factor=Math.floor(((365+15+days*.25)/365)*10000)/10000;
+out.textContent=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.round((salary*((365+15+days*.25)/365)+Number.EPSILON)*100)/100);}
+function ensureSalary(){const hire=document.querySelector('#worker-edit-hire-date');if(!hire||document.querySelector('#worker-edit-daily-salary'))return;const grid=document.createElement('div');grid.className='salary-grid';grid.innerHTML='<div class="modal-field"><label for="worker-edit-daily-salary">Sueldo diario ($)</label><input id="worker-edit-daily-salary" type="number" min="0" step="0.01" placeholder="0.00"></div><div class="modal-field"><label>Salario diario integrado (automático)</label><div id="worker-edit-sdi" class="salary-result">Ingresa fecha y sueldo diario</div></div>';hire.closest('.modal-field')?.insertAdjacentElement('afterend',grid);hire.addEventListener('change',updateSalary);grid.querySelector('input').addEventListener('input',updateSalary);}
+ensureSalary();
+const oldRender=window.renderCompanies;
+if(typeof oldRender==='function')window.renderCompanies=function(target,data){oldRender(target,data);if(!target)return;const rows=target.querySelectorAll('.company-row');rows.forEach((row,i)=>{const company=data[i];if(!company?.id)return;const btn=document.createElement('button');btn.type='button';btn.className='company-delete-btn';btn.textContent='Eliminar';btn.onclick=async()=>{if(!confirm('¿Eliminar la empresa '+company.name+'? Esta acción puede afectar trabajadores y centros vinculados.'))return;try{const r=await authorizedFetch('/api/admin/companies/'+encodeURIComponent(company.id),{method:'DELETE'});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||d.error||'El servidor rechazó la eliminación');setStatus('Empresa eliminada.');if(typeof loadCompanies==='function')await loadCompanies();else location.reload();}catch(e){setStatus('No se pudo eliminar: '+e.message);}};row.appendChild(btn);});};
+})();
+</script>
+<script>
+/* COOATII: categorías persistentes en PostgreSQL y SDI compacto. */
+(function(){
+  const money=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2});
+  function salaryCompact(){
+    const output=document.querySelector('#worker-edit-sdi');
+    const input=document.querySelector('#worker-edit-daily-salary');
+    const date=document.querySelector('#worker-edit-hire-date')?.value;
+    if(!output||!input)return;
+    const salary=Number(input.value);
+    if(!date||input.value.trim()===''||!Number.isFinite(salary)||salary<=0){output.textContent='Ingresa fecha y sueldo diario';return;}
+    const start=new Date(date+'T12:00:00'),today=new Date();
+    if(!Number.isFinite(start.getTime())||start>today){output.textContent='Fecha de ingreso inválida';return;}
+    const years=Math.max(0,today.getFullYear()-start.getFullYear()-(today.getMonth()<start.getMonth()||(today.getMonth()===start.getMonth()&&today.getDate()<start.getDate())?1:0));
+    const days=years<1?12:years<=5?10+2*years:years<=10?20+2*Math.floor((years-1)/5):22+2*Math.floor((years-6)/5);
+    const factor=(365+15+days*.25)/365;
+    output.textContent=money.format(Math.round((salary*factor+Number.EPSILON)*100)/100);
+  }
+  function companyId(){return String((typeof bmcCompanyId==='function'?bmcCompanyId():'')||document.querySelector('#devices-company')?.value||'');}
+  function rows(){
+    const cache=typeof bmcCategoriesCache!=='undefined'?bmcCategoriesCache:{};
+    return Object.values(cache||{}).filter(c=>Number.isInteger(Number(c.category_number))&&Number(c.category_number)>0).sort((a,b)=>Number(a.category_number)-Number(b.category_number));
+  }
+  function label(c){return String(c?.name||`Categoría ${c.category_number}`);}
+  async function request(url,method,body){
+    const r=await authorizedFetch(url,{method,headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data.detail||data.error||`Error HTTP ${r.status}`);
+    return data;
+  }
+  async function reload(){
+    const id=companyId();if(!id)return;
+    await bmcLoadCategories(id);
+    render();
+  }
+  function render(){
+    const box=document.querySelector('#settings-worker-list');if(!box)return;
+    const cache=rows();
+    const h=box.closest('.settings-workers-panel')?.querySelector('h4');if(h)h.textContent='Categorías';
+    const desc=box.closest('.settings-workers-panel')?.querySelector('.settings-intro');if(desc)desc.remove();
+    box.replaceChildren();
+    const toolbar=document.createElement('div');toolbar.className='category-toolbar-v16';
+    const add=document.createElement('button');add.type='button';add.className='btn btn-primary btn-small';add.textContent='+ Agregar categoría';
+    toolbar.append(add);box.append(toolbar);
+    add.addEventListener('click',async()=>{
+      const id=companyId();if(!id){setStatus('Selecciona una empresa.');return;}
+      const name=prompt('Escribe el nombre de la nueva categoría:','');if(name===null||!name.trim())return;
+      add.disabled=true;
+      try{await request(`/api/admin/companies/${encodeURIComponent(id)}/categories`,'POST',{name:name.trim()});await reload();setStatus(`Categoría «${name.trim()}» creada correctamente.`);}
+      catch(e){console.error(e);setStatus(`No se pudo agregar: ${e.message}`);}finally{add.disabled=false;}
+    });
+    if(!cache.length){const empty=document.createElement('div');empty.className='config-worker-empty';empty.textContent='No hay categorías. Usa «Agregar categoría».';box.append(empty);}
+    cache.forEach(c=>{
+      const id=String(c.category_number),members=typeof bmcCategoryMembers==='function'?bmcCategoryMembers(id):[];
+      const row=document.createElement('div');row.className='worker-select-row category-row-v16';
+      const main=document.createElement('div');main.className='category-row-main';
+      const nameEl=document.createElement('div');nameEl.className='worker-select-name';nameEl.textContent=label(c);
+      const meta=document.createElement('div');meta.className='worker-select-meta';meta.textContent=`${members.length} trabajador(es) · ${c.configured_at?'✓ Configurada':'Sin guardar'}`;
+      const actions=document.createElement('div');actions.className='category-admin-actions';
+      const rename=document.createElement('button');rename.type='button';rename.className='btn btn-soft btn-small cat-rename';rename.textContent='Renombrar';
+      rename.addEventListener('click',async()=>{
+        const next=prompt('Nuevo nombre de la categoría:',label(c));if(next===null||!next.trim()||next.trim()===label(c))return;
+        rename.disabled=true;
+        try{
+          /* El endpoint PUT espera la configuración completa, no solo el nombre. */
+          const payload={name:next.trim(),start_time:c.start_time||null,end_time:c.end_time||null,meal_start_time:c.meal_start_time||null,meal_end_time:c.meal_end_time||null,tolerance_minutes:Number(c.tolerance_minutes??10),overtime_allowed:c.overtime_allowed!==false,overtime_value:c.overtime_allowed===false?Number(c.overtime_value||0):null,rest_days:Array.isArray(c.rest_days)?c.rest_days:[],workdays:Array.isArray(c.workdays)?c.workdays:[],incidence_values:Array.isArray(c.incidence_values)?c.incidence_values:[]};
+          await request(`/api/admin/companies/${encodeURIComponent(companyId())}/categories/${encodeURIComponent(id)}`,'PUT',payload);
+          await reload();setStatus(`Categoría renombrada a «${next.trim()}».`);
+        }catch(e){console.error(e);setStatus(`No se pudo renombrar: ${e.message}`);}finally{rename.disabled=false;}
+      });
+      const del=document.createElement('button');del.type='button';del.className='btn btn-soft btn-small cat-delete';del.textContent='Eliminar';
+      del.addEventListener('click',async()=>{
+        if(members.length){setStatus(`No puedes eliminar «${label(c)}» porque tiene trabajadores asignados.`);return;}
+        if(!confirm(`¿Eliminar «${label(c)}»? Solo se puede eliminar si no está asignada a ningún trabajador, ni como categoría principal ni en días de la semana. Las categorías restantes se renumerarán consecutivamente.`))return;
+        del.disabled=true;
+        try{await request(`/api/admin/companies/${encodeURIComponent(companyId())}/categories/${encodeURIComponent(id)}`,'DELETE');await reload();setStatus('Categoría eliminada.');}
+        catch(e){console.error(e);setStatus(`No se pudo eliminar: ${e.message}`);}finally{del.disabled=false;}
+      });
+      actions.append(rename,del);main.append(nameEl,meta,actions);
+      const configure=document.createElement('button');configure.type='button';configure.className=`btn ${c.configured_at?'btn-primary':'btn-soft'} btn-small cat-config`;configure.textContent=c.configured_at?'Editar':'Configurar';
+      configure.addEventListener('click',()=>bmcSelectCategory(id));
+      row.append(main,configure);box.append(row);
+    });
+    const select=document.querySelector('#worker-edit-category');
+    if(select){const selected=select.value;select.replaceChildren(new Option('Selecciona categoría',''),...cache.map(c=>new Option(label(c),String(c.category_number))));if(cache.some(c=>String(c.category_number)===selected))select.value=selected;}
+  }
+  window.renderSettingsWorkers=render;
+  window.refreshCategorySelects=function(){const select=document.querySelector('#worker-edit-category');if(!select)return;const selected=select.value;select.replaceChildren(new Option('Selecciona categoría',''),...rows().map(c=>new Option(label(c),String(c.category_number))));if([...select.options].some(o=>o.value===selected))select.value=selected;};
+  window.bmcCategoryDisplayName=function(id){const c=rows().find(x=>String(x.category_number)===String(id));return c?label(c):`Categoría ${id}`;};
+  document.addEventListener('input',e=>{if(e.target?.id==='worker-edit-daily-salary')salaryCompact();});
+  document.addEventListener('change',e=>{if(e.target?.id==='worker-edit-hire-date')salaryCompact();});
+  /* Sobrescribe la salida explicativa previa tras la actualización del formulario. */
+  document.addEventListener('input',e=>{if(e.target?.id==='worker-edit-daily-salary')queueMicrotask(salaryCompact);});
+  document.addEventListener('change',e=>{if(e.target?.id==='worker-edit-hire-date')queueMicrotask(salaryCompact);});
+  document.addEventListener('DOMContentLoaded',()=>{render();salaryCompact();});
+  window.coatiUpdateSalaryCompact=salaryCompact;
+})();
+</script>
+
+<style>
+.company-edit-btn{color:#17476b;border:1px solid #bfd7f4;background:#eff6ff;border-radius:9px;padding:8px 12px;font-weight:700;cursor:pointer}
+.company-edit-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+.company-edit-overlay{position:fixed;inset:0;background:#102b45a8;z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px}
+.company-edit-dialog{background:#fff;border-radius:18px;padding:24px;width:min(740px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 65px #0003;color:#183b58}
+.company-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.company-edit-dialog label{display:grid;gap:6px;font-weight:700;margin:0}.company-edit-dialog input,.company-edit-dialog select{width:100%;box-sizing:border-box;padding:11px;border:1px solid #c5d9ef;border-radius:9px;font:inherit}
+.company-edit-dialog h4{margin:18px 0 12px}.company-edit-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.company-edit-footer button{padding:10px 15px;border-radius:9px;cursor:pointer;border:1px solid #c5d9ef}.company-edit-save{background:#185780;color:white;font-weight:700}
+@media(max-width:600px){.company-edit-grid{grid-template-columns:1fr}}
+</style>
+<script>
+(function(){
+ const previous=window.renderCompanies;
+ if(typeof previous!=='function')return;
+ window.renderCompanies=function(target,data){
+  previous(target,data);
+  if(!target)return;
+  target.querySelectorAll('.company-row').forEach((row,index)=>{
+   const company=data[index];if(!company?.id)return;
+   const edit=document.createElement('button');edit.type='button';edit.className='company-edit-btn';edit.textContent='Editar';
+   const remove=row.querySelector('.company-delete-btn');
+   if(remove){const actions=document.createElement('div');actions.className='company-edit-actions';row.insertBefore(actions,remove);actions.append(edit,remove)}else row.append(edit);
+   edit.onclick=()=>{
+    const profile=company.profile&&typeof company.profile==='object'?company.profile:{};
+    const overlay=document.createElement('div');overlay.className='company-edit-overlay';
+    const dialog=document.createElement('form');dialog.className='company-edit-dialog';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');
+    const heading=document.createElement('h3');heading.textContent='Editar empresa';dialog.append(heading);
+    const fields={};
+    function field(parent,key,label,value,type){const wrap=document.createElement('label');wrap.textContent=label;const input=document.createElement('input');input.type=type||'text';if(type!=='file')input.value=value??'';wrap.append(input);parent.append(wrap);fields[key]=input;return input;}
+    function grid(){const g=document.createElement('div');g.className='company-edit-grid';dialog.append(g);return g;}
+    let g=grid();field(g,'company_name','Nombre de la empresa',company.name).required=true;field(g,'slug','Identificador (slug)',company.slug).required=true;
+    const typeWrap=document.createElement('label');typeWrap.textContent='Tipo de persona';const type=document.createElement('select');[['fisica','Persona física'],['moral','Persona moral']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;type.append(o)});type.value=profile.person_type||'moral';typeWrap.append(type);g.append(typeWrap);
+    const fiscal=document.createElement('h4');fiscal.textContent='Datos fiscales';dialog.append(fiscal);g=grid();
+    field(g,'rfc','RFC',profile.rfc);field(g,'name','Nombre (persona física)',profile.name);
+    field(g,'curp','CURP',profile.curp);field(g,'nss','Número de Seguridad Social',profile.nss);
+    field(g,'business_name','Razón social',profile.business_name);field(g,'trade_name','Nombre comercial',profile.trade_name);
+    field(g,'employer_registration','Registro patronal',profile.employer_registration);
+    const address=document.createElement('h4');address.textContent='Ubicación de la empresa';dialog.append(address);g=grid();
+    field(g,'postal_code','Código postal',profile.postal_code);field(g,'street','Calle',profile.street);
+    field(g,'number','Número',profile.number);field(g,'radius_m','Rango permitido (m)',profile.radius_m??150,'number');
+    field(g,'latitude','Latitud',profile.latitude,'number').step='any';field(g,'longitude','Longitud',profile.longitude,'number').step='any';
+    const logo=field(dialog,'logo','Cambiar logotipo (opcional)','', 'file');logo.accept='image/png,image/jpeg';
+    const footer=document.createElement('div');footer.className='company-edit-footer';const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';const save=document.createElement('button');save.type='submit';save.className='company-edit-save';save.textContent='Guardar cambios';footer.append(cancel,save);dialog.append(footer);overlay.append(dialog);document.body.append(overlay);
+    const close=()=>overlay.remove();cancel.onclick=close;overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+    dialog.addEventListener('submit',async e=>{
+     e.preventDefault();save.disabled=true;save.textContent='Guardando…';
+     try{const body=new FormData();body.append('name',fields.company_name.value.trim());body.append('slug',fields.slug.value.trim());
+      const p={person_type:type.value};for(const k of ['rfc','name','curp','nss','business_name','trade_name','employer_registration','postal_code','street','number','radius_m','latitude','longitude'])p[k]=fields[k].value.trim();
+      body.append('profile',JSON.stringify(p));if(logo.files&&logo.files[0])body.append('logo',logo.files[0]);
+      const response=await authorizedFetch('/api/admin/companies/'+encodeURIComponent(company.id),{method:'PATCH',body});
+      const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.detail||result.error||'No se pudo guardar');
+      close();await loadCompanies();if(typeof setStatus==='function')setStatus('Empresa actualizada correctamente.');
+     }catch(error){alert('No se pudo actualizar la empresa: '+error.message)}finally{save.disabled=false;save.textContent='Guardar cambios'}
+    });
+   };
+  });
+ };
+})();
+</script>
+
+<script>
+/* Políticas centralizadas por empresa, con carga y guardado verificados. */
+(function(){
+  let remoteRows=[],loaded=false,busy=false,revision=0;
+  const box=document.querySelector('#policies-list');
+  const add=document.querySelector('#add-policy');
+  const settingsSelect=document.querySelector('#settings-company');
+  const sourceSelect=document.querySelector('#devices-company');
+  if(!box||!add||!settingsSelect||!sourceSelect)return;
+  function cid(){return String(settingsSelect.value||'');}
+  function notify(message,isError=false){
+    if(typeof setStatus==='function')setStatus(message,isError?'error':undefined);
+    if(isError)console.error(message);
+  }
+  function normalize(payload){
+    const rows=Array.isArray(payload)?payload:
+      Array.isArray(payload?.policies)?payload.policies:
+      Array.isArray(payload?.data)?payload.data:null;
+    if(!rows)throw new Error('El servidor devolvió un formato de políticas inesperado.');
+    return rows.map(p=>({title:String(p.title||''),text:String(p.text||'')}));
+  }
+  async function api(method,rows,company=cid()){
+    if(!company)throw new Error('Selecciona una empresa primero.');
+    const response=await authorizedFetch('/api/admin/companies/'+encodeURIComponent(company)+'/policies',{
+      method,
+      ...(method==='PUT'?{headers:{'Content-Type':'application/json'},body:JSON.stringify({policies:rows})}:{})
+    });
+    const data=await response.json().catch(()=>null);
+    if(!response.ok)throw new Error(data?.error||data?.detail||'Error HTTP '+response.status);
+    return data;
+  }
+  function render(){
+    box.replaceChildren();
+    if(!cid()){box.textContent='Selecciona una empresa para consultar sus políticas.';return;}
+    if(!loaded){box.textContent='Cargando políticas desde PostgreSQL...';return;}
+    if(!remoteRows.length){
+      const msg=document.createElement('div');msg.className='empty';msg.textContent='No hay políticas guardadas para esta empresa.';box.append(msg);
+      return;
+    }
+    remoteRows.forEach((policy,index)=>{
+      const item=document.createElement('div');item.className='policy-item';
+      const title=document.createElement('input');title.className='policy-title';title.value=policy.title;title.placeholder='Nombre de la política';
+      const row=document.createElement('div');row.className='policy-row-v8';
+      const textarea=document.createElement('textarea');textarea.className='policy-text';textarea.value=policy.text;textarea.placeholder='Descripción de la política';
+      const actions=document.createElement('div');actions.className='policy-actions';
+      const saveBtn=document.createElement('button');saveBtn.className='btn btn-primary';saveBtn.type='button';saveBtn.textContent='Guardar';
+      const delBtn=document.createElement('button');delBtn.className='btn btn-soft';delBtn.type='button';delBtn.textContent='Eliminar';
+      saveBtn.onclick=async()=>{const updated=remoteRows.map((p,i)=>i===index?{title:title.value,text:textarea.value}:p);await save(updated);};
+      delBtn.onclick=async()=>{if(confirm('¿Eliminar esta política?'))await save(remoteRows.filter((_,i)=>i!==index));};
+      actions.append(saveBtn,delBtn);row.append(textarea,actions);item.append(title,row);box.append(item);
+    });
+  }
+  async function load(){
+    const company=cid(),ticket=++revision;
+    loaded=false;remoteRows=[];render();
+    if(!company)return;
+    try{
+      const result=normalize(await api('GET',undefined,company));
+      if(ticket!==revision||cid()!==company)return;
+      remoteRows=result;loaded=true;render();
+    }catch(e){
+      if(ticket!==revision)return;
+      box.textContent='No se pudieron cargar las políticas: '+e.message;
+      notify('Error cargando políticas: '+e.message,true);
+    }
+  }
+  async function save(rows){
+    if(busy)return;
+    const company=cid();if(!company){notify('Selecciona una empresa primero.',true);return;}
+    busy=true;
+    try{
+      await api('PUT',rows,company);
+      const verified=normalize(await api('GET',undefined,company));
+      if(cid()!==company)return;
+      if(JSON.stringify(verified)!==JSON.stringify(rows.map(p=>({title:String(p.title||''),text:String(p.text||'')}))))
+        throw new Error('El servidor respondió, pero los datos recuperados no coinciden con lo guardado.');
+      remoteRows=verified;loaded=true;render();notify('Políticas guardadas correctamente.');
+    }catch(e){notify('No se guardaron las políticas: '+e.message,true);alert('No se guardaron las políticas: '+e.message);}
+    finally{busy=false;}
+  }
+  // Reemplaza el botón anterior, que guardaba políticas solo en el navegador.
+  const replacement=add.cloneNode(true);add.replaceWith(replacement);
+  replacement.addEventListener('click',()=>{if(!loaded){notify('Primero selecciona una empresa y espera a que carguen las políticas.',true);return;}save([...remoteRows,{title:'NUEVA POLÍTICA',text:''}]);});
+  window.renderPolicies=render;
+  // Reutiliza el selector de empresas del módulo Trabajadores, sin inventar otra fuente de datos.
+  function syncCompanies(){
+    const previous=settingsSelect.value;
+    const options=[...sourceSelect.options].filter(o=>o.value);
+    const signature=options.map(o=>o.value+'|'+o.textContent).join(';');
+    const oldSignature=[...settingsSelect.options].filter(o=>o.value).map(o=>o.value+'|'+o.textContent).join(';');
+    if(signature===oldSignature&&settingsSelect.value===sourceSelect.value)return;
+    settingsSelect.replaceChildren();
+    const empty=document.createElement('option');empty.value='';empty.textContent='Selecciona una empresa';settingsSelect.append(empty);
+    options.forEach(o=>{const item=document.createElement('option');item.value=o.value;item.textContent=o.textContent;settingsSelect.append(item);});
+    const chosen=sourceSelect.value||((previous&&options.some(o=>o.value===previous))?previous:'');
+    settingsSelect.value=chosen;
+    if(cid())load();
+    else{loaded=false;remoteRows=[];render();}
+  }
+  settingsSelect.addEventListener('change',()=>{
+    if(sourceSelect.value!==settingsSelect.value){
+      sourceSelect.value=settingsSelect.value;
+      sourceSelect.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+    load();
+  });
+  sourceSelect.addEventListener('change',syncCompanies);
+  new MutationObserver(syncCompanies).observe(sourceSelect,{childList:true,subtree:true,attributes:false});
+  syncCompanies();
+})();
+</script>
+<script>
+/* Checadores compartidos: usa rutas propias; no usa los códigos Android. */
+(function () {
+  const $ = id => document.getElementById(id);
+  const company = $('shared-kiosk-company'), site = $('shared-kiosk-site');
+  const filterCompany = $('shared-kiosk-filter-company');
+  const message = $('shared-kiosk-message'), list = $('shared-kiosk-list');
+  const codeBox = $('shared-kiosk-code-box'), createBtn = $('shared-kiosk-create-btn');
+  const originalCompany = $('devices-company');
+  $('shared-kiosk-copy-btn').addEventListener('click', async () => {
+    const code = $('shared-kiosk-code').textContent.trim();
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      const button = $('shared-kiosk-copy-btn');
+      button.textContent = '✓ ¡Copiado!';
+      button.style.background = '#15803d';
+      button.style.color = '#ffffff';
+      message.textContent = 'Código copiado.';
+    } catch (err) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents($('shared-kiosk-code'));
+      selection.removeAllRanges();
+      selection.addRange(range);
+      message.textContent = 'Selecciona el código y presiona Ctrl+C para copiarlo.';
+    }
+  });
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  async function api(url, options={}) {
+    const r = await authorizedFetch(url, options);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `Error HTTP ${r.status}`);
+    return data;
+  }
+  function syncCompanies() {
+    if (!originalCompany) return;
+    const selected = company.value;
+    const selectedFilter = filterCompany.value;
+    filterCompany.replaceChildren(new Option('Selecciona una empresa', ''));
+    for (const o of originalCompany.options) if (o.value) filterCompany.add(new Option(o.textContent, o.value));
+    if ([...filterCompany.options].some(o => o.value === selectedFilter)) filterCompany.value = selectedFilter;
+    else if ([...filterCompany.options].filter(o => o.value).length === 1) filterCompany.selectedIndex = 1;
+    company.replaceChildren(new Option('Selecciona una empresa', ''));
+    for (const o of originalCompany.options) if (o.value) company.add(new Option(o.textContent, o.value));
+    if ([...company.options].some(o => o.value === selected)) company.value = selected;
+    else if ([...company.options].filter(o => o.value).length === 1) company.selectedIndex = 1;
+  }
+  async function loadSites() {
+    site.replaceChildren(new Option('Selecciona un centro de trabajo', ''));
+    if (!company.value) return;
+    const rows = await api(`/api/admin/companies/${encodeURIComponent(company.value)}/sites`);
+    for (const s of rows) site.add(new Option(s.name, s.id));
+  }
+  async function loadDevices() {
+    list.textContent = 'Cargando dispositivos…';
+    if (!filterCompany.value) { list.textContent = 'Selecciona una empresa en el filtro superior.'; return; }
+    const rows = await api(`/api/admin/companies/${encodeURIComponent(filterCompany.value)}/shared-checkers`);
+    if (!rows.length) { list.textContent = 'Aún no hay checadores compartidos.'; return; }
+    list.innerHTML = rows.map(d => `<div class="data-item shared-device-card">
+      <strong>${esc(d.device_name)}</strong><br><small>${esc(d.site_name)} · ${d.is_active ? 'Vinculado' : 'Pendiente de vinculación'}</small>
+      <div class="inline-actions" style="margin-top:8px">
+        <button type="button" class="btn btn-primary btn-small" data-workers="${esc(d.id)}">Ver trabajadores asignados</button>
+        <button type="button" class="btn btn-soft btn-small" data-revoke="${esc(d.id)}">Eliminar</button>
+      </div>
+      <div class="hidden shared-device-workers" id="checker-workers-${esc(d.id)}"></div>
+    </div>`).join('');
+  }
+  // Sincroniza la lista de checadores mientras esta sección está abierta.
+  // No crea códigos ni dispositivos adicionales.
+  let checkerPollBusy=false;
+  setInterval(async()=>{
+    const page=document.getElementById('shared-kiosk-page');
+    if(!page || !page.classList.contains('active') || checkerPollBusy || !filterCompany.value) return;
+    if(list.querySelector('.shared-device-workers:not(.hidden)')) return;
+    checkerPollBusy=true;
+    try { await loadDevices(); } catch(err) { console.warn('Sincronización de checadores:',err); }
+    finally { checkerPollBusy=false; }
+  },5000);
+  async function refresh() {
+    codeBox.classList.add('hidden'); message.textContent='';
+    try { await Promise.all([loadSites(),loadDevices()]); }
+    catch(e) { message.textContent=e.message; }
+  }
+  company.addEventListener('change', async () => { codeBox.classList.add('hidden'); message.textContent=''; try { await loadSites(); } catch(e) { message.textContent=e.message; } });
+  filterCompany.addEventListener('change', async () => { try { await loadDevices(); } catch(e) { list.textContent=e.message; } });
+  document.querySelector('[data-page="shared-kiosk-page"]')?.addEventListener('click',async () => {
+    syncCompanies(); await refresh();
+  });
+  new MutationObserver(syncCompanies).observe(originalCompany,{childList:true});
+  createBtn.addEventListener('click',async()=>{
+    const name=$('shared-kiosk-name').value.trim();
+    if (!company.value || !site.value || !name) {
+      message.textContent='Selecciona empresa y centro, y escribe el nombre del dispositivo.'; return;
+    }
+    createBtn.disabled=true; message.textContent='Generando código…';
+    try {
+      const data=await api(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({device_name:name,site_id:site.value})
+      });
+      $('shared-kiosk-code').textContent=data.enrollment_code;
+      $('shared-kiosk-copy-btn').textContent='Copiar código';
+      $('shared-kiosk-copy-btn').style.background='';
+      $('shared-kiosk-copy-btn').style.color='';
+      $('shared-kiosk-expiry').textContent='Vence: '+new Date(data.expires_at).toLocaleString('es-MX');
+      codeBox.classList.remove('hidden'); message.textContent='Código generado correctamente.';
+      if (filterCompany.value === company.value) await loadDevices();
+    } catch(e) {message.textContent=e.message;} finally {createBtn.disabled=false;}
+  });
+  async function loadAssigned(checkerId) {
+    const panel = document.getElementById('checker-workers-' + checkerId);
+    if (!panel) return;
+    const companyId = filterCompany.value;
+    panel.textContent='Cargando trabajadores…';
+    try {
+      const base = `/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers`;
+      const [devices, employees] = await Promise.all([
+        api(base),
+        api(`/api/admin/companies/${encodeURIComponent(companyId)}/employees`)
+      ]);
+      if (!Array.isArray(devices) || !Array.isArray(employees)) throw new Error('No se pudo cargar el catálogo de trabajadores.');
+      const groups = await Promise.all(devices.map(d => api(`${base}/${encodeURIComponent(d.id)}/employees`)));
+      if (filterCompany.value !== companyId || !panel.isConnected) return;
+      const currentIndex = devices.findIndex(d => String(d.id) === String(checkerId));
+      if (currentIndex < 0) throw new Error('No se encontró el dispositivo.');
+      const assigned = groups[currentIndex].filter(w => w.enabled !== false);
+      const occupied = new Set(groups.flat().filter(w => w.enabled !== false).map(w => String(w.employee_code || '').trim().toUpperCase()));
+      const free = employees.filter(w => w.employee_code && !occupied.has(String(w.employee_code).trim().toUpperCase()));
+      const device = devices[currentIndex];
+      panel.innerHTML = `<span class="checker-assigned-title">Trabajadores asignados a ${esc(device.device_name)}</span>
+        <div class="checker-assigned-list">${assigned.length ? assigned.map(w => `<div class="checker-assigned-row">
+          <span class="checker-assigned-name">${esc(w.full_name)} (${esc(w.employee_code)})</span>
+          <span class="checker-worker-buttons"><button type="button" class="btn btn-soft btn-small" data-unassign-employee="${esc(w.employee_id)}" data-checker-id="${esc(checkerId)}" data-worker-name="${esc(w.full_name)}">Eliminar</button><button type="button" class="btn btn-soft btn-small" data-copy-employee-code="${esc(w.employee_code)}" title="Copiar número de empleado">Copiar ID</button></span>
+        </div>`).join('') : '<span style="color:#64748b;font-size:12px">Sin trabajadores asignados.</span>'}</div>
+        <div class="checker-add-box">
+          <div class="checker-add-title">Agregar trabajador</div>
+          <div class="checker-add-row">
+            <select aria-label="Trabajador disponible" id="checker-free-${esc(checkerId)}" data-free-select="${esc(checkerId)}" ${!device.is_active || !free.length ? 'disabled' : ''}>
+              <option value="">${!device.is_active ? 'Primero vincula este dispositivo' : free.length ? 'Seleccionar trabajador libre…' : 'No hay trabajadores libres'}</option>
+              ${free.map(w => `<option value="${esc(w.employee_code)}">${esc(w.full_name || w.employee_name || w.employee_code)} (${esc(w.employee_code)})</option>`).join('')}
+            </select>
+            <button type="button" class="btn btn-primary btn-small" data-assign-checker="${esc(checkerId)}" ${!device.is_active || !free.length ? 'disabled' : ''}>Agregar</button>
+          </div>
+        </div>`;
+    } catch(e) { panel.textContent=e.message; }
+  }
+  list.addEventListener('click',async(e)=>{
+    const copyButton=e.target.closest('button[data-copy-employee-code]');
+    if(copyButton){
+      const code=copyButton.dataset.copyEmployeeCode;
+      try{
+        await navigator.clipboard.writeText(code);
+        const original=copyButton.textContent;
+        copyButton.textContent='¡Copiado!';
+        setTimeout(()=>{if(copyButton.isConnected)copyButton.textContent=original;},1500);
+      }catch(err){
+        // Respaldo para navegadores sin acceso al portapapeles moderno.
+        const field=document.createElement('textarea');
+        field.value=code;field.style.position='fixed';field.style.opacity='0';
+        document.body.appendChild(field);field.select();
+        const copied=document.execCommand('copy');field.remove();
+        if(copied){copyButton.textContent='¡Copiado!';setTimeout(()=>{if(copyButton.isConnected)copyButton.textContent='Copiar ID';},1500);}
+        else message.textContent='No se pudo copiar el ID. Número: '+code;
+      }
+      return;
+    }
+    const removeButton=e.target.closest('button[data-unassign-employee]');
+    if(removeButton){
+      const checkerId=removeButton.dataset.checkerId;
+      const employeeId=removeButton.dataset.unassignEmployee;
+      const workerName=removeButton.dataset.workerName;
+      if(!confirm(`¿Quitar a ${workerName} de este dispositivo? El trabajador y sus asistencias se conservarán.`))return;
+      removeButton.disabled=true;
+      try{
+        await api(`/api/admin/companies/${encodeURIComponent(filterCompany.value)}/shared-checkers/${encodeURIComponent(checkerId)}/employees/${encodeURIComponent(employeeId)}`,{method:'DELETE'});
+        await loadAssigned(checkerId);
+        message.textContent='Trabajador liberado. Ya puedes agregarlo a otro dispositivo compartido.';
+      }catch(err){message.textContent=err.message;removeButton.disabled=false;}
+      return;
+    }
+    const addButton=e.target.closest('button[data-assign-checker]');
+    if(addButton){
+      const checkerId=addButton.dataset.assignChecker;
+      const selector=document.getElementById('checker-free-'+checkerId);
+      const code=selector?.value;
+      if(!code){message.textContent='Selecciona un trabajador disponible.';return;}
+      addButton.disabled=true;
+      try{
+        await api(`/api/admin/companies/${encodeURIComponent(filterCompany.value)}/shared-checkers/${encodeURIComponent(checkerId)}/employees`,{
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({employee_code:code})
+        });
+        await loadAssigned(checkerId);
+        message.textContent='Trabajador asignado al dispositivo correctamente.';
+      }catch(err){message.textContent=err.message;addButton.disabled=false;}
+      return;
+    }
+    const workerButton=e.target.closest('button[data-workers]');
+    if(workerButton){
+      const panel=document.getElementById('checker-workers-'+workerButton.dataset.workers);
+      if(!panel)return;
+      const wasHidden=panel.classList.contains('hidden');
+      document.querySelectorAll('[id^="checker-workers-"]').forEach(el=>el.classList.add('hidden'));
+      if(wasHidden){panel.classList.remove('hidden');await loadAssigned(workerButton.dataset.workers);}
+      return;
+    }
+    const btn=e.target.closest('button[data-revoke]'); if(!btn)return;
+    if(!confirm('¿Eliminar este checador? Se cancelará su código y perderá el acceso.'))return;
+    btn.disabled=true;
+    try {
+      await api(`/api/admin/companies/${encodeURIComponent(filterCompany.value)}/shared-checkers/${encodeURIComponent(btn.dataset.revoke)}`,{method:'DELETE'});
+      codeBox.classList.add('hidden'); await loadDevices();
+      message.textContent='Checador eliminado.';
+    } catch(err) {message.textContent=err.message;btn.disabled=false;}
+  });
+  syncCompanies();
+})();
+</script>
+
+<script>
+/* Campos comunes para alta de trabajadores: el servidor genera el código sin duplicados. */
+window.tabletWorkerForm = (function(){
+ const days=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+ const cache=new Map();
+ async function json(url){const r=await authorizedFetch(url);const d=await r.json().catch(()=>null);if(!r.ok)throw Error(d?.error||'No se pudo cargar la configuración');return d;}
+ async function fill(form,companyId,defaultSite=''){
+   const box=form.querySelector('.tablet-worker-days');if(!box||!companyId)return;
+   box.textContent='Cargando centros y categorías…';
+   try{
+     const [sites,categories]=await Promise.all([
+       json(`/api/admin/companies/${encodeURIComponent(companyId)}/sites`),
+       json(`/api/admin/companies/${encodeURIComponent(companyId)}/categories`)
+     ]);
+     if(!Array.isArray(sites)||!Array.isArray(categories))throw Error('No se recibieron centros o categorías válidos');
+     const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+     const siteOptions='<option value="">Sin asignar</option>'+sites.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+     const catOptions='<option value="">Sin categoría</option>'+categories.map(x=>`<option value="${esc(x.category_number)}">${esc(x.name||'Categoría '+x.category_number)}</option>`).join('');
+     box.innerHTML=`<div class="tablet-day-row" style="margin-bottom:10px"><div><label>Centro de trabajo</label><select class="tablet-all-site">${siteOptions}</select></div><div><label>Categoría</label><select class="tablet-all-category">${catOptions}</select></div><button type="button" class="btn btn-soft tablet-apply-all">Aplicar a todos</button></div>`+
+       days.map((day,i)=>`<div class="tablet-day-row" data-day="${i+1}"><strong>${day}</strong><select class="tablet-day-site" aria-label="Centro ${day}">${siteOptions}</select><select class="tablet-day-category" aria-label="Categoría ${day}">${catOptions}</select></div>`).join('');
+     if(defaultSite){box.querySelector('.tablet-all-site').value=defaultSite;box.querySelectorAll('.tablet-day-site').forEach(el=>el.value=defaultSite);}
+     box.querySelector('.tablet-apply-all').onclick=()=>{const a=box.querySelector('.tablet-all-site').value,b=box.querySelector('.tablet-all-category').value;box.querySelectorAll('.tablet-day-site').forEach(x=>x.value=a);box.querySelectorAll('.tablet-day-category').forEach(x=>x.value=b);};
+   }catch(e){box.textContent=e.message;throw e;}
+ }
+ function payload(form){
+   const data=Object.fromEntries(new FormData(form).entries());
+   const sites=[],cats=[];
+   form.querySelectorAll('[data-day]').forEach(row=>{
+     const weekday=Number(row.dataset.day),site=row.querySelector('.tablet-day-site').value,cat=row.querySelector('.tablet-day-category').value;
+     if(site||cat){if(!site||!cat)throw Error('Completa el centro y la categoría de cada día seleccionado.');sites.push({weekday,work_mode:'SITE',site_id:site});cats.push({weekday,category_number:Number(cat)});}
+   });
+   if(!sites.length)throw Error('Selecciona al menos un día con centro y categoría.');
+   if(!data.hire_date)throw Error('Indica la fecha de ingreso.');
+   if(!data.daily_salary||!Number.isFinite(Number(data.daily_salary))||Number(data.daily_salary)<=0)throw Error('Ingresa un sueldo diario válido.');
+   return {data,config:{hire_date:data.hire_date,daily_salary:Number(data.daily_salary),category_number:cats[0].category_number,categories_by_day:cats,work_sites_by_day:sites}};
+ }
+ async function save(form,companyId,checkerId,request){
+   const {data,config}=payload(form);
+   // Alta y asignación. El código lo genera PostgreSQL dentro de una transacción.
+   const created=await request(`/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers/${encodeURIComponent(checkerId)}/new-employee`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+   const code=created.employee_code;
+   const r=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/config`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
+   const result=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(`Se creó ${code}, pero no se guardó su sueldo, categoría o centro: ${result.error||'Error HTTP '+r.status}. Abre Editar trabajador para completar su configuración.`);
+   return created;
+ }
+ function sdi(form){
+   const out=form.querySelector('.auto-sdi'),salary=Number(form.querySelector('[name="daily_salary"]')?.value),hire=form.querySelector('[name="hire_date"]')?.value;
+   if(!out)return;
+   if(!hire||!Number.isFinite(salary)||salary<=0){out.textContent='Ingresa fecha y sueldo diario';return;}
+   const d=new Date(hire+'T12:00:00'),now=new Date();if(!Number.isFinite(d.getTime())||d>now){out.textContent='Fecha inválida';return;}
+   let years=now.getFullYear()-d.getFullYear();if(now.getMonth()<d.getMonth()||(now.getMonth()===d.getMonth()&&now.getDate()<d.getDate()))years--;years=Math.max(0,years);
+   const vac=years<1?12:years<=5?10+2*years:years<=10?20+2*Math.floor((years-1)/5):22+2*Math.floor((years-6)/5);
+   out.textContent=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(salary*(365+15+vac*.25)/365);
+ }
+ document.addEventListener('input',e=>{const f=e.target.closest?.('form');if(f&&(e.target.name==='daily_salary'||e.target.name==='hire_date'))sdi(f);});
+ document.addEventListener('change',e=>{const f=e.target.closest?.('form');if(f&&e.target.name==='hire_date')sdi(f);});
+ return {fill,save};
+})();
+</script>
+<style>
+.tablet-day-row{display:grid;grid-template-columns:minmax(90px,.55fr) minmax(120px,1fr) minmax(120px,1fr);gap:9px;align-items:center;margin:6px 0}
+.tablet-day-row select{min-width:0}.tablet-day-row label{margin:0 0 5px}.tablet-day-row:has(.tablet-apply-all){grid-template-columns:1fr 1fr auto}
+@media(max-width:680px){.tablet-day-row{grid-template-columns:1fr}.tablet-day-row:has(.tablet-apply-all){grid-template-columns:1fr}}
+</style>
+<script>
+/* Alta de trabajadores de tablet desde la sección Trabajadores. */
+(function(){
+ const byId=id=>document.getElementById(id);
+ const overlay=byId('worker-create-overlay'),form=byId('worker-create-form');
+ const company=byId('worker-create-company'),checker=byId('worker-create-checker');
+ const feedback=byId('worker-create-feedback'),save=byId('worker-create-save');
+ const original=byId('devices-company');
+ async function request(url,options={}){
+   const response=await authorizedFetch(url,options);
+   const body=await response.json().catch(()=>null);
+   if(!response.ok)throw new Error(body?.error||`Error HTTP ${response.status}`);
+   return body;
+ }
+ function syncCompanies(){
+   const old=company.value;
+   company.replaceChildren(new Option('Selecciona una empresa',''));
+   for(const option of original.options){if(option.value)company.add(new Option(option.textContent,option.value));}
+   company.value=[...company.options].some(o=>o.value===old)?old:(original.value||'');
+ }
+ async function loadCheckers(){
+   checker.replaceChildren(new Option('Selecciona una tablet',''));
+   if(!company.value)return;
+   try{
+     const rows=await request(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`);
+     for(const row of rows){if(row.is_active)checker.add(new Option(`${row.device_name} · ${row.site_name||'Sin centro'}`,row.id));}
+     if(checker.options.length===1)feedback.textContent='Esta empresa no tiene tablets vinculadas. Vincula una primero en Checadores compartidos.';
+     else feedback.textContent='';
+     checker.dispatchEvent(new Event('change'));
+   }catch(e){feedback.textContent=e.message;}
+ }
+ async function open(){
+   form.reset();feedback.textContent='';syncCompanies();overlay.classList.remove('hidden');await loadCheckers();
+ }
+ function close(){overlay.classList.add('hidden');}
+ byId('worker-open-create').addEventListener('click',open);
+ byId('worker-create-close').addEventListener('click',close);
+ byId('worker-create-cancel').addEventListener('click',close);
+ company.addEventListener('change',loadCheckers);
+ checker.addEventListener('change',async()=>{if(!checker.value)return;try{const rows=await request(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`);const selected=rows.find(x=>String(x.id)===checker.value);await tabletWorkerForm.fill(form,company.value,selected?.site_id||'');}catch(e){feedback.textContent=e.message;}});
+ overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+ form.addEventListener('submit',async e=>{
+   e.preventDefault();
+   if(!company.value||!checker.value){feedback.textContent='Selecciona empresa y tablet vinculada.';return;}
+   save.disabled=true;feedback.textContent='Guardando trabajador…';
+   try{
+     const created=await tabletWorkerForm.save(form,company.value,checker.value,request);
+     feedback.textContent=`Trabajador ${created.employee_code} registrado y configurado correctamente.`;
+     if(document.querySelector('#devices-company')?.value===company.value && typeof loadDevices==='function')await loadDevices();
+     else if(typeof loadData==='function')await loadData();
+     setTimeout(close,900);
+   }catch(err){feedback.textContent=err.message;}
+   finally{save.disabled=false;}
+ });
+})();
+</script>
+<script>
+document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', async function () {
+  const url = 'https://cooatii.com/checador';
+  try {
+    await navigator.clipboard.writeText(url);
+    const previous = this.textContent;
+    this.textContent = 'Enlace copiado';
+    setTimeout(() => { this.textContent = previous; }, 1800);
+  } catch (_) {
+    window.prompt('Copia este enlace:', url);
+  }
+});
+</script>
+
+<script>
+/* Filtro Dispositivo: independientes y compartido según asignación a tablet.
+   Solo consulta las rutas de asignación existentes; no cambia los empleados. */
+(function () {
+  const company = document.getElementById('devices-company');
+  const filter = document.getElementById('workers-checker-filter');
+  const status = document.getElementById('workers-checker-filter-status');
+  const tbody = document.getElementById('devices');
+  if (!company || !filter || !tbody) return;
+  let assignedCodes = new Set();
+  let loadedCompany = '';
+  let loaded = false;
+  let requestNumber = 0;
+  let applyScheduled = false;
+
+  async function getJson(url) {
+    const response = await authorizedFetch(url);
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((data && data.error) || 'HTTP ' + response.status);
+    if (!Array.isArray(data)) throw new Error('La API no devolvió una lista válida.');
+    return data;
+  }
+
+  function applyFilter() {
+    const mode = filter.value;
+    const companyId = company.value;
+    const canFilter = mode === 'all' || (loaded && loadedCompany === companyId);
+    let visible = 0;
+    let total = 0;
+    for (const tr of tbody.querySelectorAll('tr')) {
+      const code = tr.querySelector('td:first-child')?.textContent?.trim().toUpperCase();
+      if (!code || tr.querySelectorAll('td').length < 3) continue;
+      total++;
+      const shared = assignedCodes.has(code);
+      const show = !canFilter || mode === 'all' || (mode === 'shared' ? shared : !shared);
+      tr.hidden = !show;
+      tr.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+    const existing = document.getElementById('workers-checker-empty');
+    const showEmpty = canFilter && mode !== 'all' && total > 0 && visible === 0;
+    if (existing && !showEmpty) existing.remove();
+    if (showEmpty) {
+      if (existing) {
+        existing.firstElementChild.textContent = mode === 'shared' ? 'No hay trabajadores con dispositivo compartido.' : 'No hay trabajadores independientes.';
+      } else {
+        const tr = document.createElement('tr');
+        tr.id = 'workers-checker-empty';
+        const td = document.createElement('td');
+        td.colSpan = tbody.closest('table')?.querySelectorAll('thead th').length || 15;
+        td.textContent = mode === 'shared' ? 'No hay trabajadores con dispositivo compartido.' : 'No hay trabajadores independientes.';
+        td.style.padding = '18px';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+    }
+    if (canFilter && mode !== 'all') status.textContent = visible + ' trabajador(es) en este filtro.';
+  }
+
+  function scheduleApply() {
+    if (applyScheduled) return;
+    applyScheduled = true;
+    queueMicrotask(() => { applyScheduled = false; applyFilter(); });
+  }
+
+  async function refreshAssignments() {
+    const companyId = company.value;
+    const current = ++requestNumber;
+    loaded = false;
+    loadedCompany = '';
+    assignedCodes.clear();
+    if (filter.value === 'all') { status.textContent = ''; scheduleApply(); return; }
+    if (!companyId) { status.textContent = 'Selecciona una empresa.'; scheduleApply(); return; }
+    status.textContent = 'Consultando trabajadores de tablets…';
+    try {
+      const base = '/api/admin/companies/' + encodeURIComponent(companyId) + '/shared-checkers';
+      const checkers = await getJson(base);
+      const groups = await Promise.all(checkers.map(checker =>
+        getJson(base + '/' + encodeURIComponent(checker.id) + '/employees')
+      ));
+      if (current !== requestNumber || company.value !== companyId) return;
+      assignedCodes = new Set(groups.flat().filter(w => w.enabled !== false).map(w => String(w.employee_code || '').trim().toUpperCase()).filter(Boolean));
+      loadedCompany = companyId;
+      loaded = true;
+      scheduleApply();
+    } catch (error) {
+      if (current !== requestNumber) return;
+      status.textContent = 'No se pudo consultar la asignación a tablets: ' + error.message;
+      // En caso de error se muestra la tabla completa, nunca resultados falsos.
+      scheduleApply();
+    }
+  }
+
+  filter.addEventListener('change', refreshAssignments);
+  company.addEventListener('change', refreshAssignments);
+  new MutationObserver(scheduleApply).observe(tbody, {childList: true, subtree: false});
+  document.querySelector('[data-page="devices-page"]')?.addEventListener('click', () => {
+    if (filter.value !== 'all') refreshAssignments();
+  });
+  scheduleApply();
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function(){
+ const q=id=>document.getElementById(id);
+ const btn=q('coo-export');
+ const reviewLabel=r=>r.review_status==='pending'?'Falta por calificar':r.review_status==='qualified'?'Calificada':'Normal';
+ const movementLabel=r=>r.event_type==='MEAL_START'&&r.break_kind==='REST'?'Salió a descanso':r.event_type==='MEAL_END'&&r.break_kind==='REST'?'Regresó de descanso':({CLOCK_IN:'Entró a trabajar',CLOCK_OUT:'Salió del trabajo',MEAL_START:r.break_kind==='MEAL'?'Salió a comer':'Salió a comer / descanso',MEAL_END:r.break_kind==='MEAL'?'Regresó de comer':'Regresó de comer / descanso',INCIDENT:'Incidencia calificada'}[r.event_type]||r.event_type);
+ const reportParams=()=>new URLSearchParams({from:q('attendance-date-from').value,to:q('attendance-date-to').value,employee:q('coo-report-worker').value.trim(),only_incidents:String(q('coo-report-type').value==='incidents'),role:q('attendance-role').value,worksite:q('attendance-worksite').value,concept:q('attendance-incidence-type').value});
+ const company=()=>typeof bmcCompanyId==='function'?bmcCompanyId():null;
+ async function getJson(url){const r=await authorizedFetch(url);let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(r.status===404?'Ruta API no encontrada ('+url+'). Comprueba que el backend actualizado esté montado y desplegado.':(j.error||'Error HTTP '+r.status));return j;}
+ function dates(){return {from:q('attendance-date-from').value,to:q('attendance-date-to').value};}
+ function excel(rows,name){
+  if(!window.XLSX)throw Error('No se cargó la librería Excel; comprueba tu conexión.');
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,'Historial');XLSX.writeFile(wb,name);
+ }
+ btn?.addEventListener('click',async()=>{
+  const id=company();if(!id){setStatus('Selecciona una empresa.');return;}
+  const {from,to}=dates();if(from&&to&&from>to){setStatus('La fecha inicial no puede superar la final.');return;}
+  btn.disabled=true;
+  try{
+   const params=new URLSearchParams({from,to,employee:q('coo-report-worker').value.trim(),only_incidents:String(q('coo-report-type').value==='incidents'),role:q('attendance-role').value,worksite:q('attendance-worksite').value,concept:q('attendance-incidence-type').value});
+   const data=await getJson('/api/admin/companies/'+encodeURIComponent(id)+'/history-export?'+params);
+   const rows=(data.records||[]).map(r=>({Código:r.employee_code,Trabajador:r.full_name,Fecha:new Date(Number(r.occurred_at)).toLocaleString('es-MX'),Movimiento:movementLabel(r),Estado:reviewLabel(r),Incidencia:r.concept||'',Valor:r.applied_value??0,Observaciones:r.notes||''}));
+   if(!rows.length){setStatus('No hay registros con esos filtros.');return;}
+   excel(rows,'COOATII_historial_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  }catch(e){setStatus(e.message);}finally{btn.disabled=false;}
+ });
+ async function loadReportWorkers(){
+  const sel=q('coo-report-worker'),id=company();if(!sel)return;
+  const old=sel.value;sel.replaceChildren(new Option('Todos los trabajadores',''));
+  if(!id)return;
+  try{
+   const workers=await getJson('/api/admin/companies/'+encodeURIComponent(id)+'/employees');
+   window.__cooReportWorkers=Array.isArray(workers)?workers:[];
+   for(const w of Array.isArray(workers)?workers:[]){
+    sel.add(new Option((w.full_name||[w.first_name,w.last_name_paternal,w.last_name_maternal].filter(Boolean).join(' '))+' · '+w.employee_code,w.employee_code));
+   }
+   if([...sel.options].some(o=>o.value===old))sel.value=old;
+  }catch(e){setStatus('No se pudo cargar la lista de trabajadores: '+e.message);}
+ }
+ ['report-company','devices-company','worksite-company','user-company'].forEach(id=>q(id)?.addEventListener('change',loadReportWorkers));
+ q('coo-report-worker')?.addEventListener('change',()=>{
+  const worker=window.__cooReportWorkers?.find(w=>String(w.employee_code)===q('coo-report-worker').value);
+  q('attendance-paternal').value=worker?.last_name_paternal||'';
+  q('attendance-paternal').dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ document.querySelector('[data-page="attendance-page"]')?.addEventListener('click',loadReportWorkers);
+ loadReportWorkers();
+ const list=q('attendance');const count=q('attendance-count');
+ q('coo-tab-history')?.addEventListener('click',async()=>{
+  q('coo-tab-history').classList.add('active');
+  q('incidence-tab-pending').classList.remove('active');q('incidence-tab-justified').classList.remove('active');
+  const id=company();if(!id)return;
+  try{
+   const data=await getJson('/api/admin/companies/'+encodeURIComponent(id)+'/history-export?'+reportParams());
+   list.replaceChildren();count.textContent=(data.records||[]).length+' registros en el historial';
+   for(const r of (data.records||[]).filter(r=>r.review_status!=='pending')){
+    const li=document.createElement('li');li.className='data-item';
+    const detail=document.createElement('div');
+    const date=new Date(Number(r.occurred_at));
+    const dateLabel=r.event_type==='INCIDENT'?date.toLocaleDateString('es-MX',{timeZone:'America/Mexico_City'}):date.toLocaleString('es-MX',{timeZone:'America/Mexico_City'});
+    detail.textContent=r.full_name+' · '+dateLabel+' · '+(r.event_type==='INCIDENT'?'NO HAY REGISTROS DE ENTRADA':movementLabel(r))+(r.concept?' · '+r.concept:'')+(r.notes?' · '+r.notes:'');
+    li.append(detail);
+    list.appendChild(li);
+   }
+  }catch(e){setStatus(e.message);}
+ });
+ ['incidence-tab-pending','incidence-tab-justified'].forEach(id=>q(id)?.addEventListener('click',()=>{
+  q('coo-tab-history').classList.remove('active');
+ }));
+})();
+</script>
 </body>
 </html>

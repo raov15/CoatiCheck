@@ -27,6 +27,9 @@ import com.coati.checador.feature.location.LocationSnapshot
 import com.coati.checador.feature.location.LocationTracker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,6 +66,7 @@ class AttendanceViewModel @Inject constructor(
     init {
         loadEmployees()
         observeRecentRecords()
+        observeSelectedEmployeeRecords()
         observeCompanyBranding()
     }
 
@@ -96,6 +100,24 @@ class AttendanceViewModel @Inject constructor(
     // =========================================================
     // REGISTROS RECIENTES
     // =========================================================
+
+    private fun observeSelectedEmployeeRecords() {
+        viewModelScope.launch {
+            _state.map { it.selectedEmployeeId }.distinctUntilChanged().collectLatest { employeeId ->
+                if (employeeId == null) {
+                    _state.update { it.copy(employeeRecords = emptyList(), employeeRecordsOwnerId = null) }
+                } else {
+                    attendanceRecordDao.observeByEmployee(employeeId).collect { records ->
+                        _state.update { current ->
+                            if (current.selectedEmployeeId == employeeId)
+                                current.copy(employeeRecords = records, employeeRecordsOwnerId = employeeId)
+                            else current
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private fun observeRecentRecords() {
 
@@ -397,10 +419,20 @@ class AttendanceViewModel @Inject constructor(
                 val currentDevice =
                     deviceDao.getCurrent()
 
-                val eventType =
-                    current
-                        .selectedEventLabel
-                        .toEventType()
+                val eventType = current.selectedEventLabel.toEventType()
+
+                val today = Instant.ofEpochMilli(now)
+                    .atZone(ZoneId.of("America/Mexico_City")).toLocalDate()
+                val zone = ZoneId.of("America/Mexico_City")
+                val dailyRecords = attendanceRecordDao.getByEmployeeAndDateRange(
+                    employeeId,
+                    today.atStartOfDay(zone).toInstant().toEpochMilli(),
+                    today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+                ).sortedBy { it.occurredAt }
+                val allowed = eventType in allowedAttendanceEvents(dailyRecords.map { it.eventType })
+                if (!allowed) throw IllegalStateException(
+                    "Este movimiento no está disponible según los registros de hoy."
+                )
 
                 // =================================================
                 // OBTENER CONFIGURACIÓN SITE / FOREIGN DEL DÍA
@@ -585,7 +617,7 @@ class AttendanceViewModel @Inject constructor(
                 }
 
                 // =================================================
-                // MENSAJE Y CONTEO DE RETARDOS
+                // MENSAJE DE ENTRADA; LA CALIFICACIÓN CORRESPONDE AL ADMINISTRADOR
                 // =================================================
 
                 val successMessage =
@@ -593,74 +625,11 @@ class AttendanceViewModel @Inject constructor(
 
                         EventType.CLOCK_IN -> {
 
+                            val prefix = if (isForeign) "Jornada foránea iniciada" else "Jornada iniciada"
                             if (lateResult.isLate) {
-
-                                
-                        val totalLateCount =
-    employee.lateCount + 1
-
-val generatedAbsence =
-    totalLateCount >= 3
-
-val newLateCount =
-    totalLateCount % 3
-
-val newAbsenceCount =
-    if (generatedAbsence) {
-        employee.absenceCount + 1
-    } else {
-        employee.absenceCount
-    }
-
-employeeDao.update(
-    employee.copy(
-        lateCount = newLateCount,
-        absenceCount = newAbsenceCount,
-        updatedAt = now,
-        syncStatus = SyncStatus.PENDING
-    )
-)
-
-if (generatedAbsence) {
-
-    if (isForeign) {
-        if (newAbsenceCount == 1) {
-            "Jornada foránea iniciada. Llevas 1 ausentismo."
-        } else {
-            "Jornada foránea iniciada. Llevas $newAbsenceCount ausentismos."
-        }
-    } else {
-        if (newAbsenceCount == 1) {
-            "Jornada iniciada. Llevas 1 ausentismo."
-        } else {
-            "Jornada iniciada. Llevas $newAbsenceCount ausentismos."
-        }
-    }
-
-} else {
-
-    if (isForeign) {
-        if (newLateCount == 1) {
-            "Jornada foránea iniciada. Llevas 1 retardo."
-        } else {
-            "Jornada foránea iniciada. Llevas $newLateCount retardos."
-        }
-    } else {
-        if (newLateCount == 1) {
-            "Jornada iniciada. Llevas 1 retardo."
-        } else {
-            "Jornada iniciada. Llevas $newLateCount retardos."
-        }
-    }
-}
-
+                                "Entrada con retardo"
                             } else {
-
-                                if (isForeign) {
-                                    "Jornada foránea iniciada."
-                                } else {
-                                    "Jornada iniciada."
-                                }
+                                "$prefix. Registro guardado en el dispositivo."
                             }
                         }
 
@@ -724,7 +693,8 @@ if (generatedAbsence) {
                         isSaving = false,
                         currentLocation = result.location,
 
-                        selectedEmployeeId = null,
+                        // Conserva el trabajador para mostrar el siguiente paso.
+                        // Se exige verificar su rostro de nuevo para guardar.
                         faceConfidence = null,
                         recognitionMessage = null,
 
@@ -1213,7 +1183,7 @@ data class AttendanceUiState(
 
     val selectedEventLabel:
         String =
-        "Entró a trabajar",
+        "ENTRO A TRABAJAR",
 
     val currentLocation:
         LocationSnapshot? =
@@ -1234,6 +1204,9 @@ data class AttendanceUiState(
     val errorMessage:
         String? =
         null,
+
+    val employeeRecords: List<AttendanceRecordEntity> = emptyList(),
+    val employeeRecordsOwnerId: String? = null,
 
     val recentRecords:
         List<AttendanceRecordEntity> =
@@ -1295,18 +1268,40 @@ private fun String.toEventType():
     String =
     when (this) {
 
-        "Entró a trabajar" ->
-            EventType.CLOCK_IN
-
-        "Salió del trabajo" ->
-            EventType.CLOCK_OUT
-
-        "Salió a comer" ->
-            EventType.MEAL_START
-
-        "Regresó de comer" ->
-            EventType.MEAL_END
-
-        else ->
-            EventType.CLOCK_IN
+        "ENTRO A TRABAJAR" -> EventType.CLOCK_IN
+        "IR a comer/ descanso" -> EventType.MEAL_START
+        "Regreso de comer/descanso" -> EventType.MEAL_END
+        "SALIO DEL TRABAJO" -> EventType.CLOCK_OUT
+        else -> throw IllegalArgumentException("Tipo de registro no reconocido: $this")
     }
+// Una sola acción disponible por etapa de la jornada.
+internal fun nextAttendanceEvent(events: List<String>): String? {
+    if (events.contains(EventType.CLOCK_OUT)) return null
+    return when (events.lastOrNull()) {
+        null -> EventType.CLOCK_IN
+        EventType.CLOCK_IN -> EventType.MEAL_START
+        EventType.MEAL_START -> EventType.MEAL_END
+        EventType.MEAL_END -> if (events.count { it == EventType.MEAL_START } < 2) EventType.MEAL_START else EventType.CLOCK_OUT
+        else -> null
+    }
+}
+
+internal fun attendanceLabel(event: String?): String? = when (event) {
+    EventType.CLOCK_IN -> "ENTRO A TRABAJAR"
+    EventType.MEAL_START -> "IR a comer/ descanso"
+    EventType.MEAL_END -> "Regreso de comer/descanso"
+    EventType.CLOCK_OUT -> "SALIO DEL TRABAJO"
+    else -> null
+}
+
+internal fun allowedAttendanceEvents(events: List<String>): Set<String> {
+    if (events.contains(EventType.CLOCK_OUT)) return emptySet()
+    return when (events.lastOrNull()) {
+        null -> setOf(EventType.CLOCK_IN)
+        EventType.MEAL_START -> setOf(EventType.MEAL_END)
+        EventType.CLOCK_IN, EventType.MEAL_END ->
+            if (events.count { it == EventType.MEAL_START } < 2) setOf(EventType.MEAL_START, EventType.CLOCK_OUT)
+            else setOf(EventType.CLOCK_OUT)
+        else -> emptySet()
+    }
+}

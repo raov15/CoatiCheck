@@ -6,7 +6,9 @@ import { initDb } from './db/migrate';
 import devicesRouter from './routes/devices';
 import employeesRouter from './routes/employees';
 import attendanceRouter from './routes/attendance';
-import adminRouter from './routes/admin';
+import adminRouter, { startAutomaticAbsenceJob } from './routes/admin';
+import sharedCheckerEmployeesRouter from './routes/shared-checker-employees';
+import sharedCheckerRouter from './routes/shared-checker';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3000);
@@ -71,6 +73,11 @@ app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/admin', adminRouter);
 
+// Alta y asignación de trabajadores a tablets
+app.use('/api/admin', sharedCheckerEmployeesRouter);
+
+// Checador web
+app.use('/api/shared-checker', sharedCheckerRouter);
 /* =========================
    MANEJO DE RUTAS API 404
 ========================= */
@@ -88,6 +95,7 @@ app.use('/api', (_req, res) => {
 async function start(): Promise<void> {
   try {
     await initDb();
+    startAutomaticAbsenceJob();
 
     /*
      * No se especifica host de forma manual.

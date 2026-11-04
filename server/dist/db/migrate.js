@@ -852,6 +852,32 @@ async function initDb() {
     /* =========================================================
        USUARIO ADMINISTRADOR INICIAL
     ========================================================= */
+    // Estructuras utilizadas por los regresos de comida y las incidencias automáticas.
+    await client_1.default.query(`
+    ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS break_kind TEXT;
+    ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS late_return_minutes INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS attendance_auto_incidents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      employee_id UUID NOT NULL REFERENCES employees(id_remote) ON DELETE CASCADE,
+      category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+      attendance_record_id UUID REFERENCES attendance_records(id_remote) ON DELETE CASCADE,
+      incident_date DATE NOT NULL,
+      concept TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed')),
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS attendance_auto_incidents_absence_unique
+      ON attendance_auto_incidents(company_id, employee_id, incident_date, origin)
+      WHERE attendance_record_id IS NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS attendance_auto_incidents_record_unique
+      ON attendance_auto_incidents(company_id, attendance_record_id, origin)
+      WHERE attendance_record_id IS NOT NULL;
+  `);
     const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
     if (bootstrapPassword) {
         const passwordHash = await bcryptjs_1.default.hash(bootstrapPassword, 12);

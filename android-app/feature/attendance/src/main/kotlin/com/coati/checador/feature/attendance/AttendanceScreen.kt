@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +32,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.ZoneId
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -145,13 +149,58 @@ fun AttendanceScreen(
         }
     }
 
-    val attendanceTypes =
-        listOf(
-            "Entró a trabajar",
-            "Salió del trabajo",
-            "Salió a comer",
-            "Regresó de comer"
+    val attendanceTypes = listOf(
+        "ENTRO A TRABAJAR",
+        "IR a comer/ descanso",
+        "Regreso de comer/descanso",
+        "SALIO DEL TRABAJO"
+    )
+
+    var showEndShiftConfirmation by remember { mutableStateOf(false) }
+
+    val mexicoZone = remember { ZoneId.of("America/Mexico_City") }
+    var today by remember { mutableStateOf(Instant.now().atZone(mexicoZone).toLocalDate()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            today = Instant.now().atZone(mexicoZone).toLocalDate()
+        }
+    }
+    val recordsReady = state.selectedEmployeeId != null &&
+        state.employeeRecordsOwnerId == state.selectedEmployeeId
+    val todayRecords = state.employeeRecords
+        .filter { record ->
+            record.employeeId == state.selectedEmployeeId &&
+                Instant.ofEpochMilli(record.occurredAt).atZone(mexicoZone).toLocalDate() == today
+        }.sortedBy { it.occurredAt }
+    val nextEvent = if (recordsReady) nextAttendanceEvent(todayRecords.map { it.eventType }) else null
+    val nextLabel = attendanceLabel(nextEvent)
+
+    fun canRegister(label: String): Boolean = recordsReady &&
+        allowedAttendanceEvents(todayRecords.map { it.eventType }).any { attendanceLabel(it) == label }
+
+    LaunchedEffect(state.selectedEmployeeId, nextLabel) {
+        nextLabel?.let { viewModel.selectEvent(it) }
+    }
+
+    if (showEndShiftConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showEndShiftConfirmation = false },
+            title = { Text("Confirmar salida") },
+            text = { Text("¿Estás seguro de que quieres terminar tu jornada laboral? Esta acción no se puede deshacer desde la aplicación.") },
+            confirmButton = {
+                Button(onClick = {
+                    showEndShiftConfirmation = false
+                    viewModel.saveAttendance()
+                }) { Text("Sí, terminar jornada") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndShiftConfirmation = false }) {
+                    Text("Cancelar")
+                }
+            }
         )
+    }
 
     val recognitionMsg =
         state.recognitionMessage
@@ -730,44 +779,60 @@ fun AttendanceScreen(
                     )
             )
 
+            if (recordsReady && nextEvent == null) {
+                Text("Jornada finalizada. Todos los movimientos están registrados.",
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    fontWeight = FontWeight.Bold)
+            }
+
             attendanceTypes.forEach { type ->
+                val selected = type == state.selectedEventLabel && canRegister(type)
+                val available = !state.isSaving && !state.isRecognizing && canRegister(type)
+                val completed = recordsReady && todayRecords.any { attendanceLabel(it.eventType) == type }
+                val selectionGreen = Color(0xFF166534)
 
                 Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-
-                    verticalAlignment =
-                        Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) Color(0xFFDCFCE7) else if (available) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF374151))
+                        .selectable(
+                            selected = selected,
+                            enabled = available,
+                            role = Role.RadioButton,
+                            onClick = { viewModel.selectEvent(type) }
+                        )
+                        .heightIn(min = 56.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     RadioButton(
-                        selected =
-                            type ==
-                                state.selectedEventLabel,
-
-                        onClick = {
-
-                            if (!state.isSaving) {
-
-                                viewModel
-                                    .selectEvent(type)
-                            }
-                        },
-
-                        enabled =
-                            !state.isSaving
+                        selected = selected,
+                        onClick = null,
+                        enabled = available,
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = selectionGreen,
+                            disabledSelectedColor = selectionGreen,
+                            disabledUnselectedColor = Color(0xFF9CA3AF)
+                        )
                     )
-
-                    Text(
-                        text = type,
-
-                        modifier =
-                            Modifier.padding(
-                                start = 16.dp
-                            )
-                    )
+                    Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                        Text(
+                            text = type,
+                            color = if (selected) selectionGreen
+                                else if (available) MaterialTheme.colorScheme.onSurface
+                                else Color(0xFFD1D5DB),
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                        if (selected) {
+                            Text("✓ Siguiente acción", color = selectionGreen,
+                                style = MaterialTheme.typography.labelMedium)
+                        } else {
+                            Text(if (available) "Disponible" else if (completed) "Ya registrado" else "No disponible todavía",
+                                color = Color(0xFF9CA3AF), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
 
@@ -938,7 +1003,7 @@ fun AttendanceScreen(
                             }
 
                         } else if (
-                            state.selectedEventLabel == "Entró a trabajar" &&
+                            state.selectedEventLabel == "ENTRO A TRABAJAR" &&
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                             !hasBackgroundLocationPermission
                         ) {
@@ -954,9 +1019,12 @@ fun AttendanceScreen(
                              */
                             showBackgroundLocationDialog = true
 
-                        } else {
-
-                            viewModel.saveAttendance()
+                        } else if (canRegister(state.selectedEventLabel)) {
+                            if (state.selectedEventLabel == "SALIO DEL TRABAJO") {
+                                showEndShiftConfirmation = true
+                            } else {
+                                viewModel.saveAttendance()
+                            }
                         }
                     }
                 },
@@ -972,7 +1040,8 @@ fun AttendanceScreen(
                 enabled =
                     isRecognized &&
                         !state.isSaving &&
-                        !state.isRecognizing
+                        !state.isRecognizing &&
+                        canRegister(state.selectedEventLabel)
             ) {
 
                 if (state.isSaving) {

@@ -46,6 +46,17 @@ class SyncManager @Inject constructor(
      * 3. Subir asistencias.
      * 4. Subir ubicaciones Foráneo.
      */
+    private fun enqueueAttendanceNow() {
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val request = OneTimeWorkRequestBuilder<AttendanceSyncWorker>()
+            .setConstraints(constraints)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "coati_attendance_immediate_v2", ExistingWorkPolicy.KEEP, request
+        )
+    }
+
     fun syncNow() {
 
         val constraints =
@@ -71,14 +82,6 @@ class SyncManager @Inject constructor(
                 )
                 .build()
 
-        val attendanceSync =
-            OneTimeWorkRequestBuilder<AttendanceSyncWorker>()
-                .setConstraints(constraints)
-                .setExpedited(
-                    OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST
-                )
-                .build()
-
         val foreignLocationSync =
             OneTimeWorkRequestBuilder<ForeignLocationSyncWorker>()
                 .setConstraints(constraints)
@@ -95,9 +98,10 @@ class SyncManager @Inject constructor(
                 employeeSync
             )
             .then(workAssignmentSync)
-            .then(attendanceSync)
             .then(foreignLocationSync)
             .enqueue()
+        enqueueAttendanceNow()
+
     }
 
     /**
@@ -146,6 +150,7 @@ fun syncForeignLocationsNow() {
 
 
     fun schedulePeriodicSync() {
+        enqueueAttendanceNow()
 
         val constraints =
             Constraints.Builder()

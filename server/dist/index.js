@@ -11,6 +11,8 @@ const devices_1 = __importDefault(require("./routes/devices"));
 const employees_1 = __importDefault(require("./routes/employees"));
 const attendance_1 = __importDefault(require("./routes/attendance"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const shared_checker_employees_1 = __importDefault(require("./routes/shared-checker-employees"));
+const shared_checker_1 = __importDefault(require("./routes/shared-checker"));
 const app = (0, express_1.default)();
 const PORT = Number(process.env.PORT ?? 3000);
 /* =========================
@@ -50,6 +52,10 @@ app.use('/api/devices', devices_1.default);
 app.use('/api/employees', employees_1.default);
 app.use('/api/attendance', attendance_1.default);
 app.use('/api/admin', admin_1.default);
+// Alta y asignación de trabajadores a tablets
+app.use('/api/admin', shared_checker_employees_1.default);
+// Checador web
+app.use('/api/shared-checker', shared_checker_1.default);
 /* =========================
    MANEJO DE RUTAS API 404
 ========================= */

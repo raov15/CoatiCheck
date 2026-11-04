@@ -1,5 +1,10 @@
 package com.coati.checador.core.sync
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
@@ -26,7 +31,12 @@ class AttendanceSyncWorker @AssistedInject constructor(
     private val apiServiceFactory: CoatiApiServiceFactory
 ) : CoroutineWorker(appContext, workerParams) {
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = uploadMutex.withLock { uploadPending() }
+
+    private suspend fun uploadPending(): Result {
+        // Bajo el mutex no hay otro envío de checadas activo en este proceso.
+        // Recupera registros que quedaron SYNCING al cerrar o actualizar la app.
+        attendanceRecordDao.recoverInterruptedUploads()
         val authToken = appSettingDao.getValue(AppSettingEntity.KEY_AUTH_TOKEN)
         if (authToken.isNullOrBlank()) {
             Timber.w("AttendanceSyncWorker: dispositivo no registrado, se omite sincronizacion")
@@ -56,13 +66,23 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 attendanceRecordDao.markSyncFailed(error.idLocal, SyncStatus.ERROR, error.error)
             }
 
+            // Una respuesta parcial no debe dejar registros invisibles en SYNCING.
+            attendanceRecordDao.releaseUnconfirmedUploads(idsLocal)
             if (attendanceRecordDao.countPending() > 0) Result.retry() else Result.success()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Timber.e(e, "Error en sincronizacion de asistencia")
             idsLocal.forEach { idLocal ->
-                attendanceRecordDao.markSyncFailed(idLocal, SyncStatus.ERROR, e.message)
+                if (attendanceRecordDao.findById(idLocal)?.syncStatus == SyncStatus.SYNCING) {
+                    attendanceRecordDao.markSyncFailed(idLocal, SyncStatus.ERROR, e.message)
+                }
             }
             if (runAttemptCount < 10) Result.retry() else Result.failure()
+        } finally {
+            withContext(NonCancellable) {
+                attendanceRecordDao.releaseUnconfirmedUploads(idsLocal)
+            }
         }
     }
 
@@ -80,6 +100,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
 )
 
     companion object {
+        private val uploadMutex = Mutex()
         private const val BATCH_SIZE = 50
     }
 }

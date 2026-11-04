@@ -1,0 +1,1222 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administración COOATII Check</title>
+
+<style>
+:root {
+  --navy: #192b54;
+  --blue: #347ac5;
+  --light: #f6f7ff;
+  --border: #e0e7fa;
+  --muted: #62728d;
+  --danger: #b91c1c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px Inter, system-ui, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 88% 8%, #e4edff 0, transparent 34%),
+    radial-gradient(circle at 24% 90%, #fff1e7 0, transparent 40%),
+    #f7f8ff;
+  color: #253451;
+}
+
+.hidden { display: none !important; }
+
+button, input { font: inherit; }
+
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 16px;
+  font-weight: 750;
+}
+
+.primary {
+  color: white;
+  background: linear-gradient(105deg, #6254bf, #3284c9);
+  box-shadow: 0 7px 16px #4c70b832;
+}
+
+.primary:hover { filter: brightness(1.06); }
+
+.soft {
+  background: #eceeff;
+  color: #4d4b9e;
+}
+
+.soft:hover { background: #e1e3ff; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  min-height: 100vh;
+}
+
+aside {
+  background: linear-gradient(
+    158deg,
+    #172750 0%,
+    #273a7c 52%,
+    #6746a4 100%
+  );
+  padding: 28px 18px;
+  color: white;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  align-self: start;
+  box-shadow: 12px 0 36px #263d8d12;
+}
+
+aside::before {
+  content: "✦";
+  display: block;
+  font-size: 25px;
+  color: #ffc77a;
+  margin: 0 0 15px 4px;
+}
+
+aside h1 {
+  margin: 0;
+  font-size: 25px;
+  line-height: 1.12;
+  letter-spacing: -.035em;
+}
+
+.brand-accent { color: #fdac58; }
+
+aside small {
+  display: block;
+  margin-top: 9px;
+  color: #e2e9ff;
+  font-size: 12px;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+  margin-top: 35px;
+}
+
+nav button {
+  text-align: left;
+  background: transparent;
+  color: #f0efff;
+  border-radius: 14px;
+  padding: 15px 17px;
+  font-size: 14px;
+  transition: background .2s, transform .2s;
+}
+
+nav button:hover {
+  background: #ffffff25;
+  transform: translateX(3px);
+}
+
+nav button.active {
+  background: linear-gradient(105deg, #ffffff36, #ffffff1c);
+  box-shadow: inset 3px 0 #ffbd77;
+  color: white;
+}
+
+#logout {
+  background: #fff1e9;
+  color: #803b65;
+  font-weight: 800;
+}
+
+main {
+  padding: 36px 38px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.heading h2 {
+  color: #1d2b58;
+  margin: 0;
+  font-size: clamp(26px, 3vw, 35px);
+  letter-spacing: -.04em;
+}
+
+.heading .muted { margin-top: 8px; }
+
+.muted { color: var(--muted); }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 24px 0;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e3e9fa;
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 10px 32px #1d337d0b;
+}
+
+.card h3 {
+  color: #243363;
+  margin: 0 0 16px;
+  font-size: 21px;
+  letter-spacing: -.025em;
+}
+
+.card p { line-height: 1.55; }
+
+.cards .card {
+  position: relative;
+  overflow: hidden;
+  border-top: 5px solid #5a8ded;
+}
+
+.cards .card:nth-child(2) {
+  border-top-color: #f4a35f;
+}
+
+.cards .card:nth-child(3) {
+  border-top-color: #7ac9b5;
+}
+
+.cards .card::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -25px;
+  width: 115px;
+  height: 115px;
+  border-radius: 50%;
+  background: #edf2ff;
+}
+
+.cards .card:nth-child(2)::after {
+  background: #fff1e4;
+}
+
+.cards .card:nth-child(3)::after {
+  background: #e7f8f2;
+}
+
+.number {
+  font-size: 39px;
+  font-weight: 850;
+  color: #263b7c;
+  position: relative;
+  z-index: 1;
+}
+
+.section { display: none; }
+.section.active { display: block; }
+
+.section > .card + .card { margin-top: 20px; }
+
+label {
+  display: block;
+  margin: 13px 0 5px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d5dff2;
+  border-radius: 13px;
+  min-height: 43px;
+  background: #fdfdff;
+}
+
+input:focus {
+  outline: 3px solid #dcd5ff;
+  border-color: #8479d4;
+}
+
+.formgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tablewrap { overflow: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 650px;
+}
+
+th, td {
+  text-align: left;
+  padding: 13px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+th {
+  background: #f0f1ff;
+  color: #454a91;
+}
+
+tr:hover td { background: #fafbff; }
+
+td button {
+  margin: 3px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.alert {
+  border: 1px solid #dce2ff;
+  border-radius: 17px;
+  padding: 18px;
+  background: linear-gradient(110deg, #f1f5ff, #f8f1ff);
+  color: #163f61;
+  margin: 15px 0;
+}
+
+.error { color: var(--danger); }
+
+#login {
+  max-width: 470px;
+  margin: 10vh auto;
+  border-top: 6px solid #efab68;
+  padding: 34px;
+}
+
+#login h2 {
+  font-size: 27px;
+  letter-spacing: -.04em;
+}
+
+#login .brand-accent { color: #6954b4; }
+
+.password {
+  font: 700 17px ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+
+#message:empty { display: none; }
+
+#message {
+  border-left: 4px solid #7a78d8;
+}
+
+.copied {
+  background: #159f76 !important;
+  color: white !important;
+  box-shadow: 0 4px 14px #159f7630;
+}
+
+.credential-note {
+  color: #182b43;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 15px 0 0;
+}
+
+.credential-note strong { color: #10233c; }
+
+#credentialBox {
+  background: linear-gradient(115deg, #edf5ff, #f8f0ff);
+}
+
+button:focus-visible {
+  outline: 3px solid #94c8ff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 850px) {
+  .layout { grid-template-columns: 1fr; }
+
+  aside {
+    position: relative;
+    height: auto;
+    overflow: visible;
+    padding: 18px;
+  }
+
+  aside::before { display: none; }
+
+  nav {
+    display: flex;
+    overflow: auto;
+    margin-top: 14px;
+  }
+
+  main { padding: 20px; }
+
+  .cards { grid-template-columns: 1fr; }
+
+  .formgrid { grid-template-columns: 1fr; }
+
+  .heading { flex-wrap: wrap; }
+
+  .card { padding: 20px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- INICIO DE SESIÓN -->
+<div id="login" class="card">
+  <h2>
+    Administración
+    <span class="brand-accent">COOATII Check</span>
+  </h2>
+
+  <p class="muted">
+    Tu espacio para gestionar clientes y empresas
+  </p>
+
+  <form id="loginForm">
+    <label>Usuario</label>
+    <input
+      id="username"
+      autocomplete="username"
+      required
+    >
+
+    <label>Contraseña</label>
+    <input
+      id="password"
+      type="password"
+      autocomplete="current-password"
+      required
+    >
+
+    <button
+      class="primary"
+      style="margin-top:20px;width:100%"
+    >
+      Iniciar sesión
+    </button>
+  </form>
+
+  <p id="loginError" class="error" role="alert"></p>
+</div>
+
+<!-- PANEL PRINCIPAL -->
+<div id="app" class="layout hidden">
+
+  <aside>
+    <h1>
+      COOATII <span class="brand-accent">Check</span>
+    </h1>
+
+    <small>Administración COOATII Check</small>
+
+    <nav>
+      <button data-tab="dashboard" class="active">
+        Inicio
+      </button>
+
+      <button data-tab="users">
+        Mis clientes
+      </button>
+
+      <button data-tab="companies">
+        Empresas
+      </button>
+
+      <button data-tab="account">
+        Mi cuenta
+      </button>
+    </nav>
+
+    <button
+      id="logout"
+      class="soft"
+      style="margin-top:30px;width:100%"
+    >
+      Cerrar sesión
+    </button>
+  </aside>
+
+  <main>
+
+    <div class="heading">
+      <div>
+        <h2 id="pageTitle">Resumen general</h2>
+        <p class="muted">
+          Todo organizado, en un solo lugar.
+        </p>
+      </div>
+
+      <button id="refresh" class="soft">
+        Actualizar
+      </button>
+    </div>
+
+    <p id="message" class="alert" role="status"></p>
+
+    <!-- INICIO -->
+    <section id="dashboard" class="section active">
+
+      <div class="cards">
+
+        <div class="card">
+          <div class="number" id="countUsers">—</div>
+          <span class="muted">Clientes</span>
+        </div>
+
+        <div class="card">
+          <div class="number" id="countCompanies">—</div>
+          <span class="muted">Empresas</span>
+        </div>
+
+        <div class="card">
+          <div class="number" id="countActive">—</div>
+          <span class="muted">Empresas activas</span>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <h3>Actividad general</h3>
+        <p class="muted">
+          Consulta las cuentas registradas y las empresas
+          de tus clientes desde el menú lateral.
+        </p>
+      </div>
+
+    </section>
+
+    <!-- CLIENTES -->
+    <section id="users" class="section">
+
+      <div class="card">
+
+        <h3>Nuevo cliente</h3>
+
+        <form id="createForm">
+
+          <div class="formgrid">
+
+            <div>
+              <label>Nombre completo</label>
+              <input
+                id="fullName"
+                required
+                maxlength="160"
+              >
+            </div>
+
+            <div>
+              <label>Nombre de usuario</label>
+              <input
+                id="newUsername"
+                required
+                minlength="3"
+                maxlength="80"
+                autocomplete="off"
+                pattern="[^\s]+"
+                title="Escribe el usuario todo junto, sin espacios"
+              >
+
+              <p
+                class="muted"
+                style="font-size:12px;margin:7px 0 0"
+              >
+                Escríbelo todo junto, sin espacios.
+                Ejemplo: <strong>AdminCooatii</strong>.
+              </p>
+            </div>
+
+          </div>
+
+          <div class="actions">
+            <button class="primary">
+              Crear cliente
+            </button>
+          </div>
+
+        </form>
+
+        <!-- CREDENCIALES GENERADAS -->
+        <div id="credentialBox" class="alert hidden">
+
+          <strong>Credenciales de acceso</strong>
+
+          <p>
+            Usuario:
+            <strong id="createdUsername"></strong>
+          </p>
+
+          <p>
+            Contraseña:
+            <span
+              id="temporaryPassword"
+              class="password"
+            ></span>
+          </p>
+
+          <button
+            id="copyCredentials"
+            class="soft"
+            type="button"
+          >
+            Copiar credenciales
+          </button>
+
+          <p class="credential-note">
+            <strong>Importante:</strong>
+            Cambia tu contraseña al iniciar sesión
+            por primera vez. Esta contraseña es temporal
+            y dejará de funcionar cuando la cambies.
+          </p>
+
+          <p
+            class="muted"
+            style="font-size:12px"
+          >
+            Entrega estos datos por un medio seguro.
+            La contraseña solo se muestra al generarla.
+          </p>
+
+        </div>
+
+      </div>
+
+      <div class="card" style="margin-top:20px">
+
+        <h3>Clientes registrados</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Nombre</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- EMPRESAS -->
+    <section id="companies" class="section">
+
+      <div class="card">
+
+        <h3>Directorio de empresas</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Estado</th>
+                <th>Administrador propietario</th>
+              </tr>
+            </thead>
+
+            <tbody id="companiesBody"></tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- MI CUENTA -->
+    <section id="account" class="section">
+
+      <div class="card" style="max-width:680px">
+
+        <h3>Cambiar mi contraseña</h3>
+
+        <p class="muted">
+          Por seguridad, escribe tu contraseña actual
+          antes de establecer una nueva.
+          El cambio no modifica tus empresas ni las
+          cuentas de tus clientes.
+        </p>
+
+        <form id="changePasswordForm" autocomplete="off">
+
+          <label for="currentPassword">
+            Contraseña actual
+          </label>
+
+          <input
+            id="currentPassword"
+            type="password"
+            autocomplete="current-password"
+            required
+          >
+
+          <label for="newPassword">
+            Nueva contraseña
+          </label>
+
+          <input
+            id="newPassword"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+          >
+
+          <label for="confirmPassword">
+            Confirmar nueva contraseña
+          </label>
+
+          <input
+            id="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+          >
+
+          <p class="muted" style="font-size:13px">
+            Mínimo 8 caracteres. Se recomienda usar
+            una contraseña única y difícil de adivinar.
+          </p>
+
+          <div class="actions">
+            <button
+              class="primary"
+              id="savePassword"
+              type="submit"
+            >
+              Guardar nueva contraseña
+            </button>
+          </div>
+
+        </form>
+
+        <p
+          id="passwordFeedback"
+          role="status"
+          aria-live="polite"
+          style="font-weight:700"
+        ></p>
+
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<script>
+"use strict";
+
+// CONFIGURACIÓN
+const tokenKey = "coati_superadmin_token";
+
+const $ = id => document.getElementById(id);
+
+const show = (id, yes) => {
+  $(id).classList.toggle("hidden", !yes);
+};
+
+function notice(msg, err = false) {
+  $("message").textContent = msg;
+  $("message").style.color =
+    err ? "#b91c1c" : "#163f61";
+}
+
+function safeCell(tr, value) {
+  const td = document.createElement("td");
+  td.textContent = String(value ?? "");
+  tr.appendChild(td);
+  return td;
+}
+
+// PETICIONES A LA API
+async function request(url, opts = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(opts.headers || {})
+  };
+
+  const token = sessionStorage.getItem(tokenKey);
+
+  if (token) {
+    headers.Authorization = "Bearer " + token;
+  }
+
+  const res = await fetch(url, {
+    ...opts,
+    headers
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw Error(
+      data.error ||
+      data.detail ||
+      "Error HTTP " + res.status
+    );
+  }
+
+  return data;
+}
+
+// BOTÓN COPIAR
+function resetCopyButton() {
+  const b = $("copyCredentials");
+  b.textContent = "Copiar credenciales";
+  b.classList.remove("copied");
+}
+
+// CERRAR SESIÓN
+function logout() {
+  sessionStorage.removeItem(tokenKey);
+  show("app", false);
+  show("login", true);
+  $("password").value = "";
+}
+
+$("logout").onclick = logout;
+
+// INICIAR SESIÓN
+$("loginForm").onsubmit = async e => {
+  e.preventDefault();
+
+  $("loginError").textContent = "";
+
+  try {
+    const d = await request("/api/admin/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: $("username").value.trim(),
+        password: $("password").value
+      })
+    });
+
+    if (!d.token) {
+      throw Error("El servidor no devolvió un token.");
+    }
+
+    const role = d.user?.role ?? d.role;
+
+    if (role !== "superadmin") {
+      throw Error(
+        "Esta página es exclusiva del superadministrador."
+      );
+    }
+
+    sessionStorage.setItem(tokenKey, d.token);
+
+    show("login", false);
+    show("app", true);
+
+    await refresh();
+
+  } catch (err) {
+    $("loginError").textContent = err.message;
+  }
+};
+
+// MENÚ LATERAL
+document.querySelectorAll("[data-tab]").forEach(btn => {
+  btn.onclick = () => {
+
+    document.querySelectorAll("[data-tab]").forEach(b => {
+      b.classList.toggle("active", b === btn);
+    });
+
+    document.querySelectorAll(".section").forEach(s => {
+      s.classList.toggle(
+        "active",
+        s.id === btn.dataset.tab
+      );
+    });
+
+    $("pageTitle").textContent = {
+      dashboard: "Resumen general",
+      users: "Mis clientes",
+      companies: "Empresas",
+      account: "Mi cuenta"
+    }[btn.dataset.tab];
+  };
+});
+
+// ACTUALIZAR INFORMACIÓN
+async function refresh() {
+  try {
+    const [u, c] = await Promise.all([
+      request("/api/admin/superadmin/users"),
+      request("/api/admin/superadmin/companies")
+    ]);
+
+    const users = u.users || [];
+    const companies = c.companies || [];
+
+    $("countUsers").textContent = users.length;
+    $("countCompanies").textContent = companies.length;
+
+    $("countActive").textContent =
+      companies.filter(x => x.isActive).length;
+
+    renderUsers(users);
+    renderCompanies(companies);
+
+    notice("Información actualizada.");
+
+  } catch (err) {
+    notice(
+      "No se pudo cargar el panel: " + err.message,
+      true
+    );
+  }
+}
+
+$("refresh").onclick = refresh;
+
+// LISTA DE CLIENTES
+function renderUsers(users) {
+  const tbody = $("usersBody");
+  tbody.replaceChildren();
+
+  for (const u of users) {
+    const tr = document.createElement("tr");
+
+    safeCell(tr, u.username);
+    safeCell(tr, u.fullName);
+    safeCell(tr, u.isActive ? "Activo" : "Desactivado");
+
+    const td = document.createElement("td");
+
+    // ACTIVAR / DESACTIVAR
+    const toggle = document.createElement("button");
+
+    toggle.className = "soft";
+    toggle.textContent = u.isActive
+      ? "Desactivar"
+      : "Activar";
+
+    toggle.onclick = async () => {
+      if (!confirm(
+        "¿Cambiar el estado de " + u.username + "?"
+      )) {
+        return;
+      }
+
+      try {
+        await request(
+          "/api/admin/superadmin/users/" +
+          encodeURIComponent(u.id),
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              isActive: !u.isActive
+            })
+          }
+        );
+
+        await refresh();
+
+      } catch (err) {
+        notice(err.message, true);
+      }
+    };
+
+    // RESTABLECER CONTRASEÑA
+    const reset = document.createElement("button");
+
+    reset.className = "soft";
+    reset.textContent = "Restablecer contraseña";
+
+    reset.onclick = async () => {
+      if (!confirm(
+        "¿Generar nueva contraseña temporal para " +
+        u.username + "?"
+      )) {
+        return;
+      }
+
+      try {
+        const d = await request(
+          "/api/admin/superadmin/users/" +
+          encodeURIComponent(u.id) +
+          "/reset-password",
+          {
+            method: "POST"
+          }
+        );
+
+        show("credentialBox", true);
+        resetCopyButton();
+
+        $("createdUsername").textContent = u.username;
+
+        $("temporaryPassword").textContent =
+          d.temporaryPassword || "";
+
+        document
+          .querySelector('[data-tab="users"]')
+          .click();
+
+        notice("Contraseña temporal generada.");
+
+      } catch (err) {
+        notice(err.message, true);
+      }
+    };
+
+    td.append(toggle, reset);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  if (!users.length) {
+    const tr = document.createElement("tr");
+
+    const td = safeCell(
+      tr,
+      "No hay clientes registrados."
+    );
+
+    td.colSpan = 4;
+    tbody.appendChild(tr);
+  }
+}
+
+// LISTA DE EMPRESAS
+function renderCompanies(companies) {
+  const tbody = $("companiesBody");
+  tbody.replaceChildren();
+
+  for (const c of companies) {
+    const tr = document.createElement("tr");
+
+    safeCell(tr, c.name);
+    safeCell(
+      tr,
+      c.isActive ? "Activa" : "Desactivada"
+    );
+
+    safeCell(
+      tr,
+      c.ownerUsername || "Sin asignar"
+    );
+
+    tbody.appendChild(tr);
+  }
+
+  if (!companies.length) {
+    const tr = document.createElement("tr");
+
+    safeCell(
+      tr,
+      "No hay empresas registradas."
+    ).colSpan = 3;
+
+    tbody.appendChild(tr);
+  }
+}
+
+// CREAR CLIENTE
+$("createForm").onsubmit = async e => {
+  e.preventDefault();
+
+  try {
+    const username = $("newUsername").value.trim();
+
+    if (/\s/.test(username)) {
+      notice(
+        "El nombre de usuario debe escribirse todo junto, sin espacios.",
+        true
+      );
+      return;
+    }
+
+    const d = await request(
+      "/api/admin/superadmin/users",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          fullName: $("fullName").value.trim()
+        })
+      }
+    );
+
+    $("createdUsername").textContent =
+      d.username || username;
+
+    $("temporaryPassword").textContent =
+      d.temporaryPassword || "";
+
+    show("credentialBox", true);
+
+    $("createForm").reset();
+
+    await refresh();
+
+    resetCopyButton();
+
+    notice("Cliente creado.");
+
+  } catch (err) {
+    notice(err.message, true);
+  }
+};
+
+// COPIAR USUARIO, CONTRASEÑA Y AVISO
+$("copyCredentials").onclick = async () => {
+
+  const usuario = $("createdUsername").textContent;
+  const contrasena = $("temporaryPassword").textContent;
+
+  const value =
+    "COOATII Check | Datos de acceso\n\n" +
+    "Usuario: " + usuario + "\n" +
+    "Contraseña: " + contrasena + "\n\n" +
+    "Importante: Cambia tu contraseña al iniciar sesión " +
+    "por primera vez. Esta contraseña es temporal y " +
+    "dejará de funcionar cuando la cambies.\n\n" +
+    "Accede aquí: https://cooatii.com";
+
+  try {
+    await navigator.clipboard.writeText(value);
+
+    const b = $("copyCredentials");
+
+    b.textContent = "✓ ¡Copiado!";
+    b.classList.add("copied");
+
+    notice("Credenciales copiadas correctamente.");
+
+  } catch {
+    resetCopyButton();
+
+    notice(
+      "No se pudo copiar automáticamente.",
+      true
+    );
+  }
+};
+
+// CAMBIAR MI CONTRASEÑA
+$("changePasswordForm").onsubmit = async e => {
+  e.preventDefault();
+
+  const feedback = $("passwordFeedback");
+
+  feedback.textContent = "";
+
+  const current = $("currentPassword").value;
+  const password = $("newPassword").value;
+  const confirmPassword = $("confirmPassword").value;
+
+  if (password.length < 8) {
+    feedback.style.color = "#b91c1c";
+
+    feedback.textContent =
+      "La nueva contraseña debe tener al menos 8 caracteres.";
+
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    feedback.style.color = "#b91c1c";
+
+    feedback.textContent =
+      "Las contraseñas nuevas no coinciden.";
+
+    return;
+  }
+
+  if (current === password) {
+    feedback.style.color = "#b91c1c";
+
+    feedback.textContent =
+      "La contraseña nueva debe ser distinta de la actual.";
+
+    return;
+  }
+
+  const button = $("savePassword");
+
+  button.disabled = true;
+  button.textContent = "Guardando…";
+
+  try {
+    const result = await request(
+      "/api/admin/change-password",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: current,
+          password
+        })
+      }
+    );
+
+    if (result.changed !== true) {
+      throw Error(
+        "El servidor no confirmó el cambio."
+      );
+    }
+
+    $("changePasswordForm").reset();
+
+    feedback.style.color = "#167a4a";
+
+    feedback.textContent =
+      "Contraseña actualizada correctamente. " +
+      "Utilízala en tu próximo inicio de sesión.";
+
+    notice(
+      "Tu contraseña se actualizó correctamente."
+    );
+
+  } catch (err) {
+    feedback.style.color = "#b91c1c";
+
+    feedback.textContent =
+      err.message ||
+      "No fue posible actualizar la contraseña.";
+
+  } finally {
+    button.disabled = false;
+    button.textContent = "Guardar nueva contraseña";
+  }
+};
+</script>
+
+</body>
+</html>

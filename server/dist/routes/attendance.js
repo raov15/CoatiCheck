@@ -36,6 +36,21 @@ function nullableNumber(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
 }
+function mexicoDay(epochMs) {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(epochMs));
+    const get = (type) => parts.find(p => p.type === type)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+}
+function minuteOfDay(epochMs) {
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Mexico_City', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(epochMs));
+    return Number(parts.find(p => p.type === 'hour')?.value || 0) * 60 + Number(parts.find(p => p.type === 'minute')?.value || 0);
+}
+function timeMinutes(s) {
+    if (typeof s !== 'string' || !/^\d{1,2}:\d{2}/.test(s))
+        return null;
+    const [h, m] = s.split(':').map(Number);
+    return h < 24 && m < 60 ? h * 60 + m : null;
+}
 /* =========================================================
    POST /api/attendance/sync
 
@@ -177,6 +192,71 @@ router.post('/sync', auth_1.authMiddleware, async (req, res) => {
                     });
                     continue;
                 }
+                // Idempotencia y secuencia de jornada, incluso con sincronización offline.
+                // Se serializa por empleado/día para evitar movimientos simultáneos.
+                const existingRecord = await client_1.default.query(`SELECT id_remote, site_id FROM attendance_records WHERE id_local=$1 AND company_id=$2 LIMIT 1`, [idLocal, device.company_id]);
+                if (existingRecord.rows.length) {
+                    synced.push({ id_local: idLocal, id_remote: existingRecord.rows[0].id_remote,
+                        site_id: existingRecord.rows[0].site_id ?? null });
+                    continue;
+                }
+                const day = mexicoDay(occurredAt);
+                const eventsToday = await client_1.default.query(`SELECT event_type, occurred_at FROM attendance_records
+             WHERE company_id=$1 AND employee_id=$2
+               AND (to_timestamp(occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date=$3::date
+             ORDER BY occurred_at ASC`, [device.company_id, employee.id_local, day]);
+                const events = eventsToday.rows.filter((r) => Number(r.occurred_at) <= occurredAt);
+                const futureEvents = eventsToday.rows.some((r) => Number(r.occurred_at) > occurredAt);
+                const last = events.length ? String(events[events.length - 1].event_type) : null;
+                const allowed = last === null ? normalizedEvent === 'CLOCK_IN'
+                    : last === 'CLOCK_IN' || last === 'MEAL_END'
+                        ? (normalizedEvent === 'MEAL_START' || normalizedEvent === 'CLOCK_OUT')
+                        : last === 'MEAL_START' ? normalizedEvent === 'MEAL_END' : false;
+                if (!allowed || futureEvents) {
+                    errors.push({ id_local: idLocal, error: 'Movimiento fuera de secuencia o fecha; sincroniza la jornada en orden' });
+                    continue;
+                }
+                // La app mantiene los eventos MEAL_*; el servidor determina comida/descanso.
+                const scheduleResult = await client_1.default.query(`SELECT c.meal_start_time,c.meal_end_time,c.rest_start_time,
+                    c.rest_duration_minutes,c.meal_duration_minutes
+             FROM categories c WHERE c.id=$1 AND c.company_id=$2 LIMIT 1`, [employee.category_id, device.company_id]);
+                const schedule = scheduleResult.rows[0] ?? {};
+                let breakKind = null;
+                let lateReturnMinutes = 0;
+                if (normalizedEvent === 'MEAL_START' || normalizedEvent === 'MEAL_END') {
+                    const today = mexicoDay(occurredAt);
+                    const previousBreak = await client_1.default.query(`SELECT break_kind FROM attendance_records
+               WHERE company_id=$1 AND employee_id=$2 AND event_type='MEAL_START'
+                 AND to_char(to_timestamp(occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City','YYYY-MM-DD')=$3
+               ORDER BY occurred_at DESC LIMIT 1`, [device.company_id, employee.id_local, today]);
+                    if (normalizedEvent === 'MEAL_END' && previousBreak.rows[0]?.break_kind) {
+                        breakKind = previousBreak.rows[0].break_kind;
+                    }
+                    else {
+                        const nowMin = minuteOfDay(occurredAt);
+                        const meal = timeMinutes(schedule.meal_start_time);
+                        const rest = timeMinutes(schedule.rest_start_time);
+                        if (meal !== null && rest !== null)
+                            breakKind = Math.abs(nowMin - meal) <= Math.abs(nowMin - rest) ? 'MEAL' : 'REST';
+                        else
+                            breakKind = meal !== null ? 'MEAL' : rest !== null ? 'REST' : null;
+                        if (normalizedEvent === 'MEAL_START' && breakKind) {
+                            const start = breakKind === 'MEAL' ? meal : rest;
+                            if (start !== null && nowMin < start) {
+                                errors.push({ id_local: idLocal, error: 'Aún no comienza el horario de comida/descanso' });
+                                continue;
+                            }
+                        }
+                    }
+                    if (normalizedEvent === 'MEAL_END' && breakKind) {
+                        const start = breakKind === 'MEAL' ? timeMinutes(schedule.meal_start_time) : timeMinutes(schedule.rest_start_time);
+                        const configuredEnd = breakKind === 'MEAL' ? timeMinutes(schedule.meal_end_time) : null;
+                        const duration = Number(breakKind === 'MEAL' ? schedule.meal_duration_minutes : schedule.rest_duration_minutes) || 0;
+                        const expected = configuredEnd ?? (start === null ? null : start + duration);
+                        if (expected !== null)
+                            lateReturnMinutes = Math.max(0, minuteOfDay(occurredAt) - expected - 10);
+                    }
+                }
                 const latitude = nullableNumber(record.latitude);
                 const longitude = nullableNumber(record.longitude);
                 const accuracyM = nullableNumber(record.accuracy_m);
@@ -203,11 +283,13 @@ router.post('/sync', auth_1.authMiddleware, async (req, res) => {
               face_confidence,
               device_id,
               company_id,
-              site_id
+              site_id,
+              break_kind,
+              late_return_minutes
             )
             VALUES (
               $1, $2, $3, $4, $5, $6,
-              $7, $8, $9, $10, $11, $12
+              $7, $8, $9, $10, $11, $12, $13, $14
             )
             ON CONFLICT (id_local)
             DO UPDATE SET
@@ -221,7 +303,9 @@ router.post('/sync', auth_1.authMiddleware, async (req, res) => {
               face_confidence = EXCLUDED.face_confidence,
               device_id = EXCLUDED.device_id,
               company_id = EXCLUDED.company_id,
-              site_id = EXCLUDED.site_id
+              site_id = EXCLUDED.site_id,
+              break_kind = EXCLUDED.break_kind,
+              late_return_minutes = EXCLUDED.late_return_minutes
             RETURNING id_remote, id_local, employee_id, site_id
             `, [
                     idLocal,
@@ -236,7 +320,16 @@ router.post('/sync', auth_1.authMiddleware, async (req, res) => {
                     String(device.id_remote),
                     device.company_id,
                     isForeign ? null : (expectedSiteId ?? device.site_id ?? null),
+                    breakKind,
+                    lateReturnMinutes,
                 ]);
+                if (lateReturnMinutes > 0) {
+                    await client_1.default.query(`INSERT INTO attendance_auto_incidents
+                 (company_id,employee_id,category_id,attendance_record_id,incident_date,concept,origin,notes)
+               VALUES ($1,$2,$3,$4,$5::date,'Retardo','BREAK_RETURN',$6)
+               ON CONFLICT DO NOTHING`, [device.company_id, employee.id_remote, employee.category_id, result.rows[0].id_remote,
+                        mexicoDay(occurredAt), `Regreso de ${breakKind === 'REST' ? 'descanso' : 'comida'}: ${lateReturnMinutes} minuto(s) después de la tolerancia`]);
+                }
                 synced.push({
                     id_local: idLocal,
                     id_remote: result.rows[0].id_remote,

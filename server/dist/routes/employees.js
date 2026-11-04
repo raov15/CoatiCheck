@@ -14,7 +14,7 @@ const router = (0, express_1.Router)();
 
    REGLAS:
 
-   - El código EMP001, EMP002, etc. se genera aquí.
+   - El código único por empresa se genera aquí (SLUG-0001, etc.).
    - Android NO asigna el código definitivo.
    - Nombre y apellidos se guardan por separado.
    - RFC, CURP y NSS se reciben desde Android.
@@ -208,33 +208,22 @@ router.post('/sync', auth_1.authMiddleware, async (req, res) => {
                     /* =============================================
                        GENERAR SIGUIENTE CÓDIGO
                     ============================================= */
-                    const codeResult = await client.query(`
-                SELECT
-                  COALESCE(
-                    MAX(
-                      CASE
-                        WHEN employee_code
-                          ~ '^EMP[0-9]+$'
-                        THEN
-                          SUBSTRING(
-                            employee_code
-                            FROM 4
-                          )::INTEGER
-                        ELSE 0
-                      END
-                    ),
-                    0
-                  ) + 1 AS next_number
-                FROM employees
-                WHERE company_id = $1
-                `, [
-                        device.company_id,
-                    ]);
-                    const nextNumber = Number(codeResult
-                        .rows[0]
-                        .next_number);
-                    employeeCode =
-                        `EMP${String(nextNumber).padStart(3, '0')}`;
+                    // El slug es único por empresa en PostgreSQL.
+                    // El código final tendrá formato SLUG-0001.
+                    const companyResult = await client.query(`SELECT slug FROM companies WHERE id = $1 LIMIT 1`, [device.company_id]);
+                    if (!companyResult.rows.length) {
+                        throw new Error('Empresa no encontrada para el dispositivo');
+                    }
+                    const prefix = String(companyResult.rows[0].slug).toUpperCase();
+                    const codeResult = await client.query(`SELECT COALESCE(MAX(
+                  CASE WHEN split_part(employee_code, '-', 1) = $2
+                         AND split_part(employee_code, '-', 2) ~ '^[0-9]+$'
+                       THEN split_part(employee_code, '-', 2)::integer
+                       ELSE 0 END
+                ), 0) + 1 AS next_number
+               FROM employees WHERE company_id = $1`, [device.company_id, prefix]);
+                    const nextNumber = Number(codeResult.rows[0].next_number);
+                    employeeCode = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
                 }
                 /* ===============================================
                    INSERTAR / ACTUALIZAR EMPLEADO

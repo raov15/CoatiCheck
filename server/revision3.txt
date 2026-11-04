@@ -1,0 +1,348 @@
+          c.name AS category_name,
+          c.start_time,
+          c.end_time,
+          c.overtime_allowed,
+          c.overtime_value
+
+        FROM attendance_records a
+
+        JOIN employees e
+          ON e.company_id = a.company_id
+         AND (
+              e.id_local = a.employee_id
+              OR e.id_remote::text = a.employee_id
+              OR e.employee_code = a.employee_id
+         )
+
+        LEFT JOIN categories c
+          ON c.id = e.category_id
+         AND c.company_id = a.company_id
+
+        WHERE ${conditions.join('\n          AND ')}
+
+        ORDER BY
+          a.occurred_at ASC
+        `,
+        values,
+      );
+
+      res.json({
+        records: result.rows,
+        count: result.rows.length,
+      });
+    } catch (error) {
+      console.error(
+        'Error consultando asistencias:',
+        error,
+      );
+
+      const detail =
+        error instanceof Error
+          ? error.message
+          : String(error);
+
+      res.status(500).json({
+        error: 'No se pudieron consultar las asistencias',
+        detail,
+      });
+    }
+  },
+);
+
+/* =========================================================
+   VACACIONES DE TRABAJADORES
+========================================================= */
+
+/*
+ * Obtener resumen e historial de vacaciones.
+ */
+router.get(
+  '/companies/:companyId/employees/:employeeCode/vacations',
+  userAuthMiddleware,
+  requirePasswordChangeComplete,
+  async (
+    req: UserAuthRequest,
+    res: Response,
+  ): Promise<void> => {
+    const { companyId, employeeCode } = req.params;
+
+    if (!canAccessCompany(req, companyId)) {
+      res.status(403).json({
+        error: 'No puede consultar trabajadores de otra empresa',
+      });
+      return;
+    }
+
+    try {
+      const employeeResult = await pool.query(
+        `SELECT
+           id_remote,
+           employee_code,
+           full_name,
+           hire_date
+         FROM employees
+         WHERE company_id = $1
+           AND employee_code = $2
+           AND is_active = TRUE
+         LIMIT 1`,
+        [companyId, employeeCode],
+      );
+
+      const employee = employeeResult.rows[0];
+
+      if (!employee) {
+        res.status(404).json({
+          error: 'Trabajador no encontrado',
+        });
+        return;
+      }
+
+      const vacationsResult = await pool.query(
+        `SELECT
+           id,
+           start_date,
+           end_date,
+           days_taken,
+           notes,
+           created_at
+         FROM employee_vacations
+         WHERE company_id = $1
+           AND employee_id = $2
+         ORDER BY start_date DESC, created_at DESC`,
+        [companyId, employee.id_remote],
+      );
+
+      const totalTaken = vacationsResult.rows.reduce(
+        (total: number, row: any) =>
+          total + Number(row.days_taken ?? 0),
+        0,
+      );
+
+      res.json({
+        employee_code: employee.employee_code,
+        employee_name: employee.full_name,
+        hire_date: employee.hire_date,
+        total_taken: totalTaken,
+        vacations: vacationsResult.rows,
+      });
+    } catch (error) {
+      console.error(
+        'Error consultando vacaciones:',
+        error,
+
+    /* =========================================================
+       INCIDENCIAS CALIFICADAS
+
+       Cuando el administrador elige, por ejemplo, "Retardo",
+       applied_value se toma automáticamente del valor configurado
+       para la categoría del trabajador.
+    ========================================================= */
+
+    ALTER TABLE employee_work_sites
+      ALTER COLUMN site_id DROP NOT NULL;
+
+    ALTER TABLE employee_work_sites
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    ALTER TABLE employee_work_sites
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    CREATE TABLE IF NOT EXISTS qualified_incidents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL
+        REFERENCES companies(id)
+        ON DELETE CASCADE,
+      attendance_record_id UUID
+        REFERENCES attendance_records(id_remote)
+        ON DELETE CASCADE,
+      employee_id UUID NOT NULL
+        REFERENCES employees(id_remote)
+        ON DELETE CASCADE,
+      category_id UUID
+        REFERENCES categories(id)
+        ON DELETE SET NULL,
+      concept TEXT NOT NULL,
+      incident_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      applied_value NUMERIC(10,2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      qualified_by UUID
+        REFERENCES users(id)
+        ON DELETE SET NULL,
+      qualified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+      CHECK (
+        concept IN (
+          'Ausentismo',
+          'Retardo',
+          'Permiso médico justificado',
+          'Permiso médico no justificado',
+          'Permiso de salida',
+          'Falta justificada',
+          'Tiempo extraordinario'
+        )
+      )
+    );
+
+    /* =========================================================
+       MIGRACIONES PARA BASES YA EXISTENTES
+    ========================================================= */
+
+    ALTER TABLE companies
+      ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'America/Mexico_City';
+
+    UPDATE companies
+    SET timezone = 'America/Mexico_City'
+    WHERE timezone IS NULL OR BTRIM(timezone) = '';
+
+    ALTER TABLE companies
+      ALTER COLUMN timezone SET DEFAULT 'America/Mexico_City';
+
+    ALTER TABLE companies
+      ALTER COLUMN timezone SET NOT NULL;
+
+    ALTER TABLE sites
+      ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+
+    ALTER TABLE sites
+      ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+
+    ALTER TABLE sites
+      ADD COLUMN IF NOT EXISTS radius_m INTEGER DEFAULT 300;
+
+    UPDATE sites
+    SET radius_m = 300
+    WHERE radius_m IS DISTINCT FROM 300;
+
+    ALTER TABLE sites
+      ALTER COLUMN radius_m SET DEFAULT 300;
+
+    ALTER TABLE sites
+      ALTER COLUMN radius_m SET NOT NULL;
+
+    ALTER TABLE devices
+      ADD COLUMN IF NOT EXISTS company_id UUID
+      REFERENCES companies(id);
+
+    ALTER TABLE devices
+      ADD COLUMN IF NOT EXISTS site_id UUID
+      REFERENCES sites(id);
+
+    ALTER TABLE devices
+      ADD COLUMN IF NOT EXISTS employee_id UUID;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS first_name TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS last_name_paternal TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS last_name_maternal TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS rfc TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS curp TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS nss TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS phone TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS department TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS start_time TEXT;
+
+    ALTER TABLE employees
+      ADD COLUMN IF NOT EXISTS end_time TEXT;
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'sites_radius_300_check'
+      ) THEN
+        ALTER TABLE sites
+          ADD CONSTRAINT sites_radius_300_check
+          CHECK (radius_m = 300);
+      END IF;
+    END $$;
+
+    /* =========================================================
+       RELACIÓN DISPOSITIVO -> EMPLEADO
+    ========================================================= */
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'devices_employee_id_fkey'
+      ) THEN
+        ALTER TABLE devices
+          ADD CONSTRAINT devices_employee_id_fkey
+          FOREIGN KEY (employee_id)
+          REFERENCES employees(id_remote)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+
+    /* =========================================================
+       CATEGORÍAS DINÁMICAS + MIGRACIÓN SEGURA
+
+       - Ya NO se crean Categoría 1, 2 y 3 automáticamente.
+       - category_number deja de estar limitado a 1..3.
+       - Las categorías existentes se conservan.
+       - Los valores faltantes de incidencias nacen en 0.
+       - La corrección de los antiguos valores predeterminados 1 -> 0
+         se ejecuta una sola vez para no pisar cambios posteriores
+         hechos por el administrador.
+    ========================================================= */
+
+    CREATE TABLE IF NOT EXISTS app_schema_migrations (
+      migration_key TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE categories
+      DROP CONSTRAINT IF EXISTS categories_category_number_check;
+
+    DO $$
+    DECLARE
+      constraint_name TEXT;
+    BEGIN
+      SELECT con.conname
+      INTO constraint_name
+      FROM pg_constraint con
+      JOIN pg_class rel ON rel.oid = con.conrelid
+      JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+      WHERE nsp.nspname = 'public'
+        AND rel.relname = 'categories'
+        AND con.contype = 'c'
+        AND pg_get_constraintdef(con.oid) ILIKE '%category_number%between%1%3%'
+      LIMIT 1;
+
+      IF constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE categories DROP CONSTRAINT %I', constraint_name);
+      END IF;
+    END $$;
+
+    ALTER TABLE categories
+      ALTER COLUMN category_number TYPE INTEGER;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'categories_category_number_positive_check'
+      ) THEN
+        ALTER TABLE categories
+          ADD CONSTRAINT categories_category_number_positive_check
+          CHECK (category_number >= 1);
+      END IF;
+    END $$;
+
+    /* Eliminar la automatización antigua de Categoría 1, 2 y 3. */
+    DROP TRIGGER IF EXISTS trg_create_default_company_categories ON companies;

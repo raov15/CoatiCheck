@@ -1,3 +1,4 @@
+import { classifyBreak, processMissingBreaks, BreakKind } from '../services/break-policy';
 import { Router, Response } from 'express';
 import pool from '../db/client';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
@@ -47,6 +48,20 @@ function nullableNumber(value: unknown): number | null {
   if (value === '' || value === undefined || value === null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function mexicoDay(epochMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone:'America/Mexico_City', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date(epochMs));
+  const get=(type:string)=>parts.find(p=>p.type===type)?.value||'';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+function minuteOfDay(epochMs: number): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'America/Mexico_City', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date(epochMs));
+  return Number(parts.find(p=>p.type==='hour')?.value||0)*60+Number(parts.find(p=>p.type==='minute')?.value||0);
+}
+function timeMinutes(s: unknown): number | null {
+  if(typeof s !== 'string' || !/^\d{1,2}:\d{2}/.test(s)) return null;
+  const [h,m]=s.split(':').map(Number); return h<24 && m<60 ? h*60+m : null;
 }
 
 /* =========================================================
@@ -237,6 +252,61 @@ router.post(
             continue;
           }
 
+          // Idempotencia y secuencia de jornada, incluso con sincronización offline.
+          // Se serializa por empleado/día para evitar movimientos simultáneos.
+          const existingRecord = await pool.query(
+            `SELECT id_remote, site_id FROM attendance_records WHERE id_local=$1 AND company_id=$2 LIMIT 1`,
+            [idLocal, device.company_id],
+          );
+          if (existingRecord.rows.length) {
+            synced.push({id_local:idLocal,id_remote:existingRecord.rows[0].id_remote,
+              site_id:existingRecord.rows[0].site_id ?? null});
+            continue;
+          }
+          const day = mexicoDay(occurredAt);
+          const eventsToday = await pool.query(
+            `SELECT event_type, occurred_at, break_kind FROM attendance_records
+             WHERE company_id=$1 AND employee_id=$2
+               AND (to_timestamp(occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date=$3::date
+             ORDER BY occurred_at ASC`, [device.company_id, employee.id_local, day]);
+          const events = eventsToday.rows.filter((r:any)=>Number(r.occurred_at)<=occurredAt);
+          const futureEvents = eventsToday.rows.some((r:any)=>Number(r.occurred_at)>occurredAt);
+          const last = events.length ? String(events[events.length-1].event_type) : null;
+          const allowed = last === null ? normalizedEvent === 'CLOCK_IN'
+            : last === 'CLOCK_IN' || last === 'MEAL_END'
+              ? (normalizedEvent === 'MEAL_START' || normalizedEvent === 'CLOCK_OUT')
+              : last === 'MEAL_START' ? normalizedEvent === 'MEAL_END' : false;
+          if ((!allowed || futureEvents) && !['MEAL_START','MEAL_END'].includes(normalizedEvent)) {
+            errors.push({id_local:idLocal,error:'Movimiento fuera de secuencia o fecha; sincroniza la jornada en orden'});
+            continue;
+          }
+
+          const scheduleResult = await pool.query(
+            `SELECT c.id AS category_id,c.meal_start_time,c.meal_end_time,c.rest_start_time,
+                    c.rest_duration_minutes,c.meal_duration_minutes
+             FROM employees e LEFT JOIN LATERAL (
+               SELECT dc.category_id FROM employee_day_categories dc
+               WHERE dc.employee_id=e.id_remote AND dc.weekday=$3 LIMIT 1
+             ) daily ON TRUE
+             JOIN categories c ON c.id=COALESCE(daily.category_id,e.category_id)
+             WHERE e.id_remote=$1 AND e.company_id=$2 LIMIT 1`,
+            [employee.id_remote, device.company_id, weekday],
+          );
+          const schedule = scheduleResult.rows[0] ?? {};
+          let breakKind: BreakKind | null = null;
+          let lateReturnMinutes = 0;
+          const breakIssues: string[] = [];
+          if (normalizedEvent === 'MEAL_START' || normalizedEvent === 'MEAL_END') {
+            const departures = events.filter((r:any)=>r.event_type==='MEAL_START');
+            const previous = last==='MEAL_START' ? departures[departures.length-1]?.break_kind : null;
+            const classified = classifyBreak(schedule, minuteOfDay(occurredAt), normalizedEvent==='MEAL_END',
+              departures.map((r:any)=>r.break_kind).filter(Boolean), previous);
+            breakKind = classified.kind;
+            lateReturnMinutes = classified.late;
+            if (classified.issue) breakIssues.push(classified.issue);
+            if (!allowed) breakIssues.push('Marca de pausa fuera de secuencia; requiere revisión del administrador');
+          }
+
           const latitude = nullableNumber(record.latitude);
           const longitude = nullableNumber(record.longitude);
           const accuracyM = nullableNumber(record.accuracy_m);
@@ -267,11 +337,13 @@ router.post(
               face_confidence,
               device_id,
               company_id,
-              site_id
+              site_id,
+              break_kind,
+              late_return_minutes
             )
             VALUES (
               $1, $2, $3, $4, $5, $6,
-              $7, $8, $9, $10, $11, $12
+              $7, $8, $9, $10, $11, $12, $13, $14
             )
             ON CONFLICT (id_local)
             DO UPDATE SET
@@ -285,7 +357,9 @@ router.post(
               face_confidence = EXCLUDED.face_confidence,
               device_id = EXCLUDED.device_id,
               company_id = EXCLUDED.company_id,
-              site_id = EXCLUDED.site_id
+              site_id = EXCLUDED.site_id,
+              break_kind = EXCLUDED.break_kind,
+              late_return_minutes = EXCLUDED.late_return_minutes
             RETURNING id_remote, id_local, employee_id, site_id
             `,
             [
@@ -301,8 +375,20 @@ router.post(
               String(device.id_remote),
               device.company_id,
               isForeign ? null : (expectedSiteId ?? device.site_id ?? null),
+              breakKind,
+              lateReturnMinutes,
             ],
           );
+
+          if (breakIssues.length) {
+            await pool.query(
+              `INSERT INTO attendance_auto_incidents
+                (company_id,employee_id,category_id,attendance_record_id,incident_date,concept,origin,notes)
+               VALUES ($1,$2,$3,$4,$5::date,'Incidencia','BREAK_SCHEDULE',$6) ON CONFLICT DO NOTHING`,
+              [device.company_id,employee.id_remote,schedule.category_id??employee.category_id,
+               result.rows[0].id_remote,mexicoDay(occurredAt),breakIssues.join('. ')]
+            );
+          }
 
           synced.push({
             id_local: idLocal,
@@ -320,6 +406,28 @@ router.post(
             error: 'Error interno del servidor',
           });
         }
+      }
+
+      try { await processMissingBreaks(); }
+      catch (error) { console.error('No se pudieron reconciliar las pausas pendientes:', error); }
+
+      // Un HTTP 200 puede contener rechazos individuales: hacerlos visibles en Docker.
+      console.log('Asistencia: resultado de sincronización', JSON.stringify({
+        device_id: req.deviceId,
+        company_id: device.company_id,
+        recibidos: records.length,
+        confirmados: synced.length,
+        rechazados: errors.length,
+      }));
+      for (const rejected of errors) {
+        const original = records.find((item: AttendanceRecordInput) => String(item?.id_local ?? '').trim() === rejected.id_local);
+        console.warn('Asistencia rechazada:', JSON.stringify({
+          id_local: rejected.id_local,
+          employee_id: original?.employee_id,
+          event_type: original?.event_type,
+          occurred_at: original?.occurred_at,
+          motivo: rejected.error,
+        }));
       }
 
       res.status(200).json({ synced, errors });

@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AttendanceRecordDao {
 
+    // Solo el trabajador de sincronización serializado usa estas recuperaciones.
+    @Query("UPDATE attendance_records SET sync_status = 'ERROR' WHERE sync_status = 'SYNCING'")
+    suspend fun recoverInterruptedUploads(): Int
+
+    @Query("UPDATE attendance_records SET sync_status = 'ERROR' WHERE id_local IN (:ids) AND sync_status = 'SYNCING'")
+    suspend fun releaseUnconfirmedUploads(ids: List<String>): Int
+
     // Los registros son append-only: solo INSERT, nunca UPDATE del contenido
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(record: AttendanceRecordEntity): Long
@@ -19,7 +26,7 @@ interface AttendanceRecordDao {
 
     @Query("""
         SELECT * FROM attendance_records
-        WHERE sync_status IN ('PENDING', 'ERROR') AND sync_attempts < 10
+        WHERE sync_status IN ('PENDING', 'ERROR')
         ORDER BY occurred_at ASC
         LIMIT :limit
     """)
@@ -93,7 +100,6 @@ interface AttendanceRecordDao {
         SELECT COUNT(*)
         FROM attendance_records
         WHERE sync_status IN ('PENDING', 'ERROR')
-        AND sync_attempts < 10
     """)
     suspend fun countPending(): Int
 
