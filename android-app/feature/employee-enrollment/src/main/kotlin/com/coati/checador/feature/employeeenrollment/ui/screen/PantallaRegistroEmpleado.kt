@@ -365,7 +365,7 @@ private fun FormularioRegistro(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Person,
-                    contentDescription = "COATI",
+                    contentDescription = "NEXORA",
                     tint = Color.White,
                     modifier = Modifier.size(48.dp)
                 )
@@ -477,11 +477,7 @@ private fun FormularioRegistro(
 
          var expandirCargo by remember { mutableStateOf(false) }
 
-val cargos = listOf(
-    "Desarrollador web",
-    "Programador",
-    "Contador"
-)
+val cargos = estado.cargosDisponibles
 
 ExposedDropdownMenuBox(
     expanded = expandirCargo,

@@ -77,6 +77,13 @@ class EmployeeWorkAssignmentSyncWorker @AssistedInject constructor(
             val now =
                 System.currentTimeMillis()
 
+            response.departments.forEach { (id, department) ->
+                val currentEmployee = employeeDao.findById(id)
+                if (currentEmployee != null && currentEmployee.department != department) {
+                    employeeDao.update(currentEmployee.copy(department=department,updatedAt=now))
+                }
+            }
+
             val assignments =
                 response.assignments.mapNotNull { remote ->
 
@@ -141,6 +148,10 @@ class EmployeeWorkAssignmentSyncWorker @AssistedInject constructor(
 
                     } else {
 
+                        val currentEmployee = employee
+                        remote.department?.let { department ->
+                            if (currentEmployee.department != department) employeeDao.update(currentEmployee.copy(department=department,updatedAt=now))
+                        }
                         val normalizedMode =
                             remote.work_mode
                                 .trim()

@@ -780,6 +780,7 @@ router.get(
           SELECT
             e.id_remote AS employee_id_remote,
             e.id_local AS employee_id_local,
+            e.department,
             e.employee_code,
             ews.weekday,
             ews.work_mode,
@@ -806,7 +807,9 @@ router.get(
         [device.company_id],
       );
 
+      const profiles=await pool.query('SELECT id_local,department FROM employees WHERE company_id=$1 AND is_active',[device.company_id]);
       res.status(200).json({
+        departments:Object.fromEntries(profiles.rows.filter(r=>r.department).map(r=>[r.id_local,r.department])),
         assignments: result.rows,
       });
 

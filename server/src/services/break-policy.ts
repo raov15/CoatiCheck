@@ -20,22 +20,20 @@ export function windows(schedule: Schedule): Array<{ kind: BreakKind; start: num
 export function classifyBreak(schedule: Schedule, at: number, returning: boolean,
   used: BreakKind[] = [], previous?: BreakKind | null): {kind: BreakKind | null; issue: string | null; late: number} {
   const all = windows(schedule);
-  const candidates = returning && previous ? all.filter(w => w.kind === previous)
-    : returning ? all : all.filter(w => !used.includes(w.kind));
-  const pool = candidates.length ? candidates : all;
-  const window = [...pool].sort((a,b) => {
-    const distance = (w: typeof a) => returning ? Math.abs(at-w.end)
-      : at >= w.start && at <= w.end ? 0 : Math.min(Math.abs(at-w.start), Math.abs(at-w.end));
-    return distance(a)-distance(b) || Math.abs(at-a.start)-Math.abs(at-b.start);
-  })[0];
-  if (!window) return {kind:null, issue:'Pausa registrada sin horario de comida/descanso configurado', late:0};
+  if (!returning) {
+    const matching = all.filter(w=>at>=w.start && at<=w.end)
+      .sort((a,b)=>Math.abs(at-a.start)-Math.abs(at-b.start))[0];
+    if (matching) return {kind:matching.kind,issue:null,late:0};
+    return {kind:'REST',issue:'Descanso fuera de los horarios establecidos de comida y descanso',late:0};
+  }
+  // El regreso conserva el tipo de su propia salida, aunque esa salida esté fuera de rango.
+  const window = previous ? all.find(w=>w.kind===previous) : undefined;
+  if (!previous) return {kind:'REST',issue:'Regreso de descanso sin salida identificada',late:0};
+  if (!window) return {kind:previous,issue:'Regreso de descanso fuera de un horario configurado',late:0};
   const name = window.kind === 'MEAL' ? 'comida' : 'descanso';
   let issue: string | null = null;
-  if (returning && !previous) issue = 'Regreso sin salida de pausa identificada';
-  else if (!returning && used.includes(window.kind)) issue = `Salida de ${name} repetida`;
-  else if (returning ? at < window.end-10 || at > window.end+10 : at < window.start || at > window.end)
-    issue = `${returning?'Regreso de':'Salida a'} ${name} fuera del horario configurado`;
-  return {kind:window.kind, issue, late:returning ? Math.max(0, at-window.end-10) : 0};
+  if (at < window.start || at > window.end) issue = `Regreso de ${name} fuera del horario configurado`;
+  return {kind:window.kind, issue, late:Math.max(0, at-window.end)};
 }
 
 // Recalcula ausencias de pausa de jornadas con entrada. Las alertas pendientes
@@ -84,7 +82,9 @@ export async function processMissingBreaks(): Promise<void> {
       const closed = records.some(r => r.event_type==='CLOCK_OUT');
       for (const direction of ['START','END']) {
         const origin = `MISSING_${window.kind}_${direction}`;
-        const missing = direction==='START' ? starts.length===0 : starts.length>0 && ends.length===0;
+        const unreturned = records.filter(r=>r.break_kind===window.kind).reduce((open,r)=>
+          r.event_type==='MEAL_START'?open+1:r.event_type==='MEAL_END'?Math.max(0,open-1):open,0);
+        const missing = direction==='START' ? starts.length===0 : unreturned>0;
         if ((now>=deadline || closed) && missing) {
           await pool.query(`INSERT INTO attendance_auto_incidents
             (company_id,employee_id,category_id,incident_date,concept,origin,notes)

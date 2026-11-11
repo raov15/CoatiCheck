@@ -212,7 +212,7 @@ router.post('/enroll', async (req: Request, res: Response): Promise<void> => {
     await client.query('BEGIN');
 
     const enrollment = await client.query(
-      `SELECT ec.id, ec.company_id, ec.site_id
+      `SELECT ec.id, ec.company_id, ec.site_id, ec.position_id
        FROM device_enrollment_codes ec
        JOIN companies c
          ON c.id = ec.company_id
@@ -301,9 +301,9 @@ router.post('/enroll', async (req: Request, res: Response): Promise<void> => {
 
     await client.query(
       `UPDATE devices
-       SET auth_token = $1
+       SET auth_token = $1, position_id=$3
        WHERE id_remote = $2`,
-      [authToken, deviceId],
+      [authToken, deviceId, enrollmentRow.position_id ?? null],
     );
 
     await client.query(

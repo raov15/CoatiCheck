@@ -1,5 +1,6 @@
 package com.coati.checador.feature.employeeenrollment.domain.usecase
 
+import com.coati.checador.core.database.dao.AppSettingDao
 import android.graphics.Bitmap
 import com.coati.checador.core.common.Result
 import com.coati.checador.core.database.dao.EmployeeDao
@@ -32,22 +33,10 @@ class RegistrarEmpleadoUseCase @Inject constructor(
 
     private val employeeDao: EmployeeDao,
 
+    private val appSettingDao: AppSettingDao,
     private val syncManager: SyncManager
 
 ) {
-
-    companion object {
-
-        /**
-         * Cargos permitidos actualmente
-         * durante el enrolamiento.
-         */
-        val CARGOS_PERMITIDOS = listOf(
-            "Desarrollador web",
-            "Programador",
-            "Contador"
-        )
-    }
 
     /**
      * Registra un empleado localmente y posteriormente
@@ -121,7 +110,7 @@ class RegistrarEmpleadoUseCase @Inject constructor(
             )
         }
 
-        if (cargo !in CARGOS_PERMITIDOS) {
+        if (cargo !in appSettingDao.getValue("nexora.positions").orEmpty().split('\n')) {
 
             Timber.w(
                 "RegistrarEmpleadoUseCase: cargo no permitido: $cargo"

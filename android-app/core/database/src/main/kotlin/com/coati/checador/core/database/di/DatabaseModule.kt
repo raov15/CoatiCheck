@@ -50,10 +50,11 @@ object DatabaseModule {
                 CoatiDatabase.MIGRATION_2_3,
                 CoatiDatabase.MIGRATION_3_4,
                 CoatiDatabase.MIGRATION_4_5,
-                CoatiDatabase.MIGRATION_5_6
+                CoatiDatabase.MIGRATION_5_6,
+                CoatiDatabase.MIGRATION_6_7
             )
 
-            .fallbackToDestructiveMigration()
+
 
             .build()
     }

@@ -1,3 +1,5 @@
+import configurationSecurityRouter from './routes/configuration-security';
+import nexoraRouter, { devicePositionsRouter } from './routes/nexora';
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
@@ -71,6 +73,9 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/devices', devicesRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
+app.use('/api/positions', devicePositionsRouter);
+app.use('/api/admin', configurationSecurityRouter);
+  app.use('/api/admin', nexoraRouter);
 app.use('/api/admin', adminRouter);
 
 // Alta y asignación de trabajadores a tablets
@@ -103,7 +108,7 @@ async function start(): Promise<void> {
      * http://localhost:3000/api/health
      */
     app.listen(PORT, () => {
-      console.log(`CoatiCheck API corriendo en puerto ${PORT}`);
+      console.log(`NEXORA API corriendo en puerto ${PORT}`);
       console.log(`Public dir: ${publicDir}`);
     });
   } catch (err) {

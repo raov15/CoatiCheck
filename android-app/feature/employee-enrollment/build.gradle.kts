@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.coati.checador.feature.employeeenrollment"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:ui"))
     implementation(project(":core:database"))
+    implementation(project(":core:network"))
     implementation(project(":core:security"))
     implementation(project(":core:sync"))
 

@@ -19,6 +19,13 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface CoatiApiService {
+    @GET("positions")
+    suspend fun getPositions(@Header("Authorization") bearerToken: String): List<String>
+
+    @POST("attendance/metadata")
+    suspend fun attendanceMetadata(@Header("Authorization") bearerToken: String,
+        @Body request: Map<String, List<String>>): List<com.coati.checador.core.network.dto.AttendanceSyncedItem>
+
 
     // =========================================================
     // HEALTH

@@ -643,10 +643,10 @@ class AttendanceViewModel @Inject constructor(
                         }
 
                         EventType.MEAL_START ->
-                            "Salida a comida registrada correctamente"
+                            "Salida a comida/descanso registrada correctamente"
 
                         EventType.MEAL_END ->
-                            "Regreso de comida registrado correctamente"
+                            "Regreso de comida/descanso registrado correctamente"
 
                         else ->
                             "Registro guardado correctamente"
@@ -1274,14 +1274,14 @@ private fun String.toEventType():
         "SALIO DEL TRABAJO" -> EventType.CLOCK_OUT
         else -> throw IllegalArgumentException("Tipo de registro no reconocido: $this")
     }
-// Una sola acción disponible por etapa de la jornada.
+// La selección sugerida no limita las dos acciones permitidas después de entrada o regreso.
 internal fun nextAttendanceEvent(events: List<String>): String? {
     if (events.contains(EventType.CLOCK_OUT)) return null
     return when (events.lastOrNull()) {
         null -> EventType.CLOCK_IN
         EventType.CLOCK_IN -> EventType.MEAL_START
         EventType.MEAL_START -> EventType.MEAL_END
-        EventType.MEAL_END -> if (events.count { it == EventType.MEAL_START } < 2) EventType.MEAL_START else EventType.CLOCK_OUT
+        EventType.MEAL_END -> EventType.MEAL_START
         else -> null
     }
 }
@@ -1299,9 +1299,7 @@ internal fun allowedAttendanceEvents(events: List<String>): Set<String> {
     return when (events.lastOrNull()) {
         null -> setOf(EventType.CLOCK_IN)
         EventType.MEAL_START -> setOf(EventType.MEAL_END)
-        EventType.CLOCK_IN, EventType.MEAL_END ->
-            if (events.count { it == EventType.MEAL_START } < 2) setOf(EventType.MEAL_START, EventType.CLOCK_OUT)
-            else setOf(EventType.CLOCK_OUT)
+        EventType.CLOCK_IN, EventType.MEAL_END -> setOf(EventType.MEAL_START, EventType.CLOCK_OUT)
         else -> emptySet()
     }
 }

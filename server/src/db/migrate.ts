@@ -23,6 +23,8 @@ export async function initDb(): Promise<void> {
        CENTROS DE TRABAJO
     ========================================================= */
 
+    ALTER TABLE companies ADD COLUMN IF NOT EXISTS configuration_password_hash TEXT;
+
     CREATE TABLE IF NOT EXISTS sites (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       company_id UUID NOT NULL
@@ -737,6 +739,8 @@ export async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_employees_hire_date
       ON employees(hire_date);
 
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS daily_salary NUMERIC(12,2);
+
     CREATE INDEX IF NOT EXISTS idx_employees_rfc
       ON employees(rfc);
 
@@ -909,6 +913,44 @@ END;
 $coati_concept$;
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS company_positions(
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 120),
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_company_position_name ON company_positions(company_id,(lower(name)));
+    INSERT INTO company_positions(company_id,name)
+    SELECT DISTINCT c.id, names.name FROM companies c
+    CROSS JOIN LATERAL (
+      SELECT name FROM (VALUES ('Desarrollador web'),('Programador'),('Contador')) defaults(name)
+      UNION SELECT trim(e.department) FROM employees e WHERE e.company_id=c.id AND NULLIF(trim(e.department),'') IS NOT NULL
+    ) names
+    WHERE NOT EXISTS(SELECT 1 FROM company_positions p WHERE p.company_id=c.id)
+    ON CONFLICT DO NOTHING;
+    ALTER TABLE device_enrollment_codes ADD COLUMN IF NOT EXISTS position_id UUID REFERENCES company_positions(id);
+    ALTER TABLE devices ADD COLUMN IF NOT EXISTS position_id UUID REFERENCES company_positions(id);
+    ALTER TABLE employee_vacations ADD COLUMN IF NOT EXISTS advance_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+    UPDATE attendance_auto_incidents SET notes='SIN REGISTRO DE ENTRADA (probable ausentismo)'
+      WHERE origin='ABSENCE' AND status='pending' AND notes='Sin registro de entrada al cumplirse el plazo';
+
+DO $nexora$
+DECLARE t TEXT; rule TEXT; constraint_name TEXT; required TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['qualified_incidents','attendance_auto_incidents'] LOOP
+    constraint_name := t || '_concept_check';
+    SELECT pg_get_expr(conbin,conrelid) INTO rule FROM pg_constraint
+      WHERE conrelid=('public.'||t)::regclass AND conname=constraint_name AND contype='c';
+    IF rule IS NOT NULL AND EXISTS(SELECT 1 FROM unnest(ARRAY['Incidencia','Ausentismo','Retardo','Permiso médico justificado','Permiso médico no justificado','Permiso no autorizado','Falta justificada','Salida no autorizada','Salida autorizada','Tiempo extraordinario','Historial']) value WHERE position(quote_literal(value) IN rule)=0) THEN
+      EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT %I',t,constraint_name);
+      EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I CHECK ((%s) OR concept IN (''Incidencia'',''Ausentismo'',''Retardo'',''Permiso médico justificado'',''Permiso médico no justificado'',''Permiso no autorizado'',''Falta justificada'',''Salida no autorizada'',''Salida autorizada'',''Tiempo extraordinario'',''Historial''))',t,constraint_name,rule);
+    END IF;
+  END LOOP;
+END;
+$nexora$;`);
+
   const bootstrapPassword =
     process.env.ADMIN_BOOTSTRAP_PASSWORD;
 
@@ -945,4 +987,17 @@ $coati_concept$;
       ],
     );
   }
+  await pool.query(`WITH days AS (
+      SELECT DISTINCT company_id,employee_id,incident_date FROM qualified_incidents
+      WHERE concept='Retardo'
+    ), numbered AS (
+      SELECT company_id,employee_id,incident_date,ROW_NUMBER() OVER(PARTITION BY company_id,employee_id,date_trunc('week',incident_date) ORDER BY incident_date) AS n FROM days
+    ), ranked AS (
+      SELECT q.id,q.category_id,n.n,ROW_NUMBER() OVER(PARTITION BY q.company_id,q.employee_id,q.incident_date ORDER BY q.qualified_at,q.id) AS day_n
+      FROM qualified_incidents q JOIN numbered n ON n.incident_date=q.incident_date AND n.company_id=q.company_id AND n.employee_id=q.employee_id
+      WHERE q.concept='Retardo'
+    ) UPDATE qualified_incidents AS q SET applied_value=CASE WHEN r.n%3=0 AND r.day_n=1
+      THEN COALESCE((SELECT value FROM category_incidence_values WHERE category_id=r.category_id AND concept='Ausentismo' LIMIT 1),0)
+      ELSE 0 END FROM ranked r WHERE q.id=r.id`);
 }
+

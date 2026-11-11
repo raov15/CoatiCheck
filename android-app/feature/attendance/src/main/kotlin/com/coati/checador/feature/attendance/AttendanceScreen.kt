@@ -329,7 +329,7 @@ fun AttendanceScreen(
 
                 Text(
                     text =
-                        "Para registrar una jornada foránea, COATI necesita " +
+                        "Para registrar una jornada foránea, NEXORA necesita " +
                             "seguir registrando la ubicación mientras la app " +
                             "no está visible.\n\n" +
                             "En la configuración de Android selecciona " +
@@ -796,7 +796,7 @@ fun AttendanceScreen(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) Color(0xFFDCFCE7) else if (available) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF374151))
+                        .background(if (available) Color(0xFFDCFCE7) else Color(0xFF374151))
                         .selectable(
                             selected = selected,
                             enabled = available,
@@ -821,16 +821,16 @@ fun AttendanceScreen(
                         Text(
                             text = type,
                             color = if (selected) selectionGreen
-                                else if (available) MaterialTheme.colorScheme.onSurface
+                                else if (available) selectionGreen
                                 else Color(0xFFD1D5DB),
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                         )
                         if (selected) {
-                            Text("✓ Siguiente acción", color = selectionGreen,
+                            Text("✓ Seleccionado", color = selectionGreen,
                                 style = MaterialTheme.typography.labelMedium)
                         } else {
                             Text(if (available) "Disponible" else if (completed) "Ya registrado" else "No disponible todavía",
-                                color = Color(0xFF9CA3AF), style = MaterialTheme.typography.labelMedium)
+                                color = if (available) selectionGreen else Color(0xFF9CA3AF), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }

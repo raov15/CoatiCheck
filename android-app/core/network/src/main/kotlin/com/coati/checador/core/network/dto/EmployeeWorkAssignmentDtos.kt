@@ -7,6 +7,7 @@ data class EmployeeWorkAssignmentDto(
     val employee_id_remote: String,
     val employee_id_local: String,
     val employee_code: String,
+    val department: String? = null,
     val weekday: Int,
     val work_mode: String,
     val site_id: String? = null,
@@ -15,5 +16,6 @@ data class EmployeeWorkAssignmentDto(
 
 @Serializable
 data class EmployeeWorkAssignmentsResponse(
+    val departments: Map<String, String> = emptyMap(),
     val assignments: List<EmployeeWorkAssignmentDto>
 )

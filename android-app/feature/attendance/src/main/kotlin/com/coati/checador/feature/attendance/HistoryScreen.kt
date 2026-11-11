@@ -133,8 +133,8 @@ fun RecordItem(
                     text = when (record.eventType) {
                         "CLOCK_IN" -> "ENTRADA"
                         "CLOCK_OUT" -> "SALIDA"
-                        "MEAL_START" -> "COMIDA (IN)"
-                        "MEAL_END" -> "COMIDA (OUT)"
+                        "MEAL_START" -> (if (record.breakKind == "REST") "DESCANSO" else if (record.breakKind == "MEAL") "COMIDA" else "PAUSA") + " " + (record.breakNumber?.toString() ?: "") 
+                        "MEAL_END" -> (if (record.breakKind == "REST") "REGRESO DEL DESCANSO" else if (record.breakKind == "MEAL") "REGRESO DE COMER" else "REGRESO DE PAUSA") + " " + (record.breakNumber?.toString() ?: "")
                         else -> record.eventType
                     },
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),

@@ -1,5 +1,9 @@
 package com.coati.checador.feature.employeeenrollment.ui.viewmodel
 
+import com.coati.checador.core.database.dao.AppSettingDao
+import com.coati.checador.core.database.entity.AppSettingEntity
+import com.coati.checador.core.network.CoatiApiServiceFactory
+import kotlinx.coroutines.CancellationException
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -32,11 +36,30 @@ import javax.inject.Inject
 @HiltViewModel
 class RegistroEmpleadoViewModel @Inject constructor(
     private val registrarEmpleadoUseCase: RegistrarEmpleadoUseCase,
+    private val appSettingDao: AppSettingDao,
+    private val apiServiceFactory: CoatiApiServiceFactory,
     private val verificarIdentidadUseCase: VerificarIdentidadUseCase
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoRegistro())
     val estado: StateFlow<EstadoRegistro> = _estado.asStateFlow()
+
+    init { cargarCargos() }
+    fun cargarCargos() {
+        viewModelScope.launch {
+            val cached = appSettingDao.getValue("nexora.positions").orEmpty().split('\n').filter { it.isNotBlank() }
+            _estado.update { it.copy(cargosDisponibles = cached) }
+            try {
+                val token = appSettingDao.getValue(AppSettingEntity.KEY_AUTH_TOKEN).orEmpty()
+                if (token.isBlank()) return@launch
+                val url = appSettingDao.getValue(AppSettingEntity.KEY_API_BASE_URL)
+                val roles = apiServiceFactory.create(url).getPositions("Bearer " + token)
+                appSettingDao.upsert(AppSettingEntity(key="nexora.positions",value=roles.joinToString("\n"),updatedAt=System.currentTimeMillis()))
+                _estado.update { it.copy(cargosDisponibles = roles) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { if (cached.isEmpty()) _estado.update { it.copy(errorGeneral="Conecta a internet para descargar los cargos configurados por el administrador") } }
+        }
+    }
 
     // ─── Actualización de campos del formulario ─────────────────────────────────
 
@@ -223,6 +246,9 @@ class RegistroEmpleadoViewModel @Inject constructor(
      */
     fun guardarRegistro() {
         val estadoActual = _estado.value
+        if (estadoActual.departamento !in estadoActual.cargosDisponibles) {
+            _estado.update { it.copy(errorDepartamento="Selecciona un cargo activo del catálogo") }; return
+        }
 
         // Validar campos
         val errores = validarFormulario(estadoActual)
@@ -326,7 +352,7 @@ class RegistroEmpleadoViewModel @Inject constructor(
     }
 
     fun limpiarEstado() {
-        _estado.update { EstadoRegistro() }
+        _estado.update { EstadoRegistro(cargosDisponibles=it.cargosDisponibles) }
     }
 
     fun limpiarErrorGeneral() {
@@ -419,6 +445,7 @@ class RegistroEmpleadoViewModel @Inject constructor(
 data class EstadoRegistro(
 
     // ─── Datos personales ────────────────────────────────────────────────────
+    val cargosDisponibles: List<String> = emptyList(),
     val nombre: String = "",
     val apellidoPaterno: String = "",
     val apellidoMaterno: String = "",

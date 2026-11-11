@@ -4,6 +4,27 @@ import pool from '../db/client';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+async function attendanceMetadata(companyId:string,ids:string[]) {
+  if(!ids.length)return [];
+  const result=await pool.query(`SELECT a.id_local,a.id_remote,a.break_kind,
+    CASE WHEN a.event_type IN ('MEAL_START','MEAL_END') THEN (
+      SELECT COUNT(*)::int FROM attendance_records b WHERE b.company_id=a.company_id AND b.employee_id=a.employee_id
+        AND b.event_type='MEAL_START' AND b.break_kind IS NOT DISTINCT FROM a.break_kind
+        AND (to_timestamp(b.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=
+            (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date
+        AND b.occurred_at<=a.occurred_at
+    ) ELSE NULL END AS break_number
+    FROM attendance_records a WHERE a.company_id=$1 AND a.id_local=ANY($2::text[])`,[companyId,ids]);
+  return result.rows;
+}
+router.post('/metadata',authMiddleware,async(req:AuthRequest,res:Response):Promise<void>=>{
+  const ids=Array.isArray(req.body?.ids)?req.body.ids.filter((x:unknown)=>typeof x==='string').slice(0,500):[];
+  try {
+    const device=await pool.query('SELECT company_id FROM devices WHERE id_remote=$1',[req.deviceId]);
+    if(!device.rows[0]?.company_id){res.status(403).json({error:'Dispositivo sin empresa'});return;}
+    res.json(await attendanceMetadata(device.rows[0].company_id,ids));
+  }catch(error){res.status(500).json({error:'No se pudo actualizar el tipo de pausa'});}
+});
 
 interface AttendanceRecordInput {
   id_local: string;
@@ -430,7 +451,9 @@ router.post(
         }));
       }
 
-      res.status(200).json({ synced, errors });
+      const metadata=await attendanceMetadata(device.company_id,synced.map(r=>r.id_local));
+      const enriched=synced.map(r=>({...r,...metadata.find(m=>m.id_local===r.id_local)}));
+      res.status(200).json({ synced:enriched, errors });
     } catch (error) {
       console.error('Error verificando dispositivo:', error);
       res.status(500).json({ error: 'Error interno del servidor' });

@@ -19,15 +19,16 @@ const field = (v: unknown, limit = 120) =>
   typeof v === 'string' ? v.trim().slice(0, limit) : '';
 
 router.post(
-  '/companies/:companyId/shared-checkers/:checkerId/new-employee',
+  ['/companies/:companyId/shared-checkers/:checkerId/new-employee', '/companies/:companyId/shared-employees'],
   userAuthMiddleware,
   requirePasswordChangeComplete,
   requireRole('admin', 'superadmin'),
 
   async (req: UserAuthRequest, res: Response): Promise<void> => {
-    const { companyId, checkerId } = req.params;
+    const companyId=req.params.companyId;
+    const checkerId=String(req.params.checkerId||req.body?.checker_id||'').trim();
 
-    if (!uuid(companyId) || !uuid(checkerId)) {
+    if (!uuid(companyId) || (checkerId && !uuid(checkerId))) {
       res.status(400).json({
         error: 'Identificador inválido'
       });
@@ -116,7 +117,7 @@ router.post(
 
       // Verificar que la tablet pertenezca a la empresa.
 
-      const checker = await client.query(
+      const checker = checkerId ? await client.query(
         `SELECT id, site_id
          FROM shared_checkers
          WHERE id = $1
@@ -124,9 +125,9 @@ router.post(
            AND is_active = TRUE
          FOR UPDATE`,
         [checkerId, companyId]
-      );
+      ) : {rows:[],rowCount:0};
 
-      if (!checker.rowCount) {
+      if (checkerId && !checker.rowCount) {
         await client.query('ROLLBACK');
 
         res.status(404).json({
@@ -135,7 +136,9 @@ router.post(
         return;
       }
 
-      const siteId = checker.rows[0].site_id;
+      const siteId = checker.rows[0]?.site_id ?? null;
+      const position=await client.query('SELECT id FROM company_positions WHERE company_id=$1 AND lower(name)=lower($2) AND is_active',[companyId,department]);
+      if(!position.rows[0]){await client.query('ROLLBACK');res.status(400).json({error:'Selecciona un cargo activo del catálogo'});return;}
 
       // Bloqueo por empresa.
       // Utiliza el mismo bloqueo que employees.ts
@@ -261,9 +264,9 @@ router.post(
         ]
       );
 
-      // Asignar el trabajador a la tablet.
+      // Asignación opcional.
 
-      await client.query(
+      if (checkerId) await client.query(
         `INSERT INTO shared_checker_employees (
           employee_id,
           checker_id,
@@ -284,7 +287,7 @@ router.post(
 
       res.status(201).json({
         created: true,
-        assigned: true,
+        assigned: Boolean(checkerId),
         employee_id: remoteId,
         employee_code: code,
         full_name: fullName

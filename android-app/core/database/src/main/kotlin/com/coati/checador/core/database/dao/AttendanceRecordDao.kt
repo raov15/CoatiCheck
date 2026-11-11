@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AttendanceRecordDao {
 
+    @Query("UPDATE attendance_records SET break_kind=:kind, break_number=:number WHERE id_local=:id")
+    suspend fun updateBreakMetadata(id: String, kind: String?, number: Int?)
+
     // Solo el trabajador de sincronización serializado usa estas recuperaciones.
     @Query("UPDATE attendance_records SET sync_status = 'ERROR' WHERE sync_status = 'SYNCING'")
     suspend fun recoverInterruptedUploads(): Int

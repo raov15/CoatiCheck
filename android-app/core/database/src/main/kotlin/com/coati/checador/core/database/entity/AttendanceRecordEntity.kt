@@ -139,5 +139,7 @@ data class AttendanceRecordEntity(
     val lastError: String? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long
+    val createdAt: Long,
+    @ColumnInfo(name = "break_kind") val breakKind: String? = null,
+    @ColumnInfo(name = "break_number") val breakNumber: Int? = null
 )

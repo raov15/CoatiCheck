@@ -2,10 +2,146 @@
 <html lang="es">
 
 <head>
+<script id="nexora-integrated">
+(function(){
+  const q=id=>document.getElementById(id), debtCodes=new Set(), catalogs=new Map();
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const company=()=>q('devices-company')?.value||q('report-company')?.value||'';
+  const catalogCompany=()=>q('code-company')?.value||company();
+  window.nexoraBreakLabel=function(record){
+    const number=record.break_number?' '+record.break_number:'';
+    const event=record.attendance_event_type||record.event_type;
+    if(event==='MEAL_END')return (record.break_kind==='MEAL'?'Regreso de comer':record.break_kind==='REST'?'Regreso del descanso':'Regreso de pausa')+number;
+    return (record.break_kind==='MEAL'?'Comida':record.break_kind==='REST'?'Descanso':'Pausa')+number;
+  };
+  async function request(url,options){
+    const response=await authorizedFetch(url,options);const data=await response.json().catch(()=>({}));
+    if(!response.ok){const error=Error(data.error||'No se pudo guardar');error.data=data;throw error;}return data;
+  }
+  async function catalog(id,refresh=false){
+    if(!id)return [];
+    if(refresh||!catalogs.has(id))catalogs.set(id,request('/api/admin/companies/'+encodeURIComponent(id)+'/positions').catch(error=>{catalogs.delete(id);throw error;}));
+    return catalogs.get(id);
+  }
+  window.nexoraFillPositions=async function(select,id){
+    if(!select)return;select.dataset.positionsCompany=id;const old=select.value;
+    try{
+      const rows=await catalog(id);if(select.dataset.positionsCompany!==id)return;
+      select.replaceChildren(new Option('Selecciona un cargo',''));
+      for(const row of rows)select.add(new Option(row.name,row.name));
+      if(rows.some(r=>r.name===old))select.value=old;
+      else if(old&&select.id==='worker-edit-role'){const option=new Option(old+' (archivado)',old);option.disabled=true;select.add(option);select.value=old;}
+    }catch(error){setStatus(error.message);}
+  };
+  window.nexoraFillFormPositions=async function(form,id){
+    let field=form?.querySelector('[name="department"]');if(!field)return;
+    if(field.tagName!=='SELECT'){const select=document.createElement('select');select.name='department';select.required=true;field.replaceWith(select);field=select;}
+    await window.nexoraFillPositions(field,id);
+  };
+  async function refreshSelectors(){
+    await Promise.all([
+      window.nexoraFillPositions(q('code-site'),q('code-company')?.value||company()),
+      window.nexoraFillPositions(q('user-site'),q('user-company')?.value||company()),
+      window.nexoraFillPositions(q('worker-edit-role'),company()),
+      window.nexoraFillFormPositions(q('worker-create-form'),q('worker-create-company')?.value||company())
+    ]);
+  }
+  async function renderCatalog(){
+    const container=q('nexora-positions-list');if(!container)return;
+    const id=catalogCompany();container.replaceChildren();if(!id){container.textContent='Selecciona una empresa en Conectar dispositivos.';return;}
+    try{
+      for(const role of await catalog(id)){
+        const row=document.createElement('div');row.className='nexora-position-row';
+        const name=document.createElement('span');name.textContent=role.name;
+        const edit=document.createElement('button');edit.type='button';edit.className='btn btn-soft btn-small';edit.textContent='Editar';
+        edit.onclick=async()=>{const value=prompt('Nombre del cargo',role.name);if(!value?.trim()||value.trim()===role.name)return;
+          try{await request(`/api/admin/companies/${encodeURIComponent(id)}/positions/${role.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:value.trim()})});catalogs.delete(id);await renderCatalog();await refreshSelectors();if(typeof loadDevices==='function')await loadDevices();}catch(error){setStatus(error.message);}};
+        const remove=document.createElement('button');remove.type='button';remove.className='btn btn-soft btn-small';remove.textContent='Eliminar';
+        remove.onclick=async()=>{if(!confirm('¿Retirar este cargo de las opciones disponibles? Los trabajadores ya asignados conservan su registro.'))return;
+          try{await request(`/api/admin/companies/${encodeURIComponent(id)}/positions/${role.id}`,{method:'DELETE'});catalogs.delete(id);await renderCatalog();await refreshSelectors();}catch(error){setStatus(error.message);}};
+        row.append(name,edit,remove);container.append(row);
+      }
+    }catch(error){container.textContent=error.message;}
+  }
+  window.nexoraApplyDebtStyles=function(){
+    document.querySelectorAll('#devices tr').forEach(row=>{
+      const code=row.querySelector('td')?.textContent.trim();row.classList.toggle('nexora-vacation-debt',debtCodes.has(code));
+    });
+  };
+  window.nexoraVacationSummary=async function(){
+    const box=q('worker-vacation-summary'),id=company();if(!box||!id)return;
+    const generation=(window.__nexoraVacationGeneration||0)+1;window.__nexoraVacationGeneration=generation;
+    box.textContent='Cargando vacaciones…';const workers=mergedWorkers().filter(w=>!w.company_id||String(w.company_id)===id);
+    const cards=await Promise.all(workers.map(async worker=>{
+      const code=bmcEmployeeCode(worker);
+      try{const balance=await request(`/api/admin/companies/${encodeURIComponent(id)}/employees/${encodeURIComponent(code)}/vacations`);return {worker,code,balance};}
+      catch(error){return {worker,code,error:error.message};}
+    }));
+    if(window.__nexoraVacationGeneration!==generation)return;
+    debtCodes.clear();box.replaceChildren();
+    for(const {worker,code,balance,error} of cards){
+      const card=document.createElement('div');card.className='vacation-worker';
+      if(error){card.textContent=fullWorkerName(worker)+': '+error;box.append(card);continue;}
+      if(balance.available<0){debtCodes.add(code);card.classList.add('nexora-vacation-debt');}
+      else if(balance.available>0)card.classList.add('nexora-vacation-available');
+      const title=document.createElement('strong');title.textContent=fullWorkerName(worker);
+      const stats=document.createElement('span');stats.className='nexora-vacation-stats';stats.textContent=`Generados: ${balance.accrued} · Tomados: ${balance.taken} · Disponibles: ${balance.available}`;
+      const add=document.createElement('button');add.type='button';add.className='btn btn-primary btn-small';add.textContent='Registrar vacaciones';
+      add.onclick=()=>window.nexoraVacationModal(code,fullWorkerName(worker),balance.available);
+      const history=document.createElement('div');history.className='nexora-vacation-history hidden';
+      const toggle=document.createElement('button');toggle.type='button';toggle.className='btn btn-soft btn-small';toggle.textContent='Ver historial';toggle.setAttribute('aria-expanded','false');
+      toggle.onclick=()=>{const open=history.classList.toggle('hidden')===false;toggle.textContent=open?'Ocultar historial':'Ver historial';toggle.setAttribute('aria-expanded',String(open));};
+      for(const item of balance.vacations){const line=document.createElement('p');line.textContent=`${String(item.start_date).slice(0,10)} a ${String(item.end_date).slice(0,10)} · ${item.days_taken} días${item.advance_confirmed?' · Incluye adelanto':''}${item.notes?' · '+item.notes:''}`;history.append(line);}
+      if(!balance.vacations.length)history.textContent='Sin vacaciones registradas.';
+      const info=document.createElement('div');info.className='nexora-vacation-info';info.append(title,stats);
+      const actions=document.createElement('div');actions.className='nexora-vacation-actions';actions.append(add,toggle);
+      const row=document.createElement('div');row.className='nexora-vacation-row';row.append(info,actions);
+      card.append(row,history);box.append(card);
+    }
+    box.closest('.card')?.classList.add('nexora-vacation-section');
+    window.nexoraApplyDebtStyles();
+  };
+  window.nexoraVacationModal=function(code,name,available){
+    q('vacation-register-modal')?.remove();const overlay=document.createElement('div');overlay.id='vacation-register-modal';overlay.className='modal-backdrop';
+    overlay.innerHTML=`<div class="modal-card"><h3>Registrar vacaciones</h3><p>${esc(name)} · ${available} días disponibles</p><form id="nexora-vacation-form"><div class="modal-grid">
+      <label>Días tomados<input name="days" type="number" min="1" step="1" required></label>
+      <label>Desde<input name="start" type="date" required></label><label>Hasta<input name="end" type="date" required></label>
+      <label>Observaciones<textarea name="notes" maxlength="4000"></textarea></label></div>
+      <p class="nexora-vacation-feedback" role="status"></p><button type="button" class="btn btn-soft nexora-cancel">Cancelar</button><button class="btn btn-primary" type="submit">Guardar vacaciones</button></form></div>`;
+    document.body.append(overlay);overlay.querySelector('.nexora-cancel').onclick=()=>overlay.remove();
+    const form=q('nexora-vacation-form');form.onsubmit=async event=>{
+      event.preventDefault();const feedback=form.querySelector('[role="status"]'),button=form.querySelector('[type="submit"]');
+      const fields=new FormData(form);const body={start_date:fields.get('start'),end_date:fields.get('end'),days_taken:Number(fields.get('days')),notes:String(fields.get('notes')||''),confirm_advance:false};
+      const url=`/api/admin/companies/${encodeURIComponent(company())}/employees/${encodeURIComponent(code)}/vacations`;
+      if(body.days_taken>available){if(!confirm(`Solo tienes ${available} días disponibles. ¿Deseas tomar más días por adelantado?`)){form.elements.days.focus();return;}body.confirm_advance=true;}
+      button.disabled=true;
+      try{
+        let result;
+        try{result=await request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+        catch(error){if(error.data?.code!=='CONFIRM_ADVANCE')throw error;
+          if(!confirm(error.data.error)){form.elements.days.focus();return;}
+          body.confirm_advance=true;result=await request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+        overlay.remove();await window.nexoraVacationSummary();setStatus('Vacaciones guardadas. Saldo disponible: '+result.available);
+      }catch(error){feedback.textContent=error.message;}finally{button.disabled=false;}
+    };
+  };
+  document.addEventListener('DOMContentLoaded',()=>{
+    const style=document.createElement('style');style.textContent='.nexora-position-row{display:flex;gap:8px;align-items:center;margin:8px 0}.nexora-position-row span{flex:1}.nexora-vacation-debt,.nexora-vacation-debt>td{background:#fce7f3!important}.nexora-no-entry{border-left:5px solid #dc2626!important}.nexora-no-entry .incidence-type-badge{color:#991b1b!important;background:#fee2e2!important}.nexora-no-entry-title{color:#b91c1c;font-weight:800}';document.head.append(style);
+    const host=q('connect-page');if(host){const panel=document.createElement('details');panel.id='nexora-positions-panel';panel.className='card';panel.innerHTML='<summary>Administrar cargos</summary><form id="nexora-position-form"><input name="name" maxlength="120" placeholder="Nombre del cargo" aria-label="Nombre del cargo" required><button class="btn btn-primary" type="submit">Agregar cargo</button></form><div id="nexora-positions-list"></div>';host.append(panel);panel.addEventListener('toggle',()=>{if(panel.open)renderCatalog();});
+      q('nexora-position-form').onsubmit=async event=>{event.preventDefault();const id=catalogCompany();if(!id){setStatus('Selecciona una empresa');return;}const form=event.currentTarget;try{await request(`/api/admin/companies/${encodeURIComponent(id)}/positions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.elements.name.value})});form.reset();catalogs.delete(id);await renderCatalog();await refreshSelectors();}catch(error){setStatus(error.message);}};}
+    const edit=q('worker-edit-role');if(edit&&edit.tagName!=='SELECT'){const select=document.createElement('select');select.id=edit.id;edit.replaceWith(select);}
+    ['devices-company','code-company','user-company','worker-create-company'].forEach(id=>q(id)?.addEventListener('change',()=>{refreshSelectors();renderCatalog();if(id==='devices-company')window.nexoraVacationSummary();}));
+    document.addEventListener('click',event=>{if(event.target.closest('.worker-edit-btn'))setTimeout(refreshSelectors,0);});
+    const old=window.renderDevicesTable;if(typeof old==='function')window.renderDevicesTable=function(...args){const result=old.apply(this,args);window.nexoraApplyDebtStyles();return result;};
+    refreshSelectors();renderCatalog();
+  });
+})();
+
+</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>COOATII Check</title>
+<title>NEXORA</title>
 
 <style>
 
@@ -941,7 +1077,7 @@ aside {
 
 
 /* =========================
-   ESTILO AZUL COOATII
+   ESTILO AZUL NEXORA
 ========================= */
 :root{
     --blue-50:#f3f8ff;
@@ -1975,7 +2111,7 @@ select{
 }
 
 
-/* ===== COOATII: categorías, descansos, incidencias y vacaciones ===== */
+/* ===== NEXORA: categorías, descansos, incidencias y vacaciones ===== */
 .worker-day-sites{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.worker-day-site{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center}.worker-day-site b{font-size:12px;color:var(--blue-800)}
 .category-chip{display:inline-flex;padding:5px 9px;border-radius:999px;background:#eef6ff;border:1px solid var(--blue-200);font-size:11px;font-weight:900;color:var(--blue-800)}
 .dynamic-rest-list{display:flex;flex-direction:column;gap:8px}.dynamic-rest-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.dynamic-rest-row select{min-height:38px}.incidence-values-grid{display:grid;grid-template-columns:minmax(190px,1.4fr) minmax(130px,.8fr) minmax(190px,1fr);gap:8px;align-items:center}.incidence-values-head{font-size:11px;font-weight:900;color:var(--blue-800);padding:6px 0;border-bottom:1px solid var(--blue-100)}.incidence-values-grid input,.incidence-values-grid select{min-height:36px;font-size:12px}.hours-placeholder{padding:14px;border:1px dashed var(--blue-200);border-radius:11px;background:var(--blue-50);color:var(--muted);font-size:12px}.vacation-worker-list{display:flex;flex-direction:column;gap:10px}.vacation-worker{border:1px solid var(--blue-200);border-radius:13px;padding:14px;background:#fbfdff}.vacation-worker.eligible{border-left:5px solid #16a34a;background:#f0fdf4}.vacation-worker.pending{border-left:5px solid #f59e0b;background:#fffbeb}.vacation-worker-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.vacation-worker-name{font-weight:900;color:var(--blue-800)}.vacation-stats{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.vacation-stat{padding:5px 9px;border-radius:999px;background:#fff;border:1px solid var(--blue-200);font-size:11px;font-weight:850}.vacation-history{margin-top:10px;font-size:12px;color:var(--muted)}.vacation-history-row{display:grid;grid-template-columns:1.2fr .7fr .7fr .7fr auto;gap:7px;align-items:center;margin-top:6px}.vacation-history-row input{min-height:34px;padding:5px 7px}.eligibility-badge{padding:6px 10px;border-radius:999px;font-size:11px;font-weight:900;background:#dcfce7;color:#166534}.not-yet-badge{padding:6px 10px;border-radius:999px;font-size:11px;font-weight:900;background:#f1f5f9;color:#475569}
@@ -2260,7 +2396,7 @@ select{
 /* V15 - COMIDA, DESCANSO, AUSENTISMO Y RETARDOS */
 .meal-duration-box,.absence-auto-box,.late-week-box{display:grid;grid-template-columns:minmax(110px,150px) minmax(0,1fr);gap:10px;align-items:center}.meal-duration-box .input-unit,.absence-auto-box input,.late-week-box input{width:100%}.rest-time-row{display:grid;grid-template-columns:minmax(180px,1fr) 150px auto;gap:10px;align-items:end}.rest-time-row .rest-select-wrap{min-width:0}.rest-time-row .bmc-rest-time{min-height:44px}.formula-note{display:block;margin-top:6px;color:var(--muted);font-size:11px;line-height:1.45}.formula-preview{display:inline-flex;margin-top:6px;padding:6px 9px;border-radius:9px;background:var(--blue-50);border:1px solid var(--blue-200);color:var(--blue-800);font-size:11px;font-weight:900}@media(max-width:700px){.meal-duration-box,.absence-auto-box,.late-week-box,.rest-time-row{grid-template-columns:1fr}}
 
-/* Ajustes COOATII: descansos, comida e incidencias */
+/* Ajustes NEXORA: descansos, comida e incidencias */
 .rest-duration-label{margin-top:6px;font-size:12px;font-weight:700;color:var(--muted)}
 .absence-formula-simple{margin-top:5px;font-size:12px;font-weight:800;color:var(--blue-700)}
 [data-days-for="rest"]{margin-bottom:0}
@@ -2313,7 +2449,7 @@ select{
 /* Ocultar únicamente la descripción de la lista de categorías */
 .settings-workers-panel > .settings-intro { display: none !important; }
 
-/* NOTIFICACIONES FLOTANTES GLOBALES COOATII */
+/* NOTIFICACIONES FLOTANTES GLOBALES NEXORA */
 #status { display:none !important; }
 #cooatii-toast-stack {
  position:fixed; top:18px; right:20px; z-index:2147483647;
@@ -2360,6 +2496,207 @@ select{
 
 
 </style>
+
+<style id="nexora-compact-styles">
+#connect-page #nexora-positions-panel{width:100%;max-width:540px!important;padding:8px 12px!important;margin:10px 0!important;border-radius:9px;min-height:0!important}
+#connect-page #nexora-positions-panel:not([open]){width:max-content;max-width:100%}
+#connect-page #nexora-positions-panel>summary{font-size:13px!important;line-height:20px;margin:0!important}
+#nexora-positions-panel>summary{font-size:14px;font-weight:700;cursor:pointer}
+#nexora-position-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+#nexora-position-form input{flex:1 1 200px;width:auto;max-width:340px;min-width:140px;height:32px;padding:5px 9px;font-size:13px;margin:0}
+#nexora-positions-panel button{width:auto!important;min-height:28px;padding:4px 10px!important;font-size:12px!important;line-height:20px;border-radius:8px;box-shadow:none}
+#nexora-positions-list .nexora-position-row{display:grid;grid-template-columns:minmax(110px,1fr) auto auto;gap:6px;align-items:center;margin:5px 0}
+#nexora-positions-list .nexora-position-row>span{font-size:13px;overflow-wrap:anywhere}
+.nexora-vacation-section{max-width:1100px;padding:18px!important}
+#worker-vacation-summary{max-width:1040px;gap:5px!important}
+#worker-vacation-summary .vacation-worker{padding:7px 10px!important;margin:0!important;border:1px solid #d7e2ed;border-radius:10px!important;box-shadow:none;background:#f8fafc}
+#worker-vacation-summary .nexora-vacation-row{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+#worker-vacation-summary .nexora-vacation-info{display:flex;align-items:center;gap:4px 16px;flex:1 1 360px;flex-wrap:wrap;min-width:0}
+#worker-vacation-summary .nexora-vacation-info>strong{font-size:14px!important;line-height:1.35;min-width:140px;max-width:240px}
+#worker-vacation-summary .nexora-vacation-stats{font-size:12px!important;line-height:1.5;color:#475569}
+#worker-vacation-summary .nexora-vacation-actions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+#worker-vacation-summary .nexora-vacation-actions button{width:auto!important;min-height:29px;padding:4px 9px!important;font-size:11px!important;line-height:19px;white-space:nowrap;border-radius:8px;box-shadow:none}
+#worker-vacation-summary .nexora-vacation-history{margin-top:8px;padding-top:7px;border-top:1px solid #d7e2ed;font-size:12px}
+#worker-vacation-summary .nexora-vacation-history p{font-size:12px;margin:4px 0}
+#worker-vacation-summary .nexora-vacation-available{background:#f0fdf4!important;border-color:#86efac}
+#worker-vacation-summary .nexora-vacation-available .nexora-vacation-stats{color:#166534}
+#worker-vacation-summary .nexora-vacation-debt{background:#fce7f3!important;border-color:#f9a8d4}
+@media(max-width:560px){
+ .nexora-vacation-section{padding:12px!important}
+ #worker-vacation-summary .nexora-vacation-info{flex-basis:100%}
+ #worker-vacation-summary .nexora-vacation-actions{margin-left:auto}
+ #nexora-positions-panel{padding:10px 12px}
+}
+</style>
+<style id="nexora-final-compact">
+/* NEXORA compact layout 2026-11-06 */
+#connect-page>.card{max-width:650px!important;padding:16px!important;margin-bottom:10px!important}
+#connect-page #code-company,#connect-page #code-site{max-width:420px!important;min-height:34px!important;padding:5px 9px!important;font-size:13px!important;margin-bottom:8px!important}
+#connect-page label{font-size:12px!important;margin:5px 0!important}
+#connect-page #generate-code{width:auto!important;padding:7px 12px!important;min-height:32px!important;font-size:12px!important;box-shadow:none}
+#connect-page #nexora-positions-panel{max-width:540px!important;padding:7px 10px!important}
+#connect-page #nexora-positions-panel:not([open]){width:max-content!important}
+#connect-page #nexora-positions-panel>summary{font-size:13px!important;line-height:20px!important}
+#worker-vacation-summary{max-width:820px!important;gap:5px!important}
+#worker-vacation-summary .vacation-worker{padding:7px 10px!important;margin:0!important;border-radius:7px!important;min-height:0!important}
+#worker-vacation-summary .nexora-vacation-row{display:flex!important;justify-content:space-between;gap:6px 10px!important;align-items:center!important}
+#worker-vacation-summary .nexora-vacation-info{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:2px!important;flex:1 1 300px!important}
+#worker-vacation-summary .nexora-vacation-info>strong{font-size:13px!important;line-height:18px!important;max-width:none!important;margin:0!important}
+#worker-vacation-summary .nexora-vacation-stats{font-size:11px!important;line-height:16px!important;margin:0!important}
+#worker-vacation-summary .nexora-vacation-actions{display:flex!important;gap:5px!important;flex-wrap:nowrap!important;margin:0!important}
+#worker-vacation-summary .nexora-vacation-actions button{font-size:11px!important;min-height:27px!important;padding:3px 8px!important;border-radius:6px!important;line-height:19px!important;margin:0!important;box-shadow:none!important}
+.nexora-vacation-section{max-width:860px!important;padding:14px!important}
+#worker-vacation-summary .nexora-vacation-history.hidden{display:none!important}
+@media(max-width:560px){#worker-vacation-summary .nexora-vacation-actions{margin-left:auto!important}#worker-vacation-summary .nexora-vacation-info{flex-basis:100%!important}}
+</style>
+<style id="nexora-two-row-incidents">
+#attendance{max-width:900px!important}
+#attendance>.data-item{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px!important;padding:9px 12px!important;margin:6px 0!important;border-radius:8px!important;align-items:center}
+#attendance>.data-item>.data-item-title{grid-column:1;font-size:14px!important;line-height:19px!important;margin:0!important}
+#attendance>.data-item>.data-item-subtitle{display:none!important}
+#attendance>.data-item>.incidence-info-line{grid-column:1;grid-row:2;font-size:11px!important;line-height:18px!important;gap:4px!important;margin:0!important;display:flex;flex-wrap:nowrap!important;overflow:hidden;white-space:nowrap}
+#attendance>.data-item>.incidence-info-line>span:first-child{display:none}
+#attendance>.data-item>.incidence-info-line .incidence-type-badge,#attendance>.data-item .pending-badge,#attendance>.data-item .justified-badge,#attendance>.data-item .zone-badge{padding:2px 6px!important;font-size:10px!important;line-height:16px!important}
+#attendance>.data-item>.incidence-result-actions{grid-column:2;grid-row:1 / 3;margin:0!important;padding:0!important}
+#attendance .incidence-rate-btn{padding:5px 10px!important;font-size:11px!important;min-height:28px!important;box-shadow:none!important}
+#nx-config-security{padding:14px!important;max-width:680px}#nx-config-security p{font-size:13px}
+#settings-page>[inert]{opacity:.45;filter:grayscale(.5)}
+#nx-weekly-alerts{padding:10px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;color:#9a3412;font-size:13px}
+</style>
+<script id="nexora-payroll-report">
+(function(){
+ const movementColumns=['Entrada','Salida','Comida','Regreso de comer','Descanso','Regreso del descanso'];
+ const concepts=['Retardo','Ausentismo','Permiso médico justificado','Permiso médico no justificado','Falta justificada','Salida no autorizada','Salida autorizada','Tiempo extraordinario','Historial'];
+ const finite=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+ function localParts(ms){if(ms===null||ms===undefined||ms==='')return null;const d=new Date(Number.isFinite(Number(ms))?Number(ms):ms);if(!Number.isFinite(d.getTime()))return null;const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(d).map(p=>[p.type,p.value]));return {date:p.year+'-'+p.month+'-'+p.day,time:p.hour+':'+p.minute+':'+p.second};}
+ function serial(day){return Date.parse(day+'T00:00:00Z')/86400000+25569;}
+ function nameFor(worker,used){let raw=String(worker.rfc||worker.employee_code||'Sin RFC').replace(/[\\/?*\[\]:]/g,' ').replace(/^'+|'+$/g,'').trim()||'Trabajador';raw=raw.slice(0,31);let name=raw,n=1;while(used.has(name.toLowerCase())){const suffix=' ('+(++n)+')';name=raw.slice(0,31-suffix.length)+suffix;}used.add(name.toLowerCase());return name;}
+ window.nexoraBuildWorkbook=function(data,filters,X){
+  if(!X?.utils)throw Error('No se cargó la librería Excel. Comprueba la conexión y recarga la página.');
+  const wb=X.utils.book_new(),used=new Set(),profiles=new Map((data.employees||[]).map(w=>[String(w.employee_code),w]));
+  const groups=new Map([...profiles.keys()].map(k=>[k,[]]));
+  for(const record of data.records||[]){const key=String(record.employee_code);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(record);if(!profiles.has(key))profiles.set(key,{employee_code:key,full_name:record.full_name});}
+  if(!groups.size)throw Error('No hay trabajadores con esos filtros.');
+  const from=filters.from||'',to=filters.to||'';
+  const onePeriod=!!from&&!!to&&from<=to&&(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000+1<=15;
+  for(const [code,records] of groups){
+   const worker=profiles.get(code);records.sort((a,b)=>(Number.isFinite(Number(a.occurred_at))?Number(a.occurred_at):Date.parse(a.occurred_at))-(Number.isFinite(Number(b.occurred_at))?Number(b.occurred_at):Date.parse(b.occurred_at)));
+   const salary=finite(worker.daily_salary)?Number(worker.daily_salary):null;
+   const headers=['Fecha','Hora','Calificación','Detalle del movimiento',...movementColumns,...concepts,'Valuación aplicada (días)','Observaciones'];
+   const valueCol=headers.indexOf('Valuación aplicada (días)'),noteCol=headers.indexOf('Observaciones'),attendanceCol=noteCol+1;
+   const rows=[[worker.full_name||code],['RFC',String(worker.rfc||'Sin RFC'),'CURP',String(worker.curp||''),'NSS',String(worker.nss||'')],['Desde',from||'','Hasta',to||''],['Sueldo diario',salary===null?'Falta sueldo diario':salary],[],[],headers];
+   const valuations=(category,concept)=>{const exact=(data.valuations||[]).find(v=>String(v.category_id)===String(category)&&v.concept===concept);const fallback=(worker.valuations||[]).find(v=>v.concept===concept);return finite(exact?.value)?Number(exact.value):finite(fallback?.value)?Number(fallback.value):null;};
+   const details=[];
+   for(const r of records){const parts=localParts(r.occurred_at);if(!parts)continue;if(from&&parts.date<from||to&&parts.date>to)continue;
+    const row=Array(headers.length).fill(null);row[0]=serial(parts.date);row[1]=parts.time;row[2]=r.concept||'';
+    let movement=r.event_type==='CLOCK_IN'?'Entrada':r.event_type==='CLOCK_OUT'?'Salida':r.event_type==='MEAL_START'?(r.break_kind==='REST'?'Descanso':'Comida'):r.event_type==='MEAL_END'?(r.break_kind==='REST'?'Regreso del descanso':'Regreso de comer'):null;
+    if(movement){row[headers.indexOf(movement)]=1;row[3]=movement+(['MEAL_START','MEAL_END'].includes(r.event_type)&&r.break_number?' '+r.break_number:'');}
+    if(concepts.includes(r.concept))row[headers.indexOf(r.concept)]=1;
+    if(r.weekly_absence_generated)row[headers.indexOf('Ausentismo')]=1;
+    let value=finite(r.applied_value)?Number(r.applied_value):['Retardo','Historial'].includes(r.concept)?0:valuations(r.category_id,r.concept);
+    if(!r.concept)value=0;
+    row[valueCol]=value;row[noteCol]=(r.weekly_absence_generated?'Ausentismo generado por 3 retardos de la misma semana. ':'')+(r.notes||'');
+    details.push({row,value,concept:r.concept,generated:!!r.weekly_absence_generated});rows.push(row);
+   }
+   const first=8,last=7+details.length,total=rows.length+1;
+   rows.push(Array(headers.length).fill(null));rows[total-1][0]='Totales';
+   const configured=rows.length+1;rows.push(Array(headers.length).fill(null));rows[configured-1][0]='Valuación configurada';
+   const equivalent=rows.length+1;rows.push(Array(headers.length).fill(null));rows[equivalent-1][0]='Equivalencia aplicada (días)';
+   const payStart=2;
+   const summaryLabelCol=headers.length+1,summaryValueCol=headers.length+3;
+   const payLabels=['Asistencia','Ausentismos (días)','Sueldo diario','Pago'];
+   for(let i=0;i<payLabels.length;i++){const row=rows[payStart+i-1]||(rows[payStart+i-1]=[]);row[summaryLabelCol]=payLabels[i];}
+   rows[0][summaryLabelCol]='RESUMEN';
+   if(from&&to&&!onePeriod){rows[6][summaryLabelCol]='EL CORTE SUPERA LOS 15 DÍAS';}
+
+
+   const ws=X.utils.aoa_to_sheet(rows);
+   const col=i=>X.utils.encode_col(i),address=(c,r)=>col(c)+r;
+   const put=(c,r,f,v,z)=>{ws[address(c,r)]={t:typeof v==='string'?'s':'n',f,v,...(z?{z}:{})};};
+   const range=c=>col(c)+first+':'+col(c)+last;
+   for(let c=4;c<valueCol;c++){
+    const count=details.reduce((n,d)=>n+(d.row[c]||0),0);put(c,total,details.length?'SUM('+range(c)+')':'0',count,'0');
+    const concept=headers[c];if(concepts.includes(concept)){const val=valuations(worker.category_id,concept);if(val!==null)ws[address(c,configured)]={t:'n',v:val,z:'0.00'};
+      const applied=details.reduce((sum,d)=>sum+((d.row[c]||0)&&(concept!=='Retardo'||!d.generated)?(d.value||0):0),0);
+      let f=details.length?'SUMIFS('+range(valueCol)+','+range(c)+',1'+(concept==='Retardo'?','+range(headers.indexOf('Ausentismo'))+',0':'')+')':'0';
+      put(c,equivalent,f,applied,'0.00');
+    }
+   }
+   const absenceColumn=headers.indexOf('Ausentismo');
+   const missingAbsenceValue=details.some(d=>d.row[absenceColumn]===1&&d.value===null);
+   const deduction=details.reduce((n,d)=>n+(d.row[absenceColumn]===1?(d.value||0):0),0);
+   const base=365/24,net=base-deduction;
+   const cell=row=>address(summaryValueCol,row),absCell=address(absenceColumn,equivalent);
+   put(summaryValueCol,payStart,'365/24',base,'0.0000');
+   put(summaryValueCol,payStart+1,missingAbsenceValue?'"Falta valuación de Ausentismo"':absCell,missingAbsenceValue?'Falta valuación de Ausentismo':deduction,'0.00');
+   const ready=!!from&&!!to&&from<=to&&!missingAbsenceValue&&details.length>0;
+   const reason=missingAbsenceValue?'Falta valuación de ausentismo':!details.length?'':!from||!to?'Selecciona Desde y Hasta':'El corte abarca varias quincenas';
+   put(summaryValueCol,payStart+2,'B4',salary===null?'Falta sueldo diario':salary,'"$"#,##0.00');
+   const payrollReady=ready&&salary!==null;
+   put(summaryValueCol,payStart+3,payrollReady?'('+cell(payStart)+'-'+cell(payStart+1)+')*'+cell(payStart+2):'"'+(salary===null?'Falta sueldo diario':reason)+'"',payrollReady?net*salary:salary===null?'Falta sueldo diario':reason,'"$"#,##0.00');
+   for(let n=first;n<=last;n++)if(ws['A'+n])ws['A'+n].z='dd/mm/yyyy';
+   ws['B4'].z='"$"#,##0.00';
+   ws['!cols']=headers.map((h,i)=>({wch:i===0?19:i===1?19:i===2||i===3?38:i===noteCol?62:Math.min(38,Math.max(18,h.length+4))}));
+   ws['!rows']=rows.map((_,i)=>({hpt:i===0?32:i===6?30:i>=payStart-1&&i<payStart+payLabels.length-1?26:24}));
+   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:0,c:summaryLabelCol},e:{r:0,c:summaryValueCol}},...payLabels.map((_,i)=>({s:{r:payStart+i-1,c:summaryLabelCol},e:{r:payStart+i-1,c:summaryValueCol-1}}))];
+   ws['!cols'].push({wch:4},{wch:20},{wch:14},{wch:24});
+   ws['!ref']='A1:'+col(summaryValueCol)+Math.max(rows.length,payStart+payLabels.length-1);
+   ws['!margins']={left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2};
+   if(details.length)ws['!autofilter']={ref:'A7:'+col(noteCol)+last};
+   // Estilos reales de Excel: la biblioteca de exportación admite font/fill/border.
+   const edge=(weight='thin')=>({style:weight,color:{rgb:weight==='medium'?'5B718A':'BCCBDD'}});
+   function paint(c,r,{bold=false,fill='FFFFFF',color='20354D',size=11,box=false,center=false}={}){
+     const key=address(c,r);if(!ws[key])ws[key]={t:'s',v:''};
+     const border={top:edge(),bottom:edge(),left:edge(),right:edge()};
+     if(box)for(const side of Object.keys(border))border[side]=edge('medium');
+     ws[key].s={font:{name:'Calibri',sz:size,bold,color:{rgb:color}},fill:{patternType:'solid',fgColor:{rgb:fill}},border,alignment:{vertical:'center',horizontal:center?'center':'left',wrapText:true},...(ws[key].z?{numFmt:ws[key].z}:{})};
+     if(ws[key].t==='n')ws[key].s.alignment.horizontal='right';
+   }
+   for(let r=1;r<=4;r++)for(let c=0;c<=5;c++)paint(c,r,{bold:r===1||c%2===0,fill:r===1?'EAF0F7':c%2===0?'F1F5F9':'FFFFFF',size:r===1?18:11});
+   for(let c=0;c<=8;c++)paint(c,1,{bold:true,fill:'EAF0F7',size:18});
+   for(let r=7;r<=equivalent;r++)for(let c=0;c<=noteCol;c++){
+     const head=r===7,footer=r>=total;
+     paint(c,r,{bold:head||footer,fill:head?'234A6C':footer?'EAF0F7':r%2===0?'FFFFFF':'F7FAFC',color:head?'FFFFFF':'20354D',center:c>1&&c<valueCol});
+     const border=ws[address(c,r)].s.border;
+     if(r===7)border.top=edge('medium');if(r===equivalent)border.bottom=edge('medium');if(c===0)border.left=edge('medium');if(c===noteCol)border.right=edge('medium');
+   }
+   for(let r=1;r<=payStart+payLabels.length-1;r++)for(let c=summaryLabelCol;c<=summaryValueCol;c++)paint(c,r,{bold:true,fill:r===1?'234A6C':r===payStart+3?'DCFCE7':'F1F5F9',color:r===1?'FFFFFF':r===payStart+3?'166534':'20354D',box:r===payStart+3,size:r===1?13:12});
+   if(from&&to&&!onePeriod)for(let c=summaryLabelCol;c<=summaryValueCol;c++)paint(c,7,{bold:true,fill:'FFF7ED',color:'9A3412'});
+   X.utils.book_append_sheet(wb,ws,nameFor(worker,used));
+  }
+  wb.Workbook={...(wb.Workbook||{}),CalcPr:{calcMode:'auto',fullCalcOnLoad:true}};
+  return wb;
+ };
+})();
+
+</script>
+<style>.coo-export-line{justify-content:flex-end!important}#coo-export{background:#7c3aed!important;color:#fff!important;border-color:#7c3aed!important;min-height:32px!important;padding:6px 14px!important;font-size:13px!important;box-shadow:none!important}#coo-export:hover{background:#6d28d9!important}</style>
+<style id="nexora-security-colors">
+#nx-config-security{border:1px solid #dbe3ec;border-radius:12px!important;padding:16px!important;box-shadow:none!important}
+#nx-config-security h3{font-size:16px!important;margin:0 0 7px!important}
+#nx-config-security p{font-size:12px!important;line-height:1.5;margin:6px 0 10px!important;color:#526174}
+#nx-config-security>div{display:flex!important;flex-wrap:wrap;gap:8px!important}
+#nx-config-security button{width:auto!important;min-height:34px!important;padding:7px 12px!important;border-radius:8px!important;font-size:12px!important;box-shadow:none!important}
+#nx-config-security button:first-child{background:#15803d!important;border:1px solid #15803d!important;color:white!important}
+#nx-config-security button:first-child:hover{background:#166534!important}
+#nx-config-security button:last-child{background:#dc2626!important;border:1px solid #dc2626!important;color:white!important}
+#nx-config-security button:last-child:hover{background:#b91c1c!important}
+</style>
+<style id="nexora-cut-layout">
+.nexora-cut-row{display:flex!important;justify-content:flex-end!important;align-items:flex-end!important;gap:10px!important;flex-wrap:wrap;margin:12px 0!important}
+.nexora-cut-row .compact-filter{width:165px;flex:0 1 165px}
+.nexora-cut-row .compact-filter span{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
+.nexora-cut-row input{width:100%;min-height:34px!important;height:34px!important;margin:0!important;padding:5px 9px!important;font-size:12px!important}
+.nexora-cut-row #coo-export{height:34px!important;margin:0!important}
+</style>
+<style id="nexora-full-width-filters">
+#attendance-page .coo-filter-scroll{width:100%!important;overflow:visible!important}
+#attendance-page .incidence-filterbar-new{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;width:100%!important;min-width:0!important;box-sizing:border-box!important;gap:10px!important}
+#attendance-page .incidence-filterbar-new>.compact-filter{width:100%!important;min-width:0!important;max-width:none!important;box-sizing:border-box!important}
+#attendance-page .incidence-filterbar-new select{width:100%!important;min-width:0!important;max-width:none!important;box-sizing:border-box!important}
+@media(max-width:1050px){#attendance-page .incidence-filterbar-new{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:580px){#attendance-page .incidence-filterbar-new{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+</style>
 </head>
 
 <body>
@@ -2377,15 +2714,11 @@ select{
 
     <div class="brand">
 
-        <img
-            src="/img/cooatiilogo.jpeg"
-            alt="COATI Check"
-            class="brand-logo"
-        >
+        <img src="/img/cooatiilogo.jpeg" alt="Logo" class="brand-logo">
 
         <div>
-            <h1>COOATII CHECK</h1>
-            <p>Portal administrativo</p>
+            <h1>NEXORA</h1>
+            <p>Tecnología que evoluciona con tu empresa</p>
         </div>
 
     </div>
@@ -2460,7 +2793,7 @@ select{
 <aside>
 
     <div class="sidebar-brand">
-        <strong>COOATII Check</strong>
+        <strong>NEXORA</strong>
         <span>Administración</span>
     </div>
 
@@ -2768,15 +3101,15 @@ select{
 <section id="devices-page" class="section-page">
 <div class="card blue-card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
   <div><h3 style="margin:0;color:var(--blue-800)">Trabajadores</h3><p style="margin:5px 0 0;color:var(--muted);font-size:13px">Consulta y registra trabajadores.</p></div>
-  <button type="button" id="worker-open-create" class="btn btn-primary">Agregar trabajador</button>
+  <button type="button" id="worker-open-create" class="btn btn-primary">Agregar trabajador compartido</button>
 </div>
 <div id="worker-create-overlay" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="worker-create-title">
   <div class="modal-card" style="width:min(720px,100%);max-height:90vh;overflow:auto">
-    <div class="modal-header"><div><h3 id="worker-create-title">Agregar trabajador</h3><span>Se registrará en la empresa y tablet seleccionadas.</span></div><button type="button" class="modal-close" id="worker-create-close" aria-label="Cerrar">×</button></div>
+    <div class="modal-header"><div><h3 id="worker-create-title">Agregar trabajador compartido</h3><span>La tablet es opcional; puedes asignarla después.</span></div><button type="button" class="modal-close" id="worker-create-close" aria-label="Cerrar">×</button></div>
     <form id="worker-create-form">
       <div class="form-grid">
         <div><label>Empresa *</label><select id="worker-create-company" required><option value="">Selecciona una empresa</option></select></div>
-        <div><label>Dispositivo vinculado *</label><select id="worker-create-checker" required><option value="">Selecciona un dispositivo</option></select></div>
+        <div><label>Tablet (opcional)</label><select id="worker-create-checker"><option value="">Selecciona un dispositivo</option></select></div>
         <div><label>Código de empleado (automático)</label><input class="auto-employee-code" value="Se asignará al guardar" readonly tabindex="-1"></div>
         <div><label>Nombre(s) *</label><input name="first_name" required maxlength="120"></div>
         <div><label>Apellido paterno *</label><input name="last_name_paternal" required maxlength="120"></div>
@@ -2952,8 +3285,6 @@ select{
         <label>Cargo</label>
         <select id="code-site">
             <option value="">Selecciona un cargo</option>
-            <option value="Programador">Programador</option>
-            <option value="Contador">Contador</option>
         </select>
 
         <button id="generate-code" class="primary-btn" type="button">
@@ -3187,7 +3518,13 @@ select{
             </select>
         </div>
 
-        <div class="compact-filter date-filter">
+        <div class="compact-filter">
+            <span>Tipo de reporte</span>
+            <select id="coo-report-type"><option value="all">Historial completo</option><option value="incidents">Solo incidencias</option></select>
+        </div>
+    </div></div>
+
+    <div class="coo-export-line nexora-cut-row">        <div class="compact-filter date-filter">
             <span>Desde</span>
             <input id="attendance-date-from" type="date">
         </div>
@@ -3196,13 +3533,7 @@ select{
             <span>Hasta</span>
             <input id="attendance-date-to" type="date">
         </div>
-        <div class="compact-filter">
-            <span>Tipo de reporte</span>
-            <select id="coo-report-type"><option value="all">Historial completo</option><option value="incidents">Solo incidencias</option></select>
-        </div>
-    </div></div>
-
-    <div class="coo-export-line"><button type="button" class="btn btn-primary" id="coo-export">Descargar reporte</button></div>
+<button type="button" class="btn btn-primary" id="coo-export">Descargar reporte</button></div>
     <div class="incidence-view-tabs" role="tablist" aria-label="Estado de incidencias">
         <button id="incidence-tab-pending" class="incidence-view-tab active" type="button">Pendientes por calificar</button>
         <button id="incidence-tab-justified" class="incidence-view-tab" type="button">Calificadas</button>
@@ -3494,19 +3825,33 @@ let refreshTimer = null;
    API
 ========================= */
 
-async function authorizedFetch(url,options={}) {
-
-    const headers = {
-        ...(options.headers || {}),
-        Authorization:`Bearer ${sessionStorage.getItem(tokenKey)}`
-    };
-
-    return fetch(url,{
-        ...options,
-        headers
-    });
+let nexoraSessionExpired = false;
+function endExpiredSession() {
+    nexoraSessionExpired = true;
+    sessionStorage.removeItem(tokenKey);
+    if(refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    appView.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    document.querySelectorAll('.cooatii-toast').forEach(node=>node.remove());
+    message.textContent = 'Tu sesión terminó. Inicia sesión de nuevo para cargar tus empresas y trabajadores.';
+    document.querySelector('#password').value = '';
+    document.querySelector('#last-sync').textContent = 'Sesión cerrada';
 }
-
+async function authorizedFetch(url,options={}) {
+    const token = sessionStorage.getItem(tokenKey);
+    if(!token) {
+        if(!loginView.classList.contains('hidden')) throw new Error('Sesión requerida');
+        endExpiredSession();
+        throw new Error('Sesión requerida');
+    }
+    const response = await fetch(url, {...options, headers: {...(options.headers || {}), Authorization:'Bearer '+token}});
+    // Una respuesta antigua no debe cerrar una sesión iniciada mientras estaba en vuelo.
+    if(response.status === 401 && sessionStorage.getItem(tokenKey) === token) {
+        endExpiredSession();
+        throw new Error('Sesión terminada');
+    }
+    return response;
+}
 
 /* =========================
    MENÚ
@@ -3564,7 +3909,7 @@ function showPage(pageId){
     document.querySelectorAll(".menu button").forEach(button=>button.classList.toggle("active",button.dataset.page===pageId));
     const titles={dashboard:"Panel general","companies-page":"Empresas","devices-page":"Trabajadores","users-page":"＋ Agregar administrador","connect-page":"Conectar dispositivos","settings-page":"Configuración","worksites-page":"Centros de trabajo","attendance-page":"Incidencias"};
     const title=document.querySelector("#page-title");
-    if(title) title.textContent=titles[pageId]||"COOATII Check";
+    if(title) title.textContent=titles[pageId]||"NEXORA";
 }
 
 
@@ -3654,6 +3999,7 @@ form.addEventListener("submit",async event=>{
         }
 
         sessionStorage.setItem(tokenKey,data.token);
+        nexoraSessionExpired = false;
 
         loginView.classList.add("hidden");
         appView.classList.remove("hidden");
@@ -3680,6 +4026,7 @@ form.addEventListener("submit",async event=>{
 ========================= */
 
 function setStatus(text, type){
+  if(nexoraSessionExpired) return;
   if(!text) return;
   const message = String(text);
   // Compatibilidad con todas las llamadas existentes a setStatus.
@@ -3730,8 +4077,9 @@ async function loadCompanies(){
         await response.json().catch(()=>[]);
 
     if(!response.ok){
-        return;
+        throw new Error(data.error || 'No se pudieron cargar las empresas');
     }
+    if(!Array.isArray(data)) throw new Error('Respuesta de empresas no válida');
 
     renderCompanies(companies,data);
     renderCompanies(companiesDashboard,data);
@@ -3842,6 +4190,7 @@ function renderCompanies(target,data){
         const item=document.createElement("li");
 
         item.className="data-item";
+
 
         const row=document.createElement("div");
 
@@ -4696,30 +5045,8 @@ document.querySelector("#worker-config-form")?.addEventListener("submit",event=>
 ========================= */
 
 async function loadUserSites() {
-
-    const userSite = document.querySelector("#user-site");
-    if (!userSite) return;
-
-    const current = userSite.value;
-
-    userSite.replaceChildren();
-
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Selecciona un cargo";
-    placeholder.disabled = true;
-    placeholder.selected = !current;
-    userSite.appendChild(placeholder);
-
-    ["Programador", "Contador"].forEach(cargo => {
-        const option = document.createElement("option");
-        option.value = cargo;
-        option.textContent = cargo;
-        if (cargo === current) option.selected = true;
-        userSite.appendChild(option);
-    });
+    return nexoraFillPositions(document.querySelector('#user-site'),document.querySelector('#user-company')?.value||'');
 }
-
 document.querySelector("#user-company")
 .addEventListener("change", loadUserSites);
 
@@ -4729,23 +5056,8 @@ document.querySelector("#user-company")
 ========================= */
 
 async function loadCodeSites() {
-
-    const codeSite = document.querySelector("#code-site");
-    if (!codeSite) return;
-
-    const current = codeSite.value;
-
-    codeSite.innerHTML = `
-        <option value="">Selecciona un cargo</option>
-        <option value="Programador">Programador</option>
-        <option value="Contador">Contador</option>
-    `;
-
-    if ([...codeSite.options].some(option => option.value === current)) {
-        codeSite.value = current;
-    }
+    return nexoraFillPositions(document.querySelector('#code-site'),document.querySelector('#code-company')?.value||'');
 }
-
 document.querySelector("#code-company")
 .addEventListener("change", loadCodeSites);
 
@@ -4785,7 +5097,7 @@ document.querySelector("#generate-code")
                     },
 
                     body: JSON.stringify({
-                        site_id: siteId,
+                        position_name: siteId,
                         expires_in_minutes: 30
                     })
                 }
@@ -5105,6 +5417,7 @@ function renderAttendance(){
     filtered.forEach(record=>{
         const item=document.createElement("li");
         item.className="data-item";
+        if(record.origin==='ABSENCE'&&record.missing_entry!==false) item.classList.add('nexora-no-entry');
 
         const date=recordDate(record);
         const m=workerMetaForAttendance(record);
@@ -5128,12 +5441,13 @@ function renderAttendance(){
 
             <div class="incidence-info-line">
                 <span><strong>Tipo de incidencia:</strong></span>
-                <span class="incidence-type-badge">${escapeHtml(type)}</span>
+                <span class="incidence-type-badge">${escapeHtml(record.origin==='ABSENCE'&&record.missing_entry!==false?'SIN REGISTRO DE ENTRADA (probable ausentismo)':type)}</span>
                 <span>${date.toLocaleString("es-MX")}</span>
                 <span class="zone-badge ${zoneClass(record.zone_status)}">${escapeHtml(zoneLabel(record.zone_status))}</span>
                 ${hasCoordinates?`<a class="location-link" href="${mapsUrl}" target="_blank">Ver en Maps</a>`:""}
             </div>
 
+            ${record.break_kind ? `<div class="data-item-subtitle">${escapeHtml(nexoraBreakLabel(record))}</div>` : ""}
             ${record.notes ? `<div class="data-item-subtitle">${escapeHtml(record.notes)}</div>` : ""}
             <div class="incidence-result-actions">
                 <button class="btn btn-primary btn-small incidence-rate-btn" type="button">
@@ -5148,15 +5462,37 @@ function renderAttendance(){
     });
 }
 
+let attendanceLoadVersion=0;
+function uniqueAttendanceIncidents(records){
+    const seen=new Set();
+    return records.filter((r,index)=>{
+        const company=String(r.company_id||'');
+        const worker=String(r.employee_id||r.employee_code||'');
+        let key;
+        if(r.origin==='ABSENCE' && !r.attendance_record_id && worker){
+            const day=String(r.incident_date||'').slice(0,10);
+            key=day?company+'|absence|'+worker+'|'+day:null;
+        }else{
+            const id=r.automatic_incident_id||r.qualified_incident_id||r.attendance_record_id||r.id;
+            key=id?company+'|record|'+id:null;
+        }
+        if(!key)return true;
+        if(seen.has(key))return false;
+        seen.add(key);return true;
+    });
+}
 async function loadAttendance(){
+    const requestVersion=++attendanceLoadVersion;
+    const requestedView=incidenceView;
+    let loadedRecords=[];
 
     const companyId =
         document.querySelector("#report-company").value;
 
-    attendance.replaceChildren();
-    attendanceRecords = [];
+
 
     if(!companyId){
+        attendanceRecords=[];
         renderAttendance();
         return;
     }
@@ -5170,7 +5506,7 @@ async function loadAttendance(){
          */
         const response =
             await authorizedFetch(
-                `/api/admin/companies/${encodeURIComponent(companyId)}/incidents?status=${incidenceView === "justified" ? "qualified" : "pending"}&limit=500&_=${Date.now()}`,
+                `/api/admin/companies/${encodeURIComponent(companyId)}/incidents?status=${requestedView === "justified" ? "qualified" : "pending"}&limit=500&_=${Date.now()}`,
                 {
                     cache:"no-store",
                     headers:{
@@ -5190,20 +5526,20 @@ async function loadAttendance(){
             );
         }
 
-        attendanceRecords =
+        loadedRecords =
             Array.isArray(data.records)
                 ? data.records
                 : [];
 
         {
-            const automaticStatus = incidenceView === 'pending' ? 'pending' : 'reviewed';
+            const automaticStatus = requestedView === 'pending' ? 'pending' : 'reviewed';
             const autoResponse = await authorizedFetch('/api/admin/companies/'+encodeURIComponent(companyId)+'/automatic-incidents?status='+automaticStatus, {cache:'no-store'});
             const automatic = await autoResponse.json().catch(()=>({}));
             if (!autoResponse.ok) throw Error(automatic.error || 'No se pudieron cargar las faltas pendientes');
             const linkedIds = new Set((automatic.records || []).map(a=>String(a.attendance_record_id||'')).filter(Boolean));
-            if (automaticStatus === 'pending') attendanceRecords = attendanceRecords.filter(r=>!linkedIds.has(String(r.attendance_record_id)));
-            const qualifiedAttendanceIds = new Set(attendanceRecords.filter(r=>r.qualified_incident_id).map(r=>String(r.attendance_record_id)));
-            attendanceRecords.push(...(automatic.records || []).filter(a=>!(automaticStatus==='reviewed'&&a.attendance_record_id&&qualifiedAttendanceIds.has(String(a.attendance_record_id)))).map(a=>({
+            if (automaticStatus === 'pending') loadedRecords = loadedRecords.filter(r=>!linkedIds.has(String(r.attendance_record_id)));
+            const qualifiedAttendanceIds = new Set(loadedRecords.filter(r=>r.qualified_incident_id).map(r=>String(r.attendance_record_id)));
+            loadedRecords.push(...(automatic.records || []).filter(a=>!(automaticStatus==='reviewed'&&a.attendance_record_id&&qualifiedAttendanceIds.has(String(a.attendance_record_id)))).map(a=>({
                 ...a, automatic_incident_id:a.id, event_type:'AUTO_INCIDENT',
                 incidence_type:automaticStatus==='pending'?'Incidencia':a.concept,
                 qualified_incident_id:automaticStatus==='reviewed'?'auto:'+a.id:null,
@@ -5211,11 +5547,14 @@ async function loadAttendance(){
                 company_id:companyId
             })));
         }
+        if(requestVersion!==attendanceLoadVersion || companyId!==document.querySelector('#report-company').value || requestedView!==incidenceView)return;
+        attendanceRecords=uniqueAttendanceIncidents(loadedRecords);
         fillWorksiteFilter();
         renderAttendance();
         await checkAutomaticLateAlerts();
 
     }catch(error){
+        if(requestVersion!==attendanceLoadVersion)return;
 
         console.error("Error cargando incidencias:", error);
 
@@ -6253,6 +6592,7 @@ function renderAttendance(){
     filtered.forEach(record=>{
         const item=document.createElement("li");
         item.className="data-item";
+        if(record.origin==='ABSENCE'&&record.missing_entry!==false) item.classList.add('nexora-no-entry');
         const date=recordDate(record);
         const m=workerMetaForAttendance(record);
         const state=effectiveIncidentState(record);
@@ -6278,11 +6618,12 @@ function renderAttendance(){
             <div class="data-item-subtitle">Cargo: ${escapeHtml(m.role||"-")} · Centro relacionado: ${escapeHtml(m.worksite||"-")}</div>
             <div class="incidence-info-line">
                 <span><strong>Tipo de incidencia:</strong></span>
-                <span class="incidence-type-badge">${escapeHtml(type)}</span>
+                <span class="incidence-type-badge">${escapeHtml(record.origin==='ABSENCE'&&record.missing_entry!==false?'SIN REGISTRO DE ENTRADA (probable ausentismo)':type)}</span>
                 ${stateBadge}
                 <span>${date.toLocaleString("es-MX")}</span>
                 ${locationLine}
             </div>
+            ${record.break_kind ? `<div class="data-item-subtitle">${escapeHtml(nexoraBreakLabel(record))}</div>` : ""}
             ${record.notes ? `<div class="data-item-subtitle">${escapeHtml(record.notes)}</div>` : ""}
             <div class="incidence-result-actions">
                 <button class="btn btn-primary btn-small incidence-rate-btn" type="button">${state.reviewed?"Editar calificación":"Calificar"}</button>
@@ -6586,10 +6927,12 @@ async function refreshAll(){
             "Error actualizando información:",
             error
         );
+        if(!nexoraSessionExpired) setStatus(error.message || "No se pudo actualizar la información", "error");
     }
 }
 
 function startAutomaticRefresh(){
+    if(!sessionStorage.getItem(tokenKey)) return;
 
     if(refreshTimer){
         clearInterval(refreshTimer);
@@ -7474,633 +7817,8 @@ document.addEventListener("click",async event=>{
 // No se reconstruyen los días al cambiar la categoría heredada.
 
 
-async function bmcRenderVacationSummary(){
-
-  const box = document.querySelector("#worker-vacation-summary");
-  if(!box) return;
-
-  const workers = mergedWorkers();
-
-  if(!workers.length){
-    box.innerHTML =
-      '<div class="empty">No hay trabajadores para calcular.</div>';
-    return;
-  }
-
-  box.innerHTML =
-    '<div class="empty">Cargando vacaciones...</div>';
-
-  const cards = await Promise.all(
-
-    workers.map(async w => {
-
-      const cfg =
-        bmcWorkerConfigCache[bmcEmployeeCode(w)] || w;
-
-      const code = bmcEmployeeCode(w);
-
-      const hire =
-        cfg.hire_date
-          ? String(cfg.hire_date).slice(0,10)
-          : "";
-
-      const years = bmcYearsBetween(hire);
-
-      const eligible = years >= 1;
-
-      /* =========================
-         DÍAS GENERADOS ACUMULADOS
-      ========================= */
-
-      let generated = 0;
-
-      for(let year = 1; year <= years; year++){
-        generated += Number(
-          bmcLegalVacationDays(year) || 0
-        );
-      }
-
-      /* =========================
-         VACACIONES TOMADAS
-      ========================= */
-
-      let taken = 0;
-      let history = [];
-
-      try{
-
-        if(code && eligible){
-
-          const companyId = bmcCompanyId();
-
-const response = await authorizedFetch(
-  `/api/admin/companies/${encodeURIComponent(companyId)}` +
-  `/employees/${encodeURIComponent(code)}/vacations`
-);
-
-const data = await response.json().catch(() => ({}));
-
-if(!response.ok){
-  throw new Error(
-    data.error || "No se pudieron consultar las vacaciones."
-  );
-}
-
-taken = Number(
-  data?.total_taken || 0
-);
-
-          history =
-            Array.isArray(data?.vacations)
-              ? data.vacations
-              : [];
-        }
-
-      }catch(error){
-
-        console.error(
-          `Error cargando vacaciones de ${code}:`,
-          error
-        );
-
-      }
-
-      const available =
-        Math.max(0, generated - taken);
-
-      /* =========================
-         HISTORIAL
-      ========================= */
-
-      const historyHtml =
-        history.length
-          ? history.map(v => {
-
-              const start =
-                v.start_date
-                  ? new Date(
-                      String(v.start_date)
-                        .slice(0,10) +
-                      "T00:00:00"
-                    ).toLocaleDateString("es-MX")
-                  : "";
-
-              const end =
-                v.end_date
-                  ? new Date(
-                      String(v.end_date)
-                        .slice(0,10) +
-                      "T00:00:00"
-                    ).toLocaleDateString("es-MX")
-                  : "";
-
-              return `
-                <div class="vacation-history-row">
-
-                  <strong>
-                    ${Number(v.days_taken)}
-                    día${
-                      Number(v.days_taken) === 1
-                        ? ""
-                        : "s"
-                    }
-                  </strong>
-
-                  <span>
-                    ${escapeHtml(start)}
-                    ${
-                      end && end !== start
-                        ? ` al ${escapeHtml(end)}`
-                        : ""
-                    }
-                  </span>
-
-                  ${
-                    v.notes
-                      ? `<span>${escapeHtml(v.notes)}</span>`
-                      : ""
-                  }
-
-                </div>
-              `;
-
-            }).join("")
-
-          : `
-              <div class="vacation-history-empty">
-                No hay vacaciones tomadas registradas.
-              </div>
-            `;
-
-      /* =========================
-         TARJETA
-      ========================= */
-
-      return `
-
-        <div class="vacation-worker ${
-          eligible ? "eligible" : "pending"
-        }">
-
-          <div class="vacation-worker-top">
-
-            <div>
-
-              <div class="vacation-worker-name">
-                ${escapeHtml(fullWorkerName(w))}
-              </div>
-
-              <div class="worker-select-meta">
-
-                Categoría ${escapeHtml(bmcCategoryOf(w))}
-                · Ingreso:
-
-                ${
-                  hire
-                    ? new Date(
-                        hire + "T00:00:00"
-                      ).toLocaleDateString("es-MX")
-                    : "sin capturar"
-                }
-
-              </div>
-
-            </div>
-
-            <span class="${
-              eligible
-                ? "eligibility-badge"
-                : "not-yet-badge"
-            }">
-
-              ${
-                eligible
-                  ? "Ya generó vacaciones"
-                  : "Aún no cumple 1 año"
-              }
-
-            </span>
-
-          </div>
-
-          <!-- DATOS + BOTONES EN LA MISMA FILA -->
-
-          <div class="vacation-stats">
-
-            <span class="vacation-stat">
-              Antigüedad:
-              ${years} año${years === 1 ? "" : "s"}
-            </span>
-
-            <span class="vacation-stat">
-              Días generados:
-              <strong>${generated}</strong>
-            </span>
-
-            <span class="vacation-stat">
-              Días tomados:
-              <strong>${taken}</strong>
-            </span>
-
-            <span class="vacation-stat">
-              Días disponibles:
-              <strong>${available}</strong>
-            </span>
-
-            ${
-              eligible
-                ? `
-
-                  <div class="vacation-actions vacation-actions-inline">
-
-                    <button
-                      type="button"
-                      class="vacation-btn vacation-btn-primary"
-                      onclick="bmcOpenVacationModal(
-                        '${escapeHtml(code)}',
-                        '${escapeHtml(fullWorkerName(w))}',
-                        ${available}
-                      )"
-                    >
-                      + Registrar vacaciones
-                    </button>
-
-                    <button
-                      type="button"
-                      class="vacation-btn vacation-btn-soft"
-                      onclick="
-                        document
-                          .querySelector(
-                            '#vacation-history-${escapeHtml(code)}'
-                          )
-                          ?.classList.toggle('hidden')
-                      "
-                    >
-                      Ver historial
-                    </button>
-
-                  </div>
-
-                `
-                : ""
-            }
-
-          </div>
-
-          ${
-            eligible
-              ? `
-
-                <div
-                  id="vacation-history-${escapeHtml(code)}"
-                  class="vacation-history hidden"
-                >
-                  ${historyHtml}
-                </div>
-
-              `
-              : ""
-          }
-
-        </div>
-      `;
-
-    })
-
-  );
-
-  box.innerHTML = cards.join("");
-}
-function bmcOpenVacationModal(
-  employeeCode,
-  employeeName,
-  availableDays
-){
-
-  document
-    .querySelector("#vacation-register-modal")
-    ?.remove();
-
-  const modal = document.createElement("div");
-
-  modal.id = "vacation-register-modal";
-  modal.className = "modal-backdrop";
-
-  modal.innerHTML = `
-    <div class="modal-card">
-
-      <div class="modal-header">
-
-        <div>
-          <h3>Registrar vacaciones</h3>
-
-          <span>
-            ${escapeHtml(employeeName)}
-            · ${availableDays} días disponibles
-          </span>
-        </div>
-
-        <button
-          type="button"
-          class="modal-close"
-          id="vacation-modal-close"
-        >
-          ×
-        </button>
-
-      </div>
-
-      <div class="modal-grid">
-
-        <div class="modal-field">
-
-          <label>Días tomados</label>
-
-          <input
-            id="vacation-modal-days"
-            type="number"
-            min="1"
-            step="1"
-            max="${availableDays}"
-            placeholder="Ej. 6"
-          >
-
-        </div>
-
-        <div class="modal-field">
-
-          <label>Fecha de inicio</label>
-
-          <input
-            id="vacation-modal-start"
-            type="date"
-          >
-
-        </div>
-
-        <div class="modal-field">
-
-          <label>Fecha de término</label>
-
-          <input
-            id="vacation-modal-end"
-            type="date"
-          >
-
-        </div>
-
-        <div class="modal-field full">
-
-          <label>Notas</label>
-
-          <input
-            id="vacation-modal-notes"
-            type="text"
-            placeholder="Opcional"
-          >
-
-        </div>
-
-      </div>
-
-      <div class="modal-actions">
-
-        <button
-          type="button"
-          class="btn btn-soft"
-          id="vacation-modal-cancel"
-        >
-          Cancelar
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-primary"
-          id="vacation-modal-save"
-        >
-          Guardar vacaciones
-        </button>
-
-      </div>
-
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-
-  const closeModal = () => {
-    modal.remove();
-  };
-
-  document
-    .querySelector("#vacation-modal-close")
-    ?.addEventListener(
-      "click",
-      closeModal
-    );
-
-  document
-    .querySelector("#vacation-modal-cancel")
-    ?.addEventListener(
-      "click",
-      closeModal
-    );
-
-  modal.addEventListener("click", event => {
-
-    if(event.target === modal){
-      closeModal();
-    }
-
-  });
-
-  const startInput =
-    document.querySelector(
-      "#vacation-modal-start"
-    );
-
-  const endInput =
-    document.querySelector(
-      "#vacation-modal-end"
-    );
-
-  startInput?.addEventListener(
-    "change",
-    () => {
-
-      if(!startInput.value) return;
-
-      endInput.min =
-        startInput.value;
-
-      if(
-        !endInput.value ||
-        endInput.value < startInput.value
-      ){
-        endInput.value =
-          startInput.value;
-      }
-
-    }
-  );
-
-  document
-    .querySelector("#vacation-modal-save")
-    ?.addEventListener(
-      "click",
-      async () => {
-
-        const days =
-          Number(
-            document.querySelector(
-              "#vacation-modal-days"
-            )?.value
-          );
-
-        const startDate =
-          document.querySelector(
-            "#vacation-modal-start"
-          )?.value || "";
-
-        const endDate =
-          document.querySelector(
-            "#vacation-modal-end"
-          )?.value || "";
-
-        const notes =
-          document.querySelector(
-            "#vacation-modal-notes"
-          )?.value?.trim() || null;
-
-        if(
-          !Number.isFinite(days) ||
-          days <= 0
-        ){
-          alert(
-            "Ingresa una cantidad válida de días."
-          );
-          return;
-        }
-
-        if(days > availableDays){
-          alert(
-            `Solo tiene ${availableDays} días disponibles.`
-          );
-          return;
-        }
-
-        if(!startDate){
-          alert(
-            "Selecciona la fecha de inicio."
-          );
-          return;
-        }
-
-        if(!endDate){
-          alert(
-            "Selecciona la fecha de término."
-          );
-          return;
-        }
-
-        if(endDate < startDate){
-          alert(
-            "La fecha de término no puede ser anterior a la fecha de inicio."
-          );
-          return;
-        }
-
-        const saveButton =
-          document.querySelector(
-            "#vacation-modal-save"
-          );
-
-        try{
-
-          if(saveButton){
-            saveButton.disabled = true;
-            saveButton.textContent =
-              "Guardando...";
-          }
-
-          const companyId =
-            bmcCompanyId();
-
-          if(!companyId){
-            throw new Error(
-              "No se encontró la empresa seleccionada."
-            );
-          }
-
-          const response =
-            await authorizedFetch(
-
-              `/api/admin/companies/${encodeURIComponent(companyId)}` +
-              `/employees/${encodeURIComponent(employeeCode)}/vacations`,
-
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json"
-                },
-
-                body: JSON.stringify({
-                  start_date: startDate,
-                  end_date: endDate,
-                  days_taken: days,
-                  notes
-                })
-              }
-
-            );
-
-          const data =
-            await response
-              .json()
-              .catch(() => ({}));
-
-          if(!response.ok){
-
-            throw new Error(
-              data.error ||
-              "No se pudieron registrar las vacaciones."
-            );
-
-          }
-
-          closeModal();
-
-          await bmcRenderVacationSummary();
-
-          alert(
-            "Vacaciones registradas correctamente."
-          );
-
-        }catch(error){
-
-          console.error(
-            "Error registrando vacaciones:",
-            error
-          );
-
-          alert(
-            error?.message ||
-            "No se pudieron registrar las vacaciones."
-          );
-
-          if(saveButton){
-            saveButton.disabled = false;
-            saveButton.textContent =
-              "Guardar vacaciones";
-          }
-
-        }
-
-      }
-    );
-}
+async function bmcRenderVacationSummary(){ return nexoraVacationSummary(); }
+function bmcOpenVacationModal(code,name,available){ return nexoraVacationModal(code,name,available); }
 function bmcSeedPolicies(){
   let rows=getPolicies(); let p=rows.find(x=>x.title===BMC_V7_POLICY_TITLE);
   if(!p){p={id:`policy-${Date.now()}`,title:BMC_V7_POLICY_TITLE,text:BMC_V7_POLICY_TEXT,created_at:new Date().toISOString()};rows.unshift(p);savePolicies(rows);}else if(!p.text?.trim()){p.text=BMC_V7_POLICY_TEXT;savePolicies(rows);}
@@ -8197,7 +7915,7 @@ async function bmcQualifyIncidenceBackend(event){
 
     const response = await authorizedFetch(
       `/api/admin/companies/${encodeURIComponent(companyId)}` +
-      (record.automatic_incident_id
+      (record.automatic_incident_id && !record.attendance_record_id && !record.id_remote
         ? `/automatic-incidents/${encodeURIComponent(record.automatic_incident_id)}/review`
         : `/incidents/${encodeURIComponent(attendanceId)}/qualify`),
       {
@@ -8235,13 +7953,13 @@ async function bmcQualifyIncidenceBackend(event){
 
     if(feedback){
       feedback.textContent =
-        `✓ ${concept} guardada correctamente.`;
+        `✓ ${data.concept || data.record?.concept || concept} guardada correctamente.`;
       feedback.classList.remove("save-error");
       feedback.classList.add("show");
     }
 
     setStatus(
-      `Incidencia guardada como ${concept}.`
+      `Incidencia guardada como ${data.concept || data.record?.concept || concept}.`
     );
 
     closeIncidenceQualification();
@@ -8525,7 +8243,7 @@ async function bmcLoadOvertimeReport(){
     await bmcLoadCategories(companyId);await bmcWarmWorkerConfigs();
     const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/attendance`);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'No se pudo cargar la asistencia.');
     const records=Array.isArray(data.records)?data.records:[];const rows=[];
-    records.filter(r=>r.event_type==='CLOCK_OUT').forEach(r=>{
+    records.filter(r=>r.event_type==='CLOCK_OUT'&&r.overtime_authorized===true).forEach(r=>{
       const d=recordDate(r);if(Number.isNaN(d.getTime()))return;if(from&&d<new Date(`${from}T00:00:00`))return;if(to&&d>new Date(`${to}T23:59:59.999`))return;
       const w=bmcAttendanceWorker(r);if(!w)return;const code=bmcEmployeeCode(w);if(workerCode&&code!==workerCode)return;
       const cfg=bmcCategoryCfgForWorker(w);if(!cfg||cfg.overtime_allowed!==true)return;
@@ -8978,7 +8696,7 @@ bmcInjectOvertimeReport();
 
 <script>
 /* =========================================================
-   COOATII V18 — PostgreSQL como fuente de verdad
+   NEXORA V18 — PostgreSQL como fuente de verdad
    Compatible con backend dinámico de categorías/centros.
 ========================================================= */
 (function(){
@@ -9151,7 +8869,7 @@ bmcInjectOvertimeReport();
 
 
 <style>
-/* ===== COOATII FORÁNEO ===== */
+/* ===== NEXORA FORÁNEO ===== */
 .foreign-route-card{margin-top:18px}
 .foreign-route-controls{display:grid;grid-template-columns:minmax(220px,1fr) 180px auto;gap:12px;align-items:end;margin:14px 0}
 .foreign-route-controls label{display:block;font-weight:800;margin-bottom:6px}
@@ -9226,7 +8944,7 @@ bmcInjectOvertimeReport();
 </style>
 
 <script>
-/* ===== COOATII V19 — modalidad FORÁNEO y recorrido diario ===== */
+/* ===== NEXORA V19 — modalidad FORÁNEO y recorrido diario ===== */
 (function(){
   const FOREIGN_LABEL='Foráneo';
 
@@ -9700,24 +9418,7 @@ routeRows.forEach((row,index)=>{
   }
 
   function fillCargoSelector(){
-    const select=document.querySelector('#code-site');
-    if(!select)return;
-    const current=select.value;
-    const cargos=new Set(['Programador','Contador']);
-    try{
-      mergedWorkers().forEach(w=>{
-        const cargo=String(w.cargo||w.position||w.department||'').trim();
-        if(cargo)cargos.add(cargo);
-      });
-    }catch(_e){}
-    select.innerHTML='<option value="">Selecciona un cargo</option>';
-    [...cargos].sort((a,b)=>a.localeCompare(b,'es')).forEach(cargo=>{
-      const o=document.createElement('option');
-      o.value=cargo;
-      o.textContent=cargo;
-      select.appendChild(o);
-    });
-    if([...select.options].some(o=>o.value===current))select.value=current;
+    nexoraFillPositions(document.querySelector('#code-site'),document.querySelector('#code-company')?.value||'');
   }
 
   async function reloadWorkersAndCategories(){
@@ -9763,7 +9464,7 @@ routeRows.forEach((row,index)=>{
 })();
 </script>
 <script>
-/* ===== COOATII V20 — ajustes de incidencias y foráneos ===== */
+/* ===== NEXORA V20 — ajustes de incidencias y foráneos ===== */
 (function(){
   function isMealEventV20(record){
     const e=String(record?.event_type||'').toUpperCase();
@@ -9801,7 +9502,7 @@ routeRows.forEach((row,index)=>{
 })();
 </script>
 <script>
-/* ===== COOATII V21 — Foráneo visible + comida solo como registro ===== */
+/* ===== NEXORA V21 — Foráneo visible + comida solo como registro ===== */
 (function(){
   const isMealRecordV21=record=>{
     const event=String(record?.event_type||'').toUpperCase();
@@ -9934,7 +9635,7 @@ routeRows.forEach((row,index)=>{
 </style>
 
 <script>
-/* ===== COOATII V25 — conteo simple por trabajador ===== */
+/* ===== NEXORA V25 — conteo simple por trabajador ===== */
 (function(){
   const INCIDENCE_NAMES_V25 = [
     "Ausentismo",
@@ -10093,7 +9794,7 @@ routeRows.forEach((row,index)=>{
 </script>
 
 <script>
-/* ===== COOATII V26 — INCIDENCIAS DESDE POSTGRESQL ===== */
+/* ===== NEXORA V26 — INCIDENCIAS DESDE POSTGRESQL ===== */
 (function(){
     async function reloadIncidencesV26(){
         try{
@@ -10143,7 +9844,7 @@ if(typeof oldRender==='function')window.renderCompanies=function(target,data){ol
 })();
 </script>
 <script>
-/* COOATII: categorías persistentes en PostgreSQL y SDI compacto. */
+/* NEXORA: categorías persistentes en PostgreSQL y SDI compacto. */
 (function(){
   const money=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2});
   function salaryCompact(){
@@ -10639,6 +10340,7 @@ window.tabletWorkerForm = (function(){
  const cache=new Map();
  async function json(url){const r=await authorizedFetch(url);const d=await r.json().catch(()=>null);if(!r.ok)throw Error(d?.error||'No se pudo cargar la configuración');return d;}
  async function fill(form,companyId,defaultSite=''){
+   await nexoraFillFormPositions(form,companyId);
    const box=form.querySelector('.tablet-worker-days');if(!box||!companyId)return;
    box.textContent='Cargando centros y categorías…';
    try{
@@ -10671,7 +10373,7 @@ window.tabletWorkerForm = (function(){
  async function save(form,companyId,checkerId,request){
    const {data,config}=payload(form);
    // Alta y asignación. El código lo genera PostgreSQL dentro de una transacción.
-   const created=await request(`/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers/${encodeURIComponent(checkerId)}/new-employee`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+   const created=await request(checkerId?`/api/admin/companies/${encodeURIComponent(companyId)}/shared-checkers/${encodeURIComponent(checkerId)}/new-employee`:`/api/admin/companies/${encodeURIComponent(companyId)}/shared-employees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
    const code=created.employee_code;
    const r=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/config`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
    const result=await r.json().catch(()=>({}));
@@ -10718,12 +10420,12 @@ window.tabletWorkerForm = (function(){
    company.value=[...company.options].some(o=>o.value===old)?old:(original.value||'');
  }
  async function loadCheckers(){
-   checker.replaceChildren(new Option('Selecciona una tablet',''));
+   checker.replaceChildren(new Option('Sin tablet (opcional)',''));
    if(!company.value)return;
    try{
      const rows=await request(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`);
      for(const row of rows){if(row.is_active)checker.add(new Option(`${row.device_name} · ${row.site_name||'Sin centro'}`,row.id));}
-     if(checker.options.length===1)feedback.textContent='Esta empresa no tiene tablets vinculadas. Vincula una primero en Checadores compartidos.';
+     if(checker.options.length===1)feedback.textContent='Puedes guardar al trabajador sin asignarlo a una tablet.';
      else feedback.textContent='';
      checker.dispatchEvent(new Event('change'));
    }catch(e){feedback.textContent=e.message;}
@@ -10736,11 +10438,11 @@ window.tabletWorkerForm = (function(){
  byId('worker-create-close').addEventListener('click',close);
  byId('worker-create-cancel').addEventListener('click',close);
  company.addEventListener('change',loadCheckers);
- checker.addEventListener('change',async()=>{if(!checker.value)return;try{const rows=await request(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`);const selected=rows.find(x=>String(x.id)===checker.value);await tabletWorkerForm.fill(form,company.value,selected?.site_id||'');}catch(e){feedback.textContent=e.message;}});
+ checker.addEventListener('change',async()=>{try{if(!checker.value){await tabletWorkerForm.fill(form,company.value,'');return;}const rows=await request(`/api/admin/companies/${encodeURIComponent(company.value)}/shared-checkers`);const selected=rows.find(x=>String(x.id)===checker.value);await tabletWorkerForm.fill(form,company.value,selected?.site_id||'');}catch(e){feedback.textContent=e.message;}});
  overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
  form.addEventListener('submit',async e=>{
    e.preventDefault();
-   if(!company.value||!checker.value){feedback.textContent='Selecciona empresa y tablet vinculada.';return;}
+   if(!company.value){feedback.textContent='Selecciona una empresa.';return;}
    save.disabled=true;feedback.textContent='Guardando trabajador…';
    try{
      const created=await tabletWorkerForm.save(form,company.value,checker.value,request);
@@ -10870,13 +10572,20 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
 })();
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script>
 (function(){
  const q=id=>document.getElementById(id);
  const btn=q('coo-export');
  const reviewLabel=r=>r.review_status==='pending'?'Falta por calificar':r.review_status==='qualified'?'Calificada':'Normal';
- const movementLabel=r=>r.event_type==='MEAL_START'&&r.break_kind==='REST'?'Salió a descanso':r.event_type==='MEAL_END'&&r.break_kind==='REST'?'Regresó de descanso':({CLOCK_IN:'Entró a trabajar',CLOCK_OUT:'Salió del trabajo',MEAL_START:r.break_kind==='MEAL'?'Salió a comer':'Salió a comer / descanso',MEAL_END:r.break_kind==='MEAL'?'Regresó de comer':'Regresó de comer / descanso',INCIDENT:'Incidencia calificada'}[r.event_type]||r.event_type);
+ const movementLabel=r=>{
+  if(r.event_type==='MEAL_START'||r.event_type==='MEAL_END'){
+   const number=r.break_number?' '+r.break_number:'';
+   if(r.event_type==='MEAL_START')return (r.break_kind==='MEAL'?'Comida':r.break_kind==='REST'?'Descanso':'Pausa')+number;
+   return (r.break_kind==='MEAL'?'Regreso de comer':r.break_kind==='REST'?'Regreso del descanso':'Regreso de pausa')+number;
+  }
+  return {CLOCK_IN:'Entró a trabajar',CLOCK_OUT:'Salió del trabajo',INCIDENT:'Incidencia calificada'}[r.event_type]||r.event_type;
+ };
  const reportParams=()=>new URLSearchParams({from:q('attendance-date-from').value,to:q('attendance-date-to').value,employee:q('coo-report-worker').value.trim(),only_incidents:String(q('coo-report-type').value==='incidents'),role:q('attendance-role').value,worksite:q('attendance-worksite').value,concept:q('attendance-incidence-type').value});
  const company=()=>typeof bmcCompanyId==='function'?bmcCompanyId():null;
  async function getJson(url){const r=await authorizedFetch(url);let j={};try{j=await r.json()}catch{}if(!r.ok)throw Error(r.status===404?'Ruta API no encontrada ('+url+'). Comprueba que el backend actualizado esté montado y desplegado.':(j.error||'Error HTTP '+r.status));return j;}
@@ -10893,9 +10602,9 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
   try{
    const params=new URLSearchParams({from,to,employee:q('coo-report-worker').value.trim(),only_incidents:String(q('coo-report-type').value==='incidents'),role:q('attendance-role').value,worksite:q('attendance-worksite').value,concept:q('attendance-incidence-type').value});
    const data=await getJson('/api/admin/companies/'+encodeURIComponent(id)+'/history-export?'+params);
-   const rows=(data.records||[]).map(r=>({Código:r.employee_code,Trabajador:r.full_name,Fecha:new Date(Number(r.occurred_at)).toLocaleString('es-MX'),Movimiento:movementLabel(r),Estado:reviewLabel(r),Incidencia:r.concept||'',Valor:r.applied_value??0,Observaciones:r.notes||''}));
-   if(!rows.length){setStatus('No hay registros con esos filtros.');return;}
-   excel(rows,'COOATII_historial_'+new Date().toISOString().slice(0,10)+'.xlsx');
+   if(!window.XLSX)throw Error('No se cargó la librería Excel. Comprueba tu conexión y recarga la página.');
+   const workbook=nexoraBuildWorkbook(data,{from,to},XLSX);
+   XLSX.writeFile(workbook,'NEXORA_'+(from||'historial')+'_'+(to||'completo')+'.xlsx');
   }catch(e){setStatus(e.message);}finally{btn.disabled=false;}
  });
  async function loadReportWorkers(){
@@ -10930,9 +10639,10 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
    for(const r of (data.records||[]).filter(r=>r.review_status!=='pending')){
     const li=document.createElement('li');li.className='data-item';
     const detail=document.createElement('div');
+    // Historial mantiene el mismo estilo para todas las acciones.
     const date=new Date(Number(r.occurred_at));
     const dateLabel=r.event_type==='INCIDENT'?date.toLocaleDateString('es-MX',{timeZone:'America/Mexico_City'}):date.toLocaleString('es-MX',{timeZone:'America/Mexico_City'});
-    detail.textContent=r.full_name+' · '+dateLabel+' · '+(r.event_type==='INCIDENT'?'NO HAY REGISTROS DE ENTRADA':movementLabel(r))+(r.concept?' · '+r.concept:'')+(r.notes?' · '+r.notes:'');
+    detail.textContent=r.full_name+' · '+dateLabel+' · '+(r.event_type==='INCIDENT'?(r.has_clock_in===false?'SIN REGISTRO DE ENTRADA (probable ausentismo)':'Incidencia del día'):movementLabel(r))+(r.concept?' · '+r.concept:'')+(r.notes?' · '+r.notes:'');
     li.append(detail);
     list.appendChild(li);
    }
@@ -10941,6 +10651,107 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
  ['incidence-tab-pending','incidence-tab-justified'].forEach(id=>q(id)?.addEventListener('click',()=>{
   q('coo-tab-history').classList.remove('active');
  }));
+})();
+</script>
+<script id="nexora-configuration-security">
+(function(){
+  const baseFetch=authorizedFetch;
+  const grants=new Map();let dialogPromise=null,setupBusy=false;
+  const cid=()=>document.querySelector('#settings-company')?.value||document.querySelector('#devices-company')?.value||'';
+  const notice='Guarda tus contraseñas en un lugar seguro. Cualquier renovación de credenciales tendrá un costo extra.';
+  let gate,protectedNodes=[];
+  function lock(){grants.clear();for(const n of protectedNodes)n.inert=true;if(gate)gate.querySelector('[role=status]').textContent='Configuración bloqueada. Introduce tu contraseña para habilitarla.';}
+  function unlocked(id){const grant=grants.get(id);return grant&&grant.until>Date.now()&&grant.session===sessionStorage.getItem(tokenKey)?grant.token:null;}
+  async function securityInfo(id){const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security');const data=await r.json();if(!r.ok)throw Error(data.error||'No se pudo consultar la protección');return data;}
+  function passwordDialog(id,setup){
+    if(dialogPromise)return dialogPromise;
+    dialogPromise=new Promise(resolve=>{
+      const overlay=document.createElement('div');overlay.className='modal-backdrop';
+      overlay.innerHTML='<form class="modal-card" style="max-width:420px"><h3></h3><p></p><label>Contraseña de configuración<input type="password" name="password" minlength="8" maxlength="128" autocomplete="'+(setup?'new-password':'current-password')+'" required></label>'+(setup?'<label>Confirma tu contraseña<input type="password" name="confirmation" minlength="8" maxlength="128" autocomplete="new-password" required></label>':'')+'<p role="status"></p><div class="modal-actions"><button type="button" class="btn btn-soft">Cancelar</button><button type="submit" class="btn btn-primary">'+(setup?'Crear contraseña':'Autorizar')+'</button></div></form>';
+      overlay.querySelector('h3').textContent=setup?'Crea tu contraseña de configuración':'Autorizar con contraseña';overlay.querySelector('p').textContent=notice;
+      document.body.append(overlay);const form=overlay.querySelector('form'),feedback=form.querySelector('[role=status]');
+      const finish=result=>{form.reset();overlay.remove();dialogPromise=null;resolve(result);};
+      form.querySelector('.modal-actions [type=button]').onclick=()=>finish(null);
+      form.querySelectorAll('input[type="password"]').forEach(input=>{
+        const wrapper=document.createElement('div');wrapper.style.cssText='display:flex;align-items:center;gap:6px';
+        input.replaceWith(wrapper);wrapper.append(input);input.style.cssText='flex:1;min-width:0;margin:0';
+        const toggle=document.createElement('button');toggle.type='button';toggle.className='btn btn-soft';
+        toggle.textContent='Mostrar';toggle.setAttribute('aria-label',input.name==='confirmation'?'Mostrar confirmación de contraseña':'Mostrar contraseña de configuración');toggle.setAttribute('aria-pressed','false');
+        toggle.style.cssText='width:auto;padding:7px 10px;font-size:12px;white-space:nowrap';
+        toggle.onclick=()=>{const visible=input.type==='password';input.type=visible?'text':'password';toggle.textContent=visible?'Ocultar':'Mostrar';toggle.setAttribute('aria-pressed',String(visible));toggle.setAttribute('aria-label',(visible?'Ocultar':'Mostrar')+(input.name==='confirmation'?' confirmación de contraseña':' contraseña de configuración'));};
+        wrapper.append(toggle);
+      });
+      form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('[type=submit]');button.disabled=true;
+        try{const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:form.elements.password.value,confirm_password:setup?form.elements.confirmation.value:undefined})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo autorizar');finish(d.token);}
+        catch(error){feedback.textContent=error.message;}finally{button.disabled=false;}
+      };form.elements.password.focus();
+    });return dialogPromise;
+  }
+  async function authorize(id,always=false){
+    if(!always&&unlocked(id))return unlocked(id);
+    const info=await securityInfo(id);
+    if(!info.configured){const created=await passwordDialog(id,true);lock();if(!created)return null;setStatus('Contraseña creada. La configuración quedó bloqueada.');}
+    const token=await passwordDialog(id,false);if(token){grants.set(id,{token,until:Date.now()+900000,session:sessionStorage.getItem(tokenKey)});if(id===cid()){for(const n of protectedNodes)n.inert=false;if(gate)gate.querySelector('[role=status]').textContent='Configuración habilitada durante 15 minutos.';}}return token;
+  }
+  window.authorizedFetch=async function(url,options={}){
+    const match=String(url).match(/\/api\/admin\/companies\/([^/]+)\/(.+)/);const method=(options.method||'GET').toUpperCase();
+    if(!match||['GET','HEAD','OPTIONS'].includes(method))return baseFetch(url,options);
+    const id=decodeURIComponent(match[1]),path=match[2];let payload;
+    try{if(typeof options.body==='string')payload=JSON.parse(options.body);}catch{}
+    let token=unlocked(id);
+    if(payload?.concept==='Tiempo extraordinario'){
+      if(confirm('¿Deseas autorizar y asignar este tiempo extra?')){token=await authorize(id,true);if(!token)throw Error('Autorización de tiempo extra cancelada');}
+      else{payload.concept='Historial';payload.notes='Tiempo extra sin autorizar. '+(payload.notes||'');options={...options,body:JSON.stringify(payload)};}
+    }
+    if(/^(categories(?:\/|$)|policies(?:\/|$))/.test(path)&&!token){token=await authorize(id);if(!token)throw Error('Configuración bloqueada');}
+    const headers=new Headers(options.headers||{});if(token)headers.set('X-Configuration-Token',token);
+    // El fetch original usa un objeto de cabeceras; convertir Headers antes de enviarlo.
+    const response=await baseFetch(url,{...options,headers:Object.fromEntries(headers.entries())});
+    if(response.status===403&&token){const d=await response.clone().json().catch(()=>({}));if(d.code==='CONFIGURATION_LOCKED'||d.code==='CONFIGURATION_SETUP_REQUIRED')lock();}
+    if(response.ok&&/\/qualify$|\/review$/.test(path))queueMicrotask(()=>loadAlerts().catch(console.error));
+    return response;
+  };
+  async function loadAlerts(){const id=document.querySelector('#report-company')?.value||cid();const box=document.querySelector('#nx-weekly-alerts');if(!id||!box||!sessionStorage.getItem(tokenKey))return;
+    const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/weekly-late-alerts');if(!r.ok)return;const rows=await r.json();box.replaceChildren();for(const row of rows){const p=document.createElement('p');p.textContent=row.full_name+' llegó tarde '+row.late_days+' veces esta semana y acumula '+row.absences+' ausentismo(s) por retardos.';box.append(p);}box.hidden=!rows.length;
+  }
+  async function firstSetup(){if(setupBusy||!sessionStorage.getItem(tokenKey))return;const id=cid();if(!id)return;setupBusy=true;try{if(!(await securityInfo(id)).configured){await passwordDialog(id,true);lock();}}catch(e){if(!nexoraSessionExpired)setStatus(e.message,'error');}finally{setupBusy=false;}}
+  function initialize(){
+    const page=document.querySelector('#settings-page');if(!page)return;
+    const companyCard=page.querySelector('#settings-company')?.closest('.card');
+    protectedNodes=[...page.children].filter(n=>n!==companyCard);
+    gate=document.createElement('div');gate.id='nx-config-security';gate.className='card';
+    gate.innerHTML='<h3>Contraseña de configuración</h3><p></p><p role="status"></p><div style="display:flex;gap:8px"><button type="button" class="btn btn-primary">Desbloquear configuración</button><button type="button" class="btn btn-soft">Bloquear</button></div>';
+    gate.querySelector('p').textContent=notice;page.append(gate);lock();
+    gate.querySelectorAll('button')[0].onclick=async()=>{try{if(!cid()){setStatus('Selecciona una empresa');return;}await authorize(cid());}catch(e){setStatus(e.message,'error');}};gate.querySelectorAll('button')[1].onclick=lock;
+    new MutationObserver(()=>{protectedNodes=[...page.children].filter(n=>n!==companyCard&&n!==gate);for(const n of protectedNodes)n.inert=!unlocked(cid());}).observe(page,{childList:true});
+    document.querySelector('#settings-company')?.addEventListener('change',()=>{lock();firstSetup();});
+    document.querySelector('#devices-company')?.addEventListener('change',lock);
+    document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page!=='settings-page')lock();else firstSetup();}));
+    document.querySelector('#logout')?.addEventListener('click',lock);
+    const alertBox=document.createElement('div');alertBox.id='nx-weekly-alerts';alertBox.setAttribute('role','alert');alertBox.hidden=true;document.querySelector('#attendance')?.before(alertBox);
+    document.querySelector('#report-company')?.addEventListener('change',()=>loadAlerts().catch(console.error));
+    document.addEventListener('change',async event=>{
+      if(event.target.id!=='bmc-overtime-enabled'||event.target.value!=='si')return;
+      if(!confirm('¿Deseas habilitar la asignación de tiempo extra?')){event.target.value='no';return;}
+      try{if(!await authorize(cid(),true))event.target.value='no';}catch(e){event.target.value='no';setStatus(e.message,'error');}
+    });
+    const attendanceList=document.querySelector('#attendance');
+    const describe=()=>{for(const card of attendanceList?.children||[]){const parts=[...card.querySelectorAll('.data-item-title,.data-item-subtitle,.incidence-info-line')].map(n=>n.textContent.trim());card.title=parts.join(' · ');}};
+    if(attendanceList)new MutationObserver(describe).observe(attendanceList,{childList:true});
+    const old=refreshAll;window.refreshAll=async function(...args){await old.apply(this,args);await firstSetup();await loadAlerts();};
+    setInterval(()=>{if(!unlocked(cid()))lock();},15000);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize);else initialize();
+})();
+
+</script>
+<script id="nexora-calendar-quincena">
+(function(){
+ window.nexoraQuincenaEnd=function(value){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return '';const date=new Date(value+'T00:00:00Z');if(!Number.isFinite(date.getTime()))return '';date.setUTCDate(date.getUTCDate()+14);return date.toISOString().slice(0,10);};
+ function init(){const from=document.getElementById('attendance-date-from'),to=document.getElementById('attendance-date-to');if(!from||!to)return;const note=document.createElement('div');note.id='nexora-quincena-warning';note.style.cssText='font-size:12px;color:#9a3412;font-weight:700;margin:6px 0 12px';note.hidden=true;document.querySelector('.nexora-cut-row').after(note);
+ function warning(){const end=nexoraQuincenaEnd(from.value);const cross=!!end&&!!to.value&&to.value>end;note.textContent=cross?'EL CORTE SUPERA LOS 15 DÍAS':'';note.hidden=!cross;}
+ from.addEventListener('change',()=>{const end=nexoraQuincenaEnd(from.value);if(end){to.value=end;to.dispatchEvent(new Event('change',{bubbles:true}));}warning();});to.addEventListener('change',warning);warning();}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
 </body>

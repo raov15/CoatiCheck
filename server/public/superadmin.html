@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Administración COOATII Check</title>
+<title>Administración NEXORA</title>
 
 <style>
 :root {
@@ -391,7 +391,7 @@ button:focus-visible {
 <div id="login" class="card">
   <h2>
     Administración
-    <span class="brand-accent">COOATII Check</span>
+    <span class="brand-accent">NEXORA</span>
   </h2>
 
   <p class="muted">
@@ -430,10 +430,10 @@ button:focus-visible {
 
   <aside>
     <h1>
-      COOATII <span class="brand-accent">Check</span>
+      NEXORA
     </h1>
 
-    <small>Administración COOATII Check</small>
+    <small>Administración NEXORA</small>
 
     <nav>
       <button data-tab="dashboard" class="active">
@@ -548,7 +548,7 @@ button:focus-visible {
                 style="font-size:12px;margin:7px 0 0"
               >
                 Escríbelo todo junto, sin espacios.
-                Ejemplo: <strong>AdminCooatii</strong>.
+                Ejemplo: <strong>AdminNexora</strong>.
               </p>
             </div>
 
@@ -957,7 +957,7 @@ function renderUsers(users) {
     const reset = document.createElement("button");
 
     reset.className = "soft";
-    reset.textContent = "Restablecer contraseña";
+    reset.textContent = "Restablecer contraseña de acceso";
 
     reset.onclick = async () => {
       if (!confirm(
@@ -996,7 +996,24 @@ function renderUsers(users) {
       }
     };
 
-    td.append(toggle, reset);
+    const resetConfiguration=document.createElement('button');
+    resetConfiguration.className='soft';resetConfiguration.textContent='Restablecer contraseña de configuración';
+    resetConfiguration.onclick=async()=>{
+      try{
+        const data=await request('/api/admin/superadmin/users/'+encodeURIComponent(u.id)+'/configuration-companies');
+        if(!data.companies?.length){notice('Este cliente no tiene empresas asignadas.',true);return;}
+        const dialog=document.createElement('dialog');dialog.style.cssText='max-width:440px;width:90%;border:1px solid #ddd;border-radius:16px;padding:24px';
+        dialog.innerHTML='<form><h3>Restablecer contraseña de configuración</h3><p>Selecciona la empresa. Se bloqueará su configuración y se pedirá crear una nueva contraseña en el próximo acceso. La contraseña general de inicio de sesión se conserva.</p><label>Empresa<select required></select></label><p role="status"></p><div style="display:flex;gap:8px;margin-top:14px"><button type="button" class="soft">Cancelar</button><button type="submit">Restablecer configuración</button></div></form>';
+        const select=dialog.querySelector('select');for(const company of data.companies)select.add(new Option(company.name,company.id));
+        dialog.querySelector('[type=button]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+        dialog.querySelector('form').onsubmit=async event=>{event.preventDefault();const button=dialog.querySelector('[type=submit]');button.disabled=true;
+          try{const result=await request('/api/admin/companies/'+encodeURIComponent(select.value)+'/configuration-security/reset',{method:'POST'});dialog.close();notice(result.message);}
+          catch(error){dialog.querySelector('[role=status]').textContent=error.message;}finally{button.disabled=false;}
+        };document.body.append(dialog);dialog.showModal();
+      }catch(error){notice(error.message,true);}
+    };
+    td.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+    td.append(toggle, reset, resetConfiguration);
     tr.appendChild(td);
     tbody.appendChild(tr);
   }
@@ -1102,7 +1119,7 @@ $("copyCredentials").onclick = async () => {
   const contrasena = $("temporaryPassword").textContent;
 
   const value =
-    "COOATII Check | Datos de acceso\n\n" +
+    "NEXORA | Datos de acceso\n\n" +
     "Usuario: " + usuario + "\n" +
     "Contraseña: " + contrasena + "\n\n" +
     "Importante: Cambia tu contraseña al iniciar sesión " +

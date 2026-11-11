@@ -290,6 +290,10 @@ router.post(
     res: Response,
   ): Promise<void> => {
     const { expires_in_minutes = 30 } = req.body ?? {};
+    const positionName=String(req.body?.position_name||'').trim();
+    const positionResult=await pool.query('SELECT id FROM company_positions WHERE company_id=$1 AND lower(name)=lower($2) AND is_active',[req.params.companyId,positionName]);
+    if(!positionResult.rows[0]){res.status(400).json({error:'Selecciona un cargo activo del catálogo'});return;}
+
 
     const plainCode = crypto.randomBytes(12).toString('hex');
 
@@ -330,12 +334,14 @@ router.post(
         INSERT INTO device_enrollment_codes (
           company_id,
           site_id,
+          position_id,
           code_hash,
           expires_at
         )
         VALUES (
           $1,
           $2,
+          $5,
           $3,
           NOW() + ($4 * INTERVAL '1 minute')
         )
@@ -350,6 +356,7 @@ router.post(
         siteId,
         codeHash,
         expiresInMinutes,
+        positionResult.rows[0].id,
       ],
     );
 
@@ -919,8 +926,7 @@ router.delete(
        */
       await client.query(
         `UPDATE devices
-         SET employee_id = NULL,
-             updated_at = NOW()
+         SET employee_id = NULL
          WHERE company_id = $1
            AND employee_id = $2`,
         [companyId, employee.id_remote],
@@ -1046,7 +1052,7 @@ async function processAutomaticAbsences(): Promise<void> {
     INSERT INTO attendance_auto_incidents
       (company_id,employee_id,category_id,incident_date,concept,origin,notes)
     SELECT c.company_id,c.employee_id,c.category_id,c.incident_date,
-      'Ausentismo','ABSENCE','Sin registro de entrada al cumplirse el plazo'
+      'Ausentismo','ABSENCE','SIN REGISTRO DE ENTRADA (probable ausentismo)'
     FROM candidates c CROSS JOIN day_context dc
     WHERE c.start_time ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9]'
       AND dc.local_time >= CASE
@@ -1085,15 +1091,24 @@ router.get('/companies/:companyId/automatic-incidents',userAuthMiddleware,
     const status=String(req.query.status??'pending');
     if(!['pending','reviewed','all'].includes(status)){res.status(400).json({error:'Estado inválido'});return;}
     try{
-      const data=await pool.query(`SELECT ai.*,a.occurred_at AS attendance_occurred_at,e.employee_code,e.full_name AS employee_name,
-        cat.name AS category_name
+      const data=await pool.query(`SELECT ai.*,a.occurred_at AS attendance_occurred_at,a.event_type AS attendance_event_type,a.break_kind,
+        CASE WHEN a.event_type IN ('MEAL_START','MEAL_END') THEN GREATEST(1,(
+          SELECT COUNT(*)::int FROM attendance_records b WHERE b.company_id=a.company_id AND b.employee_id=a.employee_id
+            AND b.event_type='MEAL_START' AND b.break_kind IS NOT DISTINCT FROM a.break_kind
+            AND (to_timestamp(b.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=
+                (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date
+            AND b.occurred_at<=a.occurred_at)) ELSE NULL END AS break_number,e.employee_code,e.full_name AS employee_name,
+        cat.name AS category_name,
+        NOT EXISTS(SELECT 1 FROM attendance_records entry WHERE entry.company_id=ai.company_id
+          AND entry.employee_id IN (e.id_local,e.id_remote::text,e.employee_code) AND entry.event_type='CLOCK_IN'
+          AND (to_timestamp(entry.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=ai.incident_date) AS missing_entry
         FROM attendance_auto_incidents ai
         LEFT JOIN attendance_records a ON a.id_remote=ai.attendance_record_id AND a.company_id=ai.company_id
         JOIN employees e ON e.id_remote=ai.employee_id
         LEFT JOIN categories cat ON cat.id=ai.category_id
         WHERE ai.company_id=$1 AND ($2='all' OR ai.status=$2)
         ORDER BY ai.incident_date DESC,ai.created_at DESC LIMIT 500`,[req.params.companyId,status]);
-      res.json({records:data.rows});
+      res.json({records:data.rows.filter(r=>!(r.origin==='ABSENCE' && r.status==='pending' && r.missing_entry===false))});
     }catch(error){console.error(error);res.status(500).json({error:'No se pudieron consultar incidencias automáticas'});}
   });
 router.post('/companies/:companyId/automatic-incidents/:incidentId/review',
@@ -1145,6 +1160,7 @@ const VALID_CONCEPTS = [
   'Retardo',
   'Permiso médico justificado',
   'Permiso médico no justificado',
+  'Permiso no autorizado',
   'Falta justificada',
   'Salida no autorizada',
   'Salida autorizada',
@@ -3299,6 +3315,13 @@ router.get(
 
          qi.qualified_at,
          timing.late_minutes,
+         a.break_kind,
+         CASE WHEN a.event_type IN ('MEAL_START','MEAL_END') THEN GREATEST(1,(
+          SELECT COUNT(*)::int FROM attendance_records b WHERE b.company_id=a.company_id AND b.employee_id=a.employee_id
+            AND b.event_type='MEAL_START' AND b.break_kind IS NOT DISTINCT FROM a.break_kind
+            AND (to_timestamp(b.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=
+                (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date
+            AND b.occurred_at<=a.occurred_at)) ELSE NULL END AS break_number,
          COALESCE(cat.tolerance_minutes, 10) AS tolerance_minutes
 
        FROM attendance_records a
@@ -3516,17 +3539,7 @@ router.post(
         return;
       }
 
-      if (!record.category_id) {
-
-        await client.query('ROLLBACK');
-
-        res.status(409).json({
-          error:
-            'El trabajador todavía no tiene categoría asignada',
-        });
-
-        return;
-      }
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',[companyId+':'+record.employee_id]);
     let appliedValue = 0;
 if (concept === 'Historial' || concept === 'Salida autorizada' ||
     concept === 'Permiso médico justificado' || concept === 'Falta justificada') {
@@ -3548,100 +3561,7 @@ if (concept === 'Historial' || concept === 'Salida autorizada' ||
 } 
 
  else if (concept === 'Retardo') {
-
-  /*
-   * REGLA DE RETARDOS:
-   *
-   * 1 retardo calificado = 1 punto.
-   * 3 puntos = 1 ausentismo.
-   * Después de 3, el conteo de puntos vuelve a empezar.
-   *
-   * El valor configurado de "Retardo" NO se utiliza
-   * como cantidad de retardos.
-   *
-   * El valor configurado de "Ausentismo" es el
-   * porcentaje que corresponde a un ausentismo.
-   */
-
-  const ausentismoResult = await client.query(
-    `SELECT value
-     FROM category_incidence_values
-     WHERE category_id = $1
-       AND concept = 'Ausentismo'
-     LIMIT 1`,
-    [record.category_id],
-  );
-
-  if (!ausentismoResult.rows[0]) {
-    await client.query('ROLLBACK');
-
-    res.status(409).json({
-      error:
-        'No existe valuación configurada para Ausentismo',
-    });
-
-    return;
-  }
-
-  const ausentismoValue = Number(
-    ausentismoResult.rows[0].value ?? 0,
-  );
-
-  /*
-   * Contar retardos calificados del trabajador
-   * durante el mismo mes.
-   *
-   * Excluimos el registro actual por si se está
-   * editando una incidencia ya calificada.
-   */
-  const retardoCountResult = await client.query(
-    `SELECT COUNT(*)::int AS total
-     FROM qualified_incidents
-     WHERE company_id = $1
-       AND employee_id = $2
-       AND concept = 'Retardo'
-       AND incident_date >=
-           date_trunc('month', $4::date)::date
-       AND incident_date <
-           (
-             date_trunc('month', $4::date)
-             + INTERVAL '1 month'
-           )::date
-       AND (
-         attendance_record_id IS NULL
-         OR attendance_record_id <> $3
-       )`,
-    [
-      companyId,
-      record.employee_id,
-      attendanceRecordId,
-      record.incident_date,
-    ],
-  );
-
-  const previousRetardos = Number(
-    retardoCountResult.rows[0]?.total ?? 0,
-  );
-
-  const currentRetardoNumber =
-    previousRetardos + 1;
-
-  /*
-   * Cada tercer retardo genera el porcentaje
-   * correspondiente a un Ausentismo.
-   *
-   * Retardo 1 -> 0
-   * Retardo 2 -> 0
-   * Retardo 3 -> 1.40
-   * Retardo 4 -> 0
-   * Retardo 5 -> 0
-   * Retardo 6 -> 1.40
-   */
-  appliedValue =
-    currentRetardoNumber % 3 === 0
-      ? ausentismoValue
-      : 0;
-
+  appliedValue = 0; // El reparto semanal se recalcula después del upsert.
 
 } else {
 
@@ -3661,20 +3581,8 @@ if (concept === 'Historial' || concept === 'Salida autorizada' ||
     ],
   );
 
-  if (!valueResult.rows[0]) {
-    await client.query('ROLLBACK');
-
-    res.status(409).json({
-      error:
-        `No existe valuación configurada para ${concept}`,
-    });
-
-    return;
-  }
-
-  appliedValue = Number(
-    valueResult.rows[0].value,
-  );
+  // Calificar no depende de que ya exista una valuación para el concepto.
+  appliedValue = Number(valueResult.rows[0]?.value ?? 0);
 }
 const result =
   await client.query(
@@ -3746,6 +3654,20 @@ const result =
     ],
 
     );
+
+    // Clasificación estable por día y semana: editar o calificar fuera de orden no duplica sanciones.
+    await client.query(`WITH days AS (
+      SELECT DISTINCT incident_date FROM qualified_incidents
+      WHERE company_id=$1 AND employee_id=$2 AND concept='Retardo'
+    ), numbered AS (
+      SELECT incident_date,ROW_NUMBER() OVER(PARTITION BY date_trunc('week',incident_date) ORDER BY incident_date) AS n FROM days
+    ), ranked AS (
+      SELECT q.id,q.category_id,n.n,ROW_NUMBER() OVER(PARTITION BY q.incident_date ORDER BY q.qualified_at,q.id) AS day_n
+      FROM qualified_incidents q JOIN numbered n ON n.incident_date=q.incident_date
+      WHERE q.company_id=$1 AND q.employee_id=$2 AND q.concept='Retardo'
+    ) UPDATE qualified_incidents AS q SET applied_value=CASE WHEN r.n%3=0 AND r.day_n=1
+      THEN COALESCE((SELECT value FROM category_incidence_values WHERE category_id=r.category_id AND concept='Ausentismo' LIMIT 1),0)
+      ELSE 0 END FROM ranked r WHERE q.id=r.id`,[companyId,record.employee_id]);
 
     await client.query(
       `UPDATE attendance_auto_incidents
@@ -3934,17 +3856,15 @@ router.get(
      ),
 
      retardo_data AS (
-
-       SELECT
-         COALESCE(
-           (
-             SELECT total
-             FROM monthly_counts
-             WHERE concept = 'Retardo'
-           ),
-           0
-         )::int AS total_retardos
-
+       SELECT COUNT(DISTINCT incident_date)::int AS total_retardos,
+       COALESCE((SELECT COUNT(*) FROM (
+         SELECT incident_date,ROW_NUMBER() OVER(PARTITION BY date_trunc('week',incident_date) ORDER BY incident_date) AS n
+         FROM (SELECT DISTINCT incident_date FROM qualified_incidents WHERE company_id=$1 AND employee_id=$2 AND concept='Retardo') d
+       ) w WHERE n%3=0 AND incident_date>=date_trunc('month',NOW() AT TIME ZONE 'America/Mexico_City')::date
+       AND incident_date<(date_trunc('month',NOW() AT TIME ZONE 'America/Mexico_City')+INTERVAL '1 month')::date),0)::int AS converted_absences
+       FROM qualified_incidents WHERE company_id=$1 AND employee_id=$2 AND concept='Retardo'
+       AND incident_date>=date_trunc('week',NOW() AT TIME ZONE 'America/Mexico_City')::date
+       AND incident_date<date_trunc('week',NOW() AT TIME ZONE 'America/Mexico_City')::date+7
      )
 
      SELECT
@@ -3970,7 +3890,7 @@ router.get(
            )
            +
            (
-             SELECT FLOOR(total_retardos / 3.0)::int
+             SELECT converted_absences
              FROM retardo_data
            )
 
@@ -4171,11 +4091,22 @@ router.get(
       // La consulta del historial no debe depender de generar alertas nuevas.
       // Esa labor se ejecuta periódicamente y después de sincronizar checadas.
       const result = await pool.query(
-        `WITH movements AS (
+        `WITH late_days AS (
+          SELECT DISTINCT ON (employee_id,incident_date) id,employee_id,incident_date
+          FROM qualified_incidents WHERE company_id=$1 AND concept='Retardo'
+          ORDER BY employee_id,incident_date,qualified_at,id
+        ), weekly_lates AS (
+          SELECT id,ROW_NUMBER() OVER(PARTITION BY employee_id,date_trunc('week',incident_date) ORDER BY incident_date) AS n FROM late_days
+        ), movements AS (
           SELECT a.*, e.id_remote AS worker_id, e.employee_code, e.full_name,
                  e.category_id, e.site_id AS employee_site_id,
                  cat.name AS category_name,
                  timing.late_minutes,
+                 COUNT(*) FILTER(WHERE a.event_type='MEAL_START') OVER (
+                   PARTITION BY a.company_id,a.employee_id,a.break_kind,
+                     (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date
+                   ORDER BY a.occurred_at,a.id_remote ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                 )::int AS break_number,
                  (a.event_type = 'CLOCK_IN' AND timing.late_minutes > COALESCE(cat.tolerance_minutes, 10)) AS is_late
           FROM attendance_records a
           JOIN employees e ON e.company_id = a.company_id
@@ -4202,7 +4133,7 @@ router.get(
        ) timing ON TRUE
           WHERE a.company_id = $1
         ), history AS (
-          SELECT a.employee_code, a.full_name, a.event_type, a.occurred_at,
+          SELECT a.employee_code, a.full_name, a.worker_id, qi.id AS qualification_id, a.event_type, a.occurred_at,
                  COALESCE(qi.concept, ai.concept, CASE WHEN a.is_late THEN
                    'Incidencia'
                    WHEN a.late_return_minutes > 0 THEN 'Retardo' END) AS concept,
@@ -4213,7 +4144,7 @@ router.get(
                  qi.id IS NOT NULL OR ai.id IS NOT NULL OR COALESCE(a.is_late, FALSE) OR a.late_return_minutes > 0 AS is_incident,
                  CASE WHEN qi.id IS NOT NULL OR ai.status = 'reviewed' THEN 'qualified'
                    WHEN ai.id IS NOT NULL OR a.is_late OR a.late_return_minutes > 0 THEN 'pending'
-                   ELSE 'normal' END AS review_status, a.break_kind
+                   ELSE 'normal' END AS review_status, a.break_kind, a.break_number
           FROM movements a
           LEFT JOIN qualified_incidents qi ON qi.attendance_record_id = a.id_remote AND qi.company_id = $1
           LEFT JOIN LATERAL (
@@ -4222,20 +4153,20 @@ router.get(
             ORDER BY i.reviewed_at DESC LIMIT 1
           ) ai ON TRUE
           UNION ALL
-          SELECT e.employee_code, e.full_name, 'INCIDENT',
+          SELECT e.employee_code, e.full_name, e.id_remote, qi.id, 'INCIDENT',
                  EXTRACT(EPOCH FROM (qi.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
                  qi.concept, qi.applied_value, qi.notes, qi.qualified_at,
-                 cat.name, e.category_id, e.site_id, FALSE, TRUE, 'qualified', NULL::text
+                 cat.name, e.category_id, e.site_id, FALSE, TRUE, 'qualified', NULL::text, NULL::int
           FROM qualified_incidents qi
           JOIN employees e ON e.id_remote = qi.employee_id AND e.company_id = qi.company_id
           LEFT JOIN categories cat ON cat.id = qi.category_id
           WHERE qi.company_id = $1 AND qi.attendance_record_id IS NULL
           UNION ALL
-          SELECT e.employee_code, e.full_name, 'INCIDENT',
+          SELECT e.employee_code, e.full_name, e.id_remote, NULL::uuid, 'INCIDENT',
                  EXTRACT(EPOCH FROM (ai.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
                  ai.concept, NULL, ai.notes, ai.reviewed_at,
                  cat.name, e.category_id, e.site_id, FALSE, TRUE,
-                 CASE WHEN ai.status = 'reviewed' THEN 'qualified' ELSE 'pending' END, NULL::text
+                 CASE WHEN ai.status = 'reviewed' THEN 'qualified' ELSE 'pending' END, NULL::text, NULL::int
           FROM attendance_auto_incidents ai
           JOIN employees e ON e.id_remote = ai.employee_id AND e.company_id = ai.company_id
           LEFT JOIN categories cat ON cat.id = ai.category_id
@@ -4245,7 +4176,12 @@ router.get(
                 AND qi.incident_date = ai.incident_date AND qi.attendance_record_id IS NULL
                 AND qi.concept = ai.concept)
         )
-        SELECT * FROM history h
+        SELECT h.*, (h.concept='Retardo' AND h.qualification_id IN (SELECT id FROM weekly_lates WHERE n%3=0)) AS weekly_absence_generated, EXISTS(SELECT 1 FROM attendance_records entry JOIN employees worker
+          ON worker.company_id=entry.company_id AND entry.employee_id IN (worker.id_local,worker.id_remote::text,worker.employee_code)
+          WHERE entry.company_id=$1 AND worker.employee_code=h.employee_code AND entry.event_type='CLOCK_IN'
+            AND (to_timestamp(entry.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date=
+                (to_timestamp(h.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date) AS has_clock_in
+        FROM history h
         WHERE h.review_status <> 'pending'
           AND ($2::text = '' OR (to_timestamp(h.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date >= NULLIF($2, '')::date)
           AND ($3::text = '' OR (to_timestamp(h.occurred_at / 1000.0) AT TIME ZONE 'America/Mexico_City')::date <= NULLIF($3, '')::date)
@@ -4254,10 +4190,20 @@ router.get(
           AND ($6::text = '' OR h.site_id::text = $6 OR EXISTS (SELECT 1 FROM sites st WHERE st.id = h.site_id AND st.name = $6))
           AND ($7::text = '' OR h.concept = $7)
           AND (NOT $8::boolean OR h.is_incident)
-        ORDER BY h.occurred_at DESC LIMIT 20000`,
+        ORDER BY h.occurred_at DESC`,
         [companyId, from, to, employee, role, worksite, concept, onlyIncidents],
       );
-      res.json({ records: result.rows, count: result.rows.length });
+      const employees=await pool.query(`SELECT e.id_remote,e.employee_code,e.full_name,e.rfc,e.curp,e.nss,e.daily_salary,e.category_id,
+        COALESCE((SELECT json_agg(json_build_object('concept',v.concept,'value',v.value)) FROM category_incidence_values v WHERE v.category_id=e.category_id),'[]'::json) AS valuations
+        FROM employees e LEFT JOIN categories c ON c.id=e.category_id
+        WHERE e.company_id=$1
+        AND ($2::text='' OR e.employee_code=$2 OR e.full_name ILIKE '%'||$2||'%')
+        AND ($3::text='' OR c.name=$3 OR c.id::text=$3)
+        AND ($4::text='' OR e.site_id::text=$4 OR EXISTS(SELECT 1 FROM sites st WHERE st.id=e.site_id AND st.name=$4))
+        ORDER BY e.full_name`,[companyId,employee,role,worksite]);
+      const valuations=await pool.query(`SELECT v.category_id,v.concept,v.value FROM category_incidence_values v
+        JOIN categories c ON c.id=v.category_id WHERE c.company_id=$1`,[companyId]);
+      res.json({records:result.rows,count:result.rows.length,employees:employees.rows,valuations:valuations.rows,from,to});
     } catch (error) {
       console.error('Error exportando historial:', error);
       res.status(500).json({ error: 'No se pudo generar el historial de asistencias' });
@@ -4357,6 +4303,8 @@ router.get(
           a.company_id,
           a.site_id,
           a.created_at,
+          EXISTS(SELECT 1 FROM qualified_incidents oq WHERE oq.attendance_record_id=a.id_remote
+            AND oq.company_id=a.company_id AND oq.concept='Tiempo extraordinario') AS overtime_authorized,
 
           e.id_remote AS employee_id_remote,
           e.id_local AS employee_id_local,
@@ -4983,3 +4931,4 @@ router.post('/shared-checkers/employee-lookup',
   });
 
 export default router;
+

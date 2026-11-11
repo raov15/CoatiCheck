@@ -1,5 +1,6 @@
 package com.coati.checador.core.sync
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -45,6 +46,7 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
         val pending = attendanceRecordDao.getPendingBatch(BATCH_SIZE)
         if (pending.isEmpty()) {
+            refreshBreakMetadata(authToken)
             return Result.success()
         }
 
@@ -61,11 +63,13 @@ class AttendanceSyncWorker @AssistedInject constructor(
 
             response.synced.forEach { synced ->
                 attendanceRecordDao.markSynced(synced.idLocal, SyncStatus.SYNCED, synced.idRemote)
+                attendanceRecordDao.updateBreakMetadata(synced.idLocal, synced.breakKind, synced.breakNumber)
             }
             response.errors.forEach { error ->
                 attendanceRecordDao.markSyncFailed(error.idLocal, SyncStatus.ERROR, error.error)
             }
 
+            refreshBreakMetadata(authToken)
             // Una respuesta parcial no debe dejar registros invisibles en SYNCING.
             attendanceRecordDao.releaseUnconfirmedUploads(idsLocal)
             if (attendanceRecordDao.countPending() > 0) Result.retry() else Result.success()
@@ -84,6 +88,18 @@ class AttendanceSyncWorker @AssistedInject constructor(
                 attendanceRecordDao.releaseUnconfirmedUploads(idsLocal)
             }
         }
+    }
+
+    private suspend fun refreshBreakMetadata(token: String) {
+        try {
+            val recent = attendanceRecordDao.observeRecent(500).first()
+            if (recent.isEmpty()) return
+            val url = appSettingDao.getValue(AppSettingEntity.KEY_API_BASE_URL)
+            val rows = apiServiceFactory.create(url).attendanceMetadata("Bearer " + token,
+                mapOf("ids" to recent.map { it.idLocal }))
+            rows.forEach { attendanceRecordDao.updateBreakMetadata(it.idLocal, it.breakKind, it.breakNumber) }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { Timber.w(error, "No se actualizaron los nombres de pausa") }
     }
 
     private fun AttendanceRecordEntity.toDto() = AttendanceRecordDto(
