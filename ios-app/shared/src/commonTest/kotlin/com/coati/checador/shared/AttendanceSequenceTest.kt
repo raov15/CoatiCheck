@@ -18,7 +18,7 @@ class AttendanceSequenceTest {
             AttendanceSequence.allowedAfter(listOf("CLOCK_IN", "MEAL_START", "MEAL_END"))
         )
         assertEquals(
-            listOf("CLOCK_OUT"),
+            listOf("MEAL_START", "CLOCK_OUT"),
             AttendanceSequence.allowedAfter(listOf("CLOCK_IN", "MEAL_START", "MEAL_END", "MEAL_START", "MEAL_END"))
         )
         assertTrue(AttendanceSequence.allowedAfter(listOf("CLOCK_IN", "CLOCK_OUT")).isEmpty())

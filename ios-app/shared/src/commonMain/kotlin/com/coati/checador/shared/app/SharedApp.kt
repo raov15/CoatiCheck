@@ -76,7 +76,7 @@ class SharedApp(
 
     private val recognizeFaceUseCase =
         RecognizeFaceUseCase(engine, crypto, faceProfileRepository)
-    private val registerEmployeeUseCase = RegisterEmployeeUseCase(employeeRepository, scheduler)
+    private val registerEmployeeUseCase = RegisterEmployeeUseCase(employeeRepository, scheduler) { allowedPositions() }
     private val registerDeviceUseCase = RegisterDeviceUseCase(deviceRepository)
     private val verifyTokenUseCase = VerifyDeviceTokenUseCase(deviceRepository)
 
@@ -300,8 +300,10 @@ class SharedApp(
         }
     }
 
-    /** Cargos permitidos durante el enrolamiento (igual que Android). */
-    fun allowedPositions(): List<String> = RegisterEmployeeUseCase.ALLOWED_POSITIONS
+    fun allowedPositions(): List<String> = orchestrator.cachedPositions()
+
+    @Throws(Exception::class)
+    suspend fun refreshPositions(): List<String> = orchestrator.refreshPositions()
 
     /** Empleados activos para la lista de asistencia. */
     fun getActiveEmployees(): List<EmployeeInfo> =
@@ -327,7 +329,9 @@ class SharedApp(
                 occurredAt = it.occurred_at,
                 syncStatus = it.sync_status,
                 latitude = it.latitude,
-                longitude = it.longitude
+                longitude = it.longitude,
+                breakKind = it.break_kind,
+                breakNumber = it.break_number
             )
         }
 
@@ -340,6 +344,7 @@ class SharedApp(
 
     fun setServerUrl(url: String) {
         val trimmed = url.trim()
+        if (trimmed != getServerUrl()) orchestrator.clearCachedPositions()
         secureStorage.putString(KEY_API_BASE, trimmed)
         api.updateBaseUrl(trimmed)
     }
@@ -446,5 +451,7 @@ class AttendanceRecordInfo(
     val occurredAt: Long,
     val syncStatus: String,
     val latitude: Double?,
-    val longitude: Double?
+    val longitude: Double?,
+    val breakKind: String?,
+    val breakNumber: Long?
 )

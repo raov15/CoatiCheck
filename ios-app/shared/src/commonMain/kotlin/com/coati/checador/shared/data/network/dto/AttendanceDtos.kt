@@ -25,7 +25,14 @@ data class AttendanceSyncRequest(
 @Serializable
 data class AttendanceSyncedItem(
     @SerialName("id_local") val idLocal: String,
-    @SerialName("id_remote") val idRemote: String
+    @SerialName("id_remote") val idRemote: String,
+    @SerialName("break_kind") val breakKind: String? = null,
+    @SerialName("break_number") val breakNumber: Int? = null
+)
+
+@Serializable
+data class AttendanceMetadataRequest(
+    @SerialName("ids") val ids: List<String>
 )
 
 @Serializable

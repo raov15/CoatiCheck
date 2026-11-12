@@ -9,6 +9,7 @@ import com.coati.checador.shared.data.network.dto.ForeignLocationPointDto
 import com.coati.checador.shared.data.network.dto.ForeignLocationSyncRequest
 import com.coati.checador.shared.data.network.isAuthError
 import com.coati.checador.shared.domain.model.enums.SyncStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.datetime.Clock
 
 /**
@@ -49,6 +50,25 @@ class SyncOrchestrator(
             get() = listOf(employees, workAssignments, attendance, foreignLocations)
                 .any { it is StepResult.Failed }
     }
+
+    fun cachedPositions(): List<String> =
+        db.settings.getValue(positionsKey()).executeAsOneOrNull()?.value_
+            ?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+
+    suspend fun refreshPositions(): List<String> {
+        val bearer = tokenStore.getBearer() ?: throw IllegalStateException("Sin token de dispositivo")
+        val positions = withTokenRefresh(bearer) { token -> api.getPositions(token) }
+            .map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        db.settings.upsert(positionsKey(), positions.joinToString("\n"), nowMillis())
+        return positions
+    }
+
+    fun clearCachedPositions() {
+        db.settings.deleteByKey(positionsKey())
+    }
+
+    private fun positionsKey(): String =
+        "nexora.positions.${db.devices.getCurrent().executeAsOneOrNull()?.id_local ?: "unregistered"}"
 
     suspend fun syncAll(): SyncReport {
         val employees = syncPendingEmployees()
@@ -144,6 +164,9 @@ class SyncOrchestrator(
             var ignored = 0
             db.transaction {
                 db.workSites.deleteAll()
+                for ((employeeId, department) in response.departments) {
+                    db.employees.updateDepartment(department, nowMillis(), employeeId)
+                }
                 for (assignment in response.assignments) {
                     // FK hacia employees: solo se insertan asignaciones de
                     // empleados que existen localmente.
@@ -152,6 +175,9 @@ class SyncOrchestrator(
                     if (!exists) {
                         ignored++
                         continue
+                    }
+                    assignment.department?.let { department ->
+                        db.employees.updateDepartment(department, nowMillis(), assignment.employeeIdLocal)
                     }
                     db.workSites.insertOrReplace(
                         employee_id = assignment.employeeIdLocal,
@@ -180,7 +206,10 @@ class SyncOrchestrator(
 
     suspend fun syncPendingAttendance(): StepResult {
         val pending = db.attendance.getPendingForSync().executeAsList()
-        if (pending.isEmpty()) return StepResult.Skipped("Sin asistencias pendientes")
+        if (pending.isEmpty()) {
+            refreshBreakMetadata()
+            return StepResult.Skipped("Sin asistencias pendientes")
+        }
 
         val bearer = tokenStore.getBearer()
             ?: return StepResult.Failed("Sin token de dispositivo")
@@ -212,6 +241,7 @@ class SyncOrchestrator(
                     id_remote = synced.idRemote,
                     id_local = synced.idLocal
                 )
+                db.attendance.updateBreakMetadata(synced.breakKind, synced.breakNumber?.toLong(), synced.idLocal)
             }
             for (error in response.errors) {
                 db.attendance.updateSyncError(
@@ -220,9 +250,27 @@ class SyncOrchestrator(
                     id_local = error.idLocal
                 )
             }
+            refreshBreakMetadata()
             stepResultFrom(response.errors.size, response.errors.lastOrNull()?.error)
         } catch (e: Exception) {
             StepResult.Failed("attendance/sync: ${e.message}")
+        }
+    }
+
+    private suspend fun refreshBreakMetadata() {
+        val ids = db.attendance.getRecent(500).executeAsList().map { it.id_local }
+        if (ids.isEmpty()) return
+        val bearer = tokenStore.getBearer() ?: return
+        try {
+            val metadata = withTokenRefresh(bearer) { token -> api.getAttendanceMetadata(token, ids) }
+            db.transaction {
+                for (item in metadata) {
+                    db.attendance.updateBreakMetadata(item.breakKind, item.breakNumber?.toLong(), item.idLocal)
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
         }
     }
 

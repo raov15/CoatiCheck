@@ -58,6 +58,9 @@ SET sync_status = ?,
     updated_at = ?
 WHERE id_local = ?;
 
+updateDepartment:
+UPDATE employees SET department = ?, updated_at = ? WHERE id_local = ?;
+
 updateSyncStatus:
 UPDATE employees
 SET sync_status = ?

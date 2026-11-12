@@ -24,20 +24,9 @@ import com.coati.checador.shared.domain.repository.SyncScheduler
  */
 class RegisterEmployeeUseCase(
     private val repository: EmployeeRepository,
-    private val syncScheduler: SyncScheduler
+    private val syncScheduler: SyncScheduler,
+    private val allowedPositions: () -> List<String>
 ) {
-    companion object {
-
-        /**
-         * Cargos permitidos actualmente
-         * durante el enrolamiento.
-         */
-        val ALLOWED_POSITIONS = listOf(
-            "Desarrollador web",
-            "Programador",
-            "Contador"
-        )
-    }
 
     /**
      * Registra un empleado localmente y posteriormente
@@ -84,7 +73,7 @@ class RegisterEmployeeUseCase(
             )
         }
 
-        if (position !in ALLOWED_POSITIONS) {
+        if (position !in allowedPositions()) {
             return Result.Error(
                 exception = IllegalArgumentException("Cargo no permitido"),
                 message = "Selecciona uno de los cargos disponibles."

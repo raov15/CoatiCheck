@@ -70,7 +70,7 @@ class RegisterEmployeeUseCaseTest {
     fun `registra empleado valido y solicita sync`() = runTest {
         val repo = FakeEmployeeRepository()
         val sync = RecordingSyncScheduler()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         val result = useCase(validEmployee(), byteArrayOf(1, 2, 3))
 
@@ -83,7 +83,7 @@ class RegisterEmployeeUseCaseTest {
     fun `rechaza segundo empleado en el mismo dispositivo`() = runTest {
         val repo = FakeEmployeeRepository()
         val sync = RecordingSyncScheduler()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         useCase(validEmployee(id = "local-1"), byteArrayOf(1))
         val second = useCase(validEmployee(id = "local-2"), byteArrayOf(2))
@@ -98,7 +98,7 @@ class RegisterEmployeeUseCaseTest {
         val repo = FakeEmployeeRepository()
         repo.existingCodes = setOf("EMP001")
         val sync = RecordingSyncScheduler()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         val duplicate = useCase(validEmployee(id = "local-1", code = "EMP001"), byteArrayOf(1))
 
@@ -111,7 +111,7 @@ class RegisterEmployeeUseCaseTest {
     fun `rechaza cargo no permitido`() = runTest {
         val repo = FakeEmployeeRepository()
         val sync = RecordingSyncScheduler()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         val employee = validEmployee().copy(department = "Astronauta")
         val result = useCase(employee, byteArrayOf(1))
@@ -124,7 +124,7 @@ class RegisterEmployeeUseCaseTest {
     fun `rechaza datos basicos incompletos`() = runTest {
         val repo = FakeEmployeeRepository()
         val sync = RecordingSyncScheduler()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         val result = useCase(validEmployee().copy(rfc = ""), byteArrayOf(1))
 
@@ -140,7 +140,7 @@ class RegisterEmployeeUseCaseTest {
         repo.employees.value = listOf(validEmployee(id = "otro", code = "EMP001"))
         // Un dispositivo solo permite 1 empleado activo; vaciamos para permitir el registro.
         repo.employees.value = emptyList()
-        val useCase = RegisterEmployeeUseCase(repo, sync)
+        val useCase = RegisterEmployeeUseCase(repo, sync) { listOf("Programador") }
 
         val result = useCase(validEmployee(code = "AUTO"), byteArrayOf(1))
 

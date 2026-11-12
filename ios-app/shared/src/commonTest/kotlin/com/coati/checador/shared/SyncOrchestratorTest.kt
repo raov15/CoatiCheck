@@ -52,6 +52,13 @@ class SyncOrchestratorTest {
      * fallos (incluido 401 una sola vez para probar el refresh).
      */
     private class FakeSyncApi : SyncApi {
+        var positions = emptyList<String>()
+        var metadata = emptyList<AttendanceSyncedItem>()
+
+        override suspend fun getPositions(bearerToken: String): List<String> = positions
+
+        override suspend fun getAttendanceMetadata(bearerToken: String, ids: List<String>): List<AttendanceSyncedItem> = metadata
+
         var employeeResponse = EmployeeSyncResponse()
         var assignmentsResponse = EmployeeWorkAssignmentsResponse(emptyList())
         var attendanceResponse = AttendanceSyncResponse()

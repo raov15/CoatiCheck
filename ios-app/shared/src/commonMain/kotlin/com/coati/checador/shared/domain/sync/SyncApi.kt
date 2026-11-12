@@ -1,5 +1,6 @@
 package com.coati.checador.shared.domain.sync
 
+import com.coati.checador.shared.data.network.dto.AttendanceSyncedItem
 import com.coati.checador.shared.data.network.dto.AttendanceSyncRequest
 import com.coati.checador.shared.data.network.dto.AttendanceSyncResponse
 import com.coati.checador.shared.data.network.dto.DeviceTokenRefreshResponse
@@ -15,6 +16,10 @@ import com.coati.checador.shared.data.network.dto.ForeignLocationSyncResponse
  * en tests se usan fakes.
  */
 interface SyncApi {
+    suspend fun getPositions(bearerToken: String): List<String>
+
+    suspend fun getAttendanceMetadata(bearerToken: String, ids: List<String>): List<AttendanceSyncedItem>
+
     suspend fun syncEmployees(
         bearerToken: String,
         request: EmployeeSyncRequest

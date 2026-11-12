@@ -1,6 +1,8 @@
 package com.coati.checador.shared.data.network
 
 import com.coati.checador.shared.domain.sync.SyncApi
+import com.coati.checador.shared.data.network.dto.AttendanceMetadataRequest
+import com.coati.checador.shared.data.network.dto.AttendanceSyncedItem
 import com.coati.checador.shared.data.network.dto.AttendanceSyncRequest
 import com.coati.checador.shared.data.network.dto.AttendanceSyncResponse
 import com.coati.checador.shared.data.network.dto.DeviceBrandingResponse
@@ -163,6 +165,25 @@ class CoatiApi(
     // =========================================================
     // EMPLEADOS
     // =========================================================
+
+    override suspend fun getPositions(bearerToken: String): List<String> =
+        apiCall {
+            client.get("$base/positions") {
+                header(HttpHeaders.Authorization, bearerToken)
+            }.body()
+        }
+
+    override suspend fun getAttendanceMetadata(
+        bearerToken: String,
+        ids: List<String>
+    ): List<AttendanceSyncedItem> =
+        apiCall {
+            client.post("$base/attendance/metadata") {
+                header(HttpHeaders.Authorization, bearerToken)
+                jsonBody()
+                setBody(AttendanceMetadataRequest(ids))
+            }.body()
+        }
 
     override suspend fun syncEmployees(
         bearerToken: String,

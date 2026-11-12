@@ -11,10 +11,12 @@ data class EmployeeWorkAssignmentDto(
     @SerialName("weekday") val weekday: Int,
     @SerialName("work_mode") val workMode: String,
     @SerialName("site_id") val siteId: String? = null,
-    @SerialName("site_name") val siteName: String? = null
+    @SerialName("site_name") val siteName: String? = null,
+    @SerialName("department") val department: String? = null
 )
 
 @Serializable
 data class EmployeeWorkAssignmentsResponse(
-    @SerialName("assignments") val assignments: List<EmployeeWorkAssignmentDto>
+    @SerialName("assignments") val assignments: List<EmployeeWorkAssignmentDto>,
+    @SerialName("departments") val departments: Map<String, String> = emptyMap()
 )

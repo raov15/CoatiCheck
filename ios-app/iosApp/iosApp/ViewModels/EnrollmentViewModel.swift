@@ -18,14 +18,44 @@ final class EnrollmentViewModel: ObservableObject {
     @Published var selectedEmployeeId = ""
     @Published var recoveryPin = ""
 
-    let positions: [String]
+    @Published var positions: [String] = []
+    @Published var isLoadingPositions = false
+    @Published var positionsMessage: String?
 
     private let sharedApp = AppDependencies.shared.sharedApp
 
     init() {
-        positions = AppDependencies.shared.sharedApp.allowedPositions()
-        if let first = positions.first {
-            department = first
+        positions = sharedApp.allowedPositions()
+        department = positions.first ?? ""
+    }
+
+    func refreshPositions() {
+        positions = sharedApp.allowedPositions()
+        if !positions.contains(department) {
+            department = positions.first ?? ""
+        }
+        isLoadingPositions = true
+        positionsMessage = nil
+        sharedApp.refreshPositions { [weak self] result, error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isLoadingPositions = false
+                if error != nil {
+                    if self.positions.isEmpty {
+                        self.positionsMessage = "Conecta a internet para descargar los cargos configurados por el administrador."
+                    } else {
+                        self.positionsMessage = "Sin conexión; se muestran los cargos guardados."
+                    }
+                    return
+                }
+                self.positions = result ?? []
+                if !self.positions.contains(self.department) {
+                    self.department = self.positions.first ?? ""
+                }
+                if self.positions.isEmpty {
+                    self.positionsMessage = "No hay cargos activos configurados por el administrador."
+                }
+            }
         }
     }
 
@@ -33,6 +63,7 @@ final class EnrollmentViewModel: ObservableObject {
         !firstName.trimmingCharacters(in: .whitespaces).isEmpty &&
             !lastNamePaternal.trimmingCharacters(in: .whitespaces).isEmpty &&
             !rfc.trimmingCharacters(in: .whitespaces).isEmpty &&
+            positions.contains(department) &&
             facePhoto != nil &&
             !isEnrolling
     }

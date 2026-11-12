@@ -25,15 +25,21 @@ struct EnrollmentView: View {
                     }
 
                     Section("Cargo") {
-                        if viewModel.positions.isEmpty {
-                            TextField("Departamento", text: $viewModel.department)
-                        } else {
+                        if viewModel.isLoadingPositions {
+                            ProgressView("Actualizando cargos")
+                        }
+                        if !viewModel.positions.isEmpty {
                             Picker("Cargo", selection: $viewModel.department) {
                                 ForEach(viewModel.positions, id: \.self) { position in
                                     Text(position).tag(position)
                                 }
                             }
                         }
+                        if let message = viewModel.positionsMessage {
+                            Text(message).font(.footnote).foregroundColor(.secondary)
+                        }
+                        Button("Actualizar cargos") { viewModel.refreshPositions() }
+                            .disabled(viewModel.isLoadingPositions)
                     }
                 } else {
                     Section {
@@ -119,6 +125,7 @@ struct EnrollmentView: View {
         }
         .onAppear {
             viewModel.refreshEmployees()
+            if viewModel.employees.isEmpty { viewModel.refreshPositions() }
             camera.checkPermissionAndStart()
         }
         .onDisappear {

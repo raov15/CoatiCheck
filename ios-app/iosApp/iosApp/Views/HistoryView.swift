@@ -10,7 +10,7 @@ struct HistoryView: View {
             List(viewModel.records, id: \.idLocal) { record in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(eventName(record.eventType))
+                        Text(eventName(record))
                             .font(.body).bold()
                         Spacer()
                         syncBadge(record.syncStatus)
@@ -49,13 +49,24 @@ struct HistoryView: View {
         .navigationViewStyle(.stack)
     }
 
-    private func eventName(_ raw: String) -> String {
-        switch raw {
+    private func eventName(_ record: AttendanceRecordInfo) -> String {
+        let number = record.breakNumber.map { " \($0.intValue)" } ?? ""
+        switch record.eventType {
         case "CLOCK_IN": return "Entrada"
-        case "MEAL_START": return "Inicio de pausa"
-        case "MEAL_END": return "Fin de pausa"
         case "CLOCK_OUT": return "Salida"
-        default: return raw
+        case "MEAL_START":
+            switch record.breakKind {
+            case "REST": return "Descanso\(number)"
+            case "MEAL": return "Comida\(number)"
+            default: return "Pausa\(number)"
+            }
+        case "MEAL_END":
+            switch record.breakKind {
+            case "REST": return "Regreso del descanso\(number)"
+            case "MEAL": return "Regreso de comer\(number)"
+            default: return "Regreso de pausa\(number)"
+            }
+        default: return record.eventType
         }
     }
 

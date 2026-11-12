@@ -12,11 +12,7 @@ internal object AttendanceSequence {
         if ("CLOCK_OUT" in events) return emptyList()
         return when (events.lastOrNull()) {
             null -> listOf("CLOCK_IN")
-            "CLOCK_IN", "MEAL_END" -> if (events.count { it == "MEAL_START" } < 2) {
-                listOf("MEAL_START", "CLOCK_OUT")
-            } else {
-                listOf("CLOCK_OUT")
-            }
+            "CLOCK_IN", "MEAL_END" -> listOf("MEAL_START", "CLOCK_OUT")
             "MEAL_START" -> listOf("MEAL_END")
             else -> emptyList()
         }
