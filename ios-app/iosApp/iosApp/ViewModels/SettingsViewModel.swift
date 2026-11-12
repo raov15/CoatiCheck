@@ -10,6 +10,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var pinMessage: String?
     @Published var isSyncing = false
     @Published var syncMessage: String?
+    @Published var syncSucceeded = false
 
     let hasPinInitially: Bool
     private(set) var pinVerified = false
@@ -74,13 +75,16 @@ final class SettingsViewModel: ObservableObject {
         guard !isSyncing else { return }
         isSyncing = true
         syncMessage = nil
-        sharedApp.syncNow()
-        // syncNow es fire-and-forget; refrescamos el badge tras una pausa.
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            self.isSyncing = false
-            self.syncMessage = "Sincronización enviada"
-            AppState.shared.refreshPending()
+        syncSucceeded = false
+        sharedApp.syncAwait { result, error in
+            Task { @MainActor in
+                self.isSyncing = false
+                self.syncSucceeded = error == nil && (result?.success ?? false)
+                self.syncMessage = error?.localizedDescription
+                    ?? result?.message
+                    ?? "No se pudo sincronizar"
+                AppState.shared.refreshPending()
+            }
         }
     }
 }

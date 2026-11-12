@@ -83,16 +83,18 @@ El XCFramework se enlaza como framework estático; la app añade `-lsqlite3` en 
 ## Flujo funcional
 
 1. **Registro de dispositivo**: en el primer arranque se pide la URL del servidor y se registra el dispositivo (`/devices/register` o `/devices/enroll` con código). El token JWT se guarda en Keychain.
-2. **Asistencia**: la cámara frontal captura un fotograma; `SharedApp.registrarAsistencia` detecta el rostro (Vision), hace reconocimiento 1:N contra embeddings cifrados, adjunta la ubicación y guarda el registro `PENDING`.
-3. **Enrolamiento**: alta de empleados con captura facial; el embedding se cifra (AES-GCM) antes de guardarlo.
+2. **Asistencia**: tras reconocer el rostro, se elige el movimiento permitido por la jornada local: entrada, hasta dos pausas con su regreso, o salida. La salida requiere confirmación. Los movimientos se validan por día en la zona `America/Mexico_City` y se guardan como `PENDING` para sincronizarlos.
+3. **Enrolamiento**: se detecta y recorta el rostro antes de generar y cifrar el embedding; una imagen sin rostro o un embedding inválido no se registran.
 4. **Historial**: asistencias locales con estado de sincronización.
 5. **Configuración**: URL del servidor (aplicable en caliente), PIN admin (PBKDF2) y sincronización manual.
 6. **Sincronización**: orquestador de 4 pasos (empleados, work-assignments, asistencias, ubicaciones) con refresh de token ante 401/403; `BGAppRefreshTask` con identificador `com.coati.checador.ios.sync`.
 
 ## Motor facial
 
-- Si el bundle incluye `mobilefacenet.mlmodelc` (o `.mlmodel`), `CoreMLFaceEngine` se registra automáticamente en `FaceRecognitionEngineRegistry` y se usa CoreML con el mismo pre-procesamiento que Android (112x112, [-1,1], RGB).
-- Si no hay modelo, se usa el motor simulado determinista de Kotlin: enrolamiento y reconocimiento siguen siendo consistentes entre sí (misma imagen -> mismo embedding).
+- `mobilefacenet.mlmodel` se genera a partir del `mobilefacenet.tflite` incluido en Android (SHA-256 `be4bc7cfc53f7bc336d0f28b1ab92535f618c913a422b683210750f6b5354854`). Xcode lo compila e incluye en la aplicación.
+- La entrada es RGB de 112 × 112 píxeles, con normalización `(canal - 127.5) / 128`; la salida de 192 valores se normaliza con L2 en la app. La conversión se contrastó con TFLite usando cinco entradas deterministas; el error absoluto máximo fue inferior a 0.000001.
+- Solo se comparan perfiles generados por la misma versión del modelo. Los perfiles anteriores del motor simulado deben reemplazarse mediante un enrolamiento nuevo; no son compatibles con el modelo real.
+- Si el modelo no se carga, se bloquean el enrolamiento y la asistencia. El reconocimiento facial requiere validación adicional con personas y dispositivos reales antes de usarse en producción.
 
 ## Notas
 

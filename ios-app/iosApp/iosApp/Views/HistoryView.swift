@@ -23,6 +23,10 @@ struct HistoryView: View {
                         Text(String(format: "Ubicación: %.5f, %.5f", latitude, longitude))
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                    } else {
+                        Text("Sin ubicación GPS")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
                     }
                 }
                 .padding(.vertical, 2)
@@ -48,6 +52,8 @@ struct HistoryView: View {
     private func eventName(_ raw: String) -> String {
         switch raw {
         case "CLOCK_IN": return "Entrada"
+        case "MEAL_START": return "Inicio de pausa"
+        case "MEAL_END": return "Fin de pausa"
         case "CLOCK_OUT": return "Salida"
         default: return raw
         }

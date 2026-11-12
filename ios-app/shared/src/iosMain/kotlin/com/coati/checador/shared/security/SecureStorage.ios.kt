@@ -1,25 +1,31 @@
 package com.coati.checador.shared.security
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.MemScope
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArrayOf
+import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
+import platform.CoreFoundation.CFDictionaryCreate
 import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFStringRef
+import platform.CoreFoundation.CFTypeRef
 import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFAllocatorDefault
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
-import platform.Foundation.NSCopyingProtocol
 import platform.Foundation.NSData
-import platform.Foundation.NSMutableDictionary
 import platform.Foundation.create
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
+import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -31,7 +37,7 @@ import platform.Security.kSecMatchLimit
 import platform.Security.kSecMatchLimitOne
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
-import platform.darwin.NSObject
+import platform.darwin.OSStatus
 import platform.posix.memcpy
 
 /**
@@ -43,37 +49,60 @@ actual class SecureStorage actual constructor(
     @Suppress("UNUSED_PARAMETER") platformContext: PlatformContext
 ) : KeyValueStore {
 
-    private fun baseQuery(key: String): Map<Any?, Any?> = mapOf(
+    private val service = CFBridgingRetain(SERVICE)
+
+    private fun baseQuery(key: CFTypeRef?): Map<CFStringRef?, CFTypeRef?> = mapOf(
         kSecClass to kSecClassGenericPassword,
-        kSecAttrService to SERVICE,
+        kSecAttrService to service,
         kSecAttrAccount to key
     )
 
-    actual override fun getString(key: String): String? = memScoped {
-        val query = baseQuery(key) + mapOf(
-            kSecReturnData to kCFBooleanTrue,
-            kSecMatchLimit to kSecMatchLimitOne
-        )
+    actual override fun getString(key: String): String? = cfRetain(key) { cfKey ->
         val out = alloc<CFTypeRefVar>()
-        val status = SecItemCopyMatching(query.toCFDictionaryRef(), out.ptr)
-        if (status != errSecSuccess) {
-            null
-        } else {
-            (CFBridgingRelease(out.value) as? NSData)?.toByteArray()?.decodeToString()
+        val status = keychainOperation(
+            baseQuery(cfKey) + mapOf(
+                kSecReturnData to kCFBooleanTrue,
+                kSecMatchLimit to kSecMatchLimitOne
+            )
+        ) { SecItemCopyMatching(it, out.ptr) }
+        when (status) {
+            errSecItemNotFound -> null
+            errSecSuccess -> (CFBridgingRelease(out.value) as? NSData)?.toByteArray()?.decodeToString()
+            else -> throw IllegalStateException("No se pudo leer el llavero (código $status)")
         }
     }
 
     actual override fun putString(key: String, value: String) {
         remove(key)
-        val attrs = baseQuery(key) + mapOf(
-            kSecValueData to value.encodeToByteArray().toNSData(),
-            kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        )
-        SecItemAdd(attrs.toCFDictionaryRef(), null)
+        cfRetain(key, value.encodeToByteArray().toNSData()) { cfKey, cfValue ->
+            val status = keychainOperation(
+                baseQuery(cfKey) + mapOf(
+                    kSecValueData to cfValue,
+                    kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                )
+            ) { SecItemAdd(it, null) }
+            if (status != errSecSuccess) {
+                throw IllegalStateException("No se pudo guardar en el llavero (código $status)")
+            }
+        }
     }
 
     actual override fun remove(key: String) {
-        SecItemDelete(baseQuery(key).toCFDictionaryRef())
+        cfRetain(key) { cfKey ->
+            keychainOperation(baseQuery(cfKey)) { SecItemDelete(it) }
+        }
+    }
+
+    private fun keychainOperation(
+        attributes: Map<CFStringRef?, CFTypeRef?>,
+        operation: (CFDictionaryRef?) -> OSStatus
+    ): OSStatus = memScoped {
+        val query = toCFDictionaryRef(attributes)
+        try {
+            operation(query)
+        } finally {
+            CFBridgingRelease(query)
+        }
     }
 
     private companion object {
@@ -85,16 +114,48 @@ actual class SecureStorage actual constructor(
 // Helpers de interop Foundation/CoreFoundation
 // =========================================================
 
-/** Mapa Kotlin -> CFDictionary (NSDictionary toll-free bridge). */
 @OptIn(ExperimentalForeignApi::class)
-internal fun Map<Any?, Any?>.toCFDictionaryRef(): CFDictionaryRef {
-    val dict = NSMutableDictionary()
-    forEach { (key, value) ->
-        if (key != null && value != null) {
-            dict.setObject(value as NSObject, forKey = key as NSCopyingProtocol)
-        }
+private fun MemScope.toCFDictionaryRef(
+    attributes: Map<CFStringRef?, CFTypeRef?>
+): CFDictionaryRef {
+    val keys = allocArrayOf(*attributes.keys.toTypedArray())
+    val values = allocArrayOf(*attributes.values.toTypedArray())
+    return requireNotNull(
+        CFDictionaryCreate(
+            kCFAllocatorDefault,
+            keys.reinterpret(),
+            values.reinterpret(),
+            attributes.size.convert(),
+            null,
+            null
+        )
+    )
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private inline fun <T> cfRetain(value: Any?, block: MemScope.(CFTypeRef?) -> T): T = memScoped {
+    val retained = CFBridgingRetain(value)
+    try {
+        block(retained)
+    } finally {
+        CFBridgingRelease(retained)
     }
-    return CFBridgingRetain(dict) as CFDictionaryRef
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private inline fun <T> cfRetain(
+    first: Any?,
+    second: Any?,
+    block: MemScope.(CFTypeRef?, CFTypeRef?) -> T
+): T = memScoped {
+    val retainedFirst = CFBridgingRetain(first)
+    val retainedSecond = CFBridgingRetain(second)
+    try {
+        block(retainedFirst, retainedSecond)
+    } finally {
+        CFBridgingRelease(retainedFirst)
+        CFBridgingRelease(retainedSecond)
+    }
 }
 
 @OptIn(ExperimentalForeignApi::class)

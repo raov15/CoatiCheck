@@ -3,6 +3,7 @@ import CoatiCheckShared
 
 /// Registro inicial del dispositivo contra el backend.
 struct DeviceAuthView: View {
+    var allowDirectRegistration = true
     let onSuccess: () -> Void
 
     @StateObject private var viewModel = DeviceAuthViewModel()
@@ -38,19 +39,21 @@ struct DeviceAuthView: View {
                     Text("Si el servidor requiere código de enrolamiento, úsalo en lugar del registro directo.")
                 }
 
-                Section {
-                    Button {
-                        viewModel.registerDevice()
-                    } label: {
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Registrar dispositivo")
-                                .frame(maxWidth: .infinity)
+                if allowDirectRegistration {
+                    Section {
+                        Button {
+                            viewModel.registerDevice()
+                        } label: {
+                            if viewModel.isLoading {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text("Registrar dispositivo")
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
+                        .disabled(viewModel.isLoading)
                     }
-                    .disabled(viewModel.isLoading)
                 }
 
                 if let error = viewModel.errorMessage {

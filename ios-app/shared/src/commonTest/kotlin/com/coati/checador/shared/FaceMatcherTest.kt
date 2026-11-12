@@ -16,6 +16,15 @@ class FaceMatcherTest {
         FaceMatcher.normalizarL2(FloatArray(size) { i -> seed + (i % 13) * 0.01f })
 
     @Test
+    fun `embeddings invalidos se rechazan`() {
+        assertTrue(FaceMatcher.isValidEmbedding(unitVector(0.5f), size))
+        assertFalse(FaceMatcher.isValidEmbedding(FloatArray(size), size))
+        assertFalse(FaceMatcher.isValidEmbedding(FloatArray(size - 1) { 1f }, size))
+        assertFalse(FaceMatcher.isValidEmbedding(FloatArray(size) { Float.NaN }, size))
+        assertFalse(FaceMatcher.isValidEmbedding(FloatArray(size) { Float.POSITIVE_INFINITY }, size))
+    }
+
+    @Test
     fun `distancia coseno de vectores identicos es cero`() {
         val v = unitVector(0.5f)
         assertTrue(abs(FaceMatcher.distanciaCoseno(v, v)) < 1e-5f)

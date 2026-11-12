@@ -137,6 +137,7 @@ class DeviceAuthRepositoryImpl(
         authToken: String,
         siteId: String?
     ) {
+        tokenStore.setBearer("Bearer $authToken")
         db.devices.updateAuth(
             id_remote = idRemote,
             auth_token = "SECURE_STORE", // el token real vive en TokenStore
@@ -145,7 +146,6 @@ class DeviceAuthRepositoryImpl(
         if (siteId != null) {
             db.devices.updateSiteId(site_id = siteId, id_local = idLocal)
         }
-        tokenStore.setBearer("Bearer $authToken")
     }
 
     private fun currentDeviceOrThrow(): Device =

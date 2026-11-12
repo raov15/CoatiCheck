@@ -278,6 +278,23 @@ class SyncOrchestratorTest {
         assertEquals(SyncStatus.ERROR, db.employees.findById("e1").executeAsOneOrNull()?.sync_status)
     }
 
+    @Test
+    fun `un empleado con error de red se reintenta`() = runTest {
+        val db = newDb()
+        db.insertEmployee(employee("e1"))
+        val api = FakeSyncApi().apply {
+            failEmployeesOnce = RuntimeException("sin conexión")
+            employeeResponse = EmployeeSyncResponse(
+                synced = listOf(EmployeeSyncedDto("e1", "remote-1"))
+            )
+        }
+        val orchestrator = SyncOrchestrator(api, db, FakeTokenStore())
+
+        assertIs<SyncOrchestrator.StepResult.Failed>(orchestrator.syncPendingEmployees())
+        assertIs<SyncOrchestrator.StepResult.Ok>(orchestrator.syncPendingEmployees())
+        assertEquals(SyncStatus.SYNCED, db.employees.findById("e1").executeAsOneOrNull()?.sync_status)
+    }
+
     // =========================================================
     // REFRESH DE TOKEN 401/403
     // =========================================================

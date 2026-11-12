@@ -96,7 +96,17 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
-        let data = error == nil ? photo.fileDataRepresentation() : nil
+        let data: Data?
+        if error == nil, let original = photo.fileDataRepresentation(), let image = UIImage(data: original) {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+            data = renderer.jpegData(withCompressionQuality: 0.95) { _ in
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+            }
+        } else {
+            data = nil
+        }
         DispatchQueue.main.async { [self] in
             let completion = captureCompletion
             captureCompletion = nil

@@ -23,8 +23,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         task.expirationHandler = {
             // El sistema pide finalizar: la corrutina interna sigue su curso.
         }
-        AppDependencies.shared.sharedApp.syncAwait { success, error in
-            task.setTaskCompleted(success: error == nil && (success?.boolValue ?? false))
+        AppDependencies.shared.sharedApp.syncAwait { result, error in
+            task.setTaskCompleted(success: error == nil && (result?.success ?? false))
         }
     }
 

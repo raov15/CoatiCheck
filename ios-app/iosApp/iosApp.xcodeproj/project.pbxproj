@@ -26,6 +26,7 @@
 		000000000000000000000036 /* EnrollmentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000035 /* EnrollmentViewModel.swift */; };
 		000000000000000000000038 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000037 /* HistoryViewModel.swift */; };
 		00000000000000000000003A /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000039 /* SettingsViewModel.swift */; };
+		00000000000000000000003C /* mobilefacenet.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000003B /* mobilefacenet.mlmodel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,7 @@
 		000000000000000000000035 /* EnrollmentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentViewModel.swift; sourceTree = "<group>"; };
 		000000000000000000000037 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
 		000000000000000000000039 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		00000000000000000000003B /* mobilefacenet.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = mobilefacenet.mlmodel; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +83,7 @@
 				00000000000000000000001D /* KotlinInterop.swift */,
 				00000000000000000000001F /* AppDependencies.swift */,
 				000000000000000000000021 /* CoreMLFaceEngine.swift */,
+				00000000000000000000003B /* mobilefacenet.mlmodel */,
 				000000000000000000000023 /* CameraService.swift */,
 				000000000000000000000025 /* Views */,
 				000000000000000000000026 /* ViewModels */,
@@ -89,30 +92,6 @@
 				000000000000000000000010 /* Preview Content */,
 			);
 			path = iosApp;
-			sourceTree = "<group>";
-		};
-		000000000000000000000025 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				000000000000000000000027 /* DeviceAuthView.swift */,
-				000000000000000000000029 /* AttendanceView.swift */,
-				00000000000000000000002B /* EnrollmentView.swift */,
-				00000000000000000000002D /* HistoryView.swift */,
-				00000000000000000000002F /* SettingsView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		000000000000000000000026 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				000000000000000000000031 /* DeviceAuthViewModel.swift */,
-				000000000000000000000033 /* AttendanceViewModel.swift */,
-				000000000000000000000035 /* EnrollmentViewModel.swift */,
-				000000000000000000000037 /* HistoryViewModel.swift */,
-				000000000000000000000039 /* SettingsViewModel.swift */,
-			);
-			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		000000000000000000000010 /* Preview Content */ = {
@@ -137,6 +116,30 @@
 				00000000000000000000000A /* CoatiCheckShared.xcframework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		000000000000000000000025 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000027 /* DeviceAuthView.swift */,
+				000000000000000000000029 /* AttendanceView.swift */,
+				00000000000000000000002B /* EnrollmentView.swift */,
+				00000000000000000000002D /* HistoryView.swift */,
+				00000000000000000000002F /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		000000000000000000000026 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000031 /* DeviceAuthViewModel.swift */,
+				000000000000000000000033 /* AttendanceViewModel.swift */,
+				000000000000000000000035 /* EnrollmentViewModel.swift */,
+				000000000000000000000037 /* HistoryViewModel.swift */,
+				000000000000000000000039 /* SettingsViewModel.swift */,
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -214,6 +217,7 @@
 				00000000000000000000001E /* KotlinInterop.swift in Sources */,
 				000000000000000000000020 /* AppDependencies.swift in Sources */,
 				000000000000000000000022 /* CoreMLFaceEngine.swift in Sources */,
+				00000000000000000000003C /* mobilefacenet.mlmodel in Sources */,
 				000000000000000000000024 /* CameraService.swift in Sources */,
 				000000000000000000000028 /* DeviceAuthView.swift in Sources */,
 				00000000000000000000002A /* AttendanceView.swift in Sources */,
@@ -229,9 +233,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXVariantGroup section */
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		000000000000000000000019 /* Debug */ = {
@@ -374,11 +375,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lsqlite3",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.coati.checador.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -407,11 +408,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lsqlite3",
 				);
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.coati.checador.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -63,8 +63,7 @@ class SyncOrchestrator(
     // =========================================================
 
     suspend fun syncPendingEmployees(): StepResult {
-        val pending = db.employees.findBySyncStatus(SyncStatus.PENDING)
-            .executeAsList()
+        val pending = db.employees.findPendingForSync().executeAsList()
         if (pending.isEmpty()) return StepResult.Skipped("Sin empleados pendientes")
 
         val bearer = tokenStore.getBearer()

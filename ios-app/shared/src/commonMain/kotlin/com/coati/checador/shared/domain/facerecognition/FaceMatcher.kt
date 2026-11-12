@@ -16,6 +16,9 @@ object FaceMatcher {
      */
     const val UMBRAL_SIMILITUD_DEFAULT = 0.4f
 
+    fun isValidEmbedding(embedding: FloatArray, expectedSize: Int): Boolean =
+        embedding.size == expectedSize && embedding.all { it.isFinite() } && embedding.any { it != 0f }
+
     /** Distancia coseno entre dos embeddings L2-normalizados (0 = idéntico). */
     fun distanciaCoseno(a: FloatArray, b: FloatArray): Float {
         require(a.size == b.size) {

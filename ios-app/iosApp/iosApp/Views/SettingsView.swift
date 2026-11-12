@@ -5,6 +5,7 @@ import CoatiCheckShared
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @ObservedObject private var appState = AppState.shared
+    @State private var showingDeviceEnrollment = false
 
     var body: some View {
         NavigationView {
@@ -18,6 +19,9 @@ struct SettingsView: View {
                         viewModel.saveServerUrl()
                     }
                     .disabled(!viewModel.canSaveServer)
+                    Button("Vincular dispositivo con código") {
+                        showingDeviceEnrollment = true
+                    }
                 } header: {
                     Text("Servidor")
                 } footer: {
@@ -67,7 +71,10 @@ struct SettingsView: View {
                     }
                     .disabled(viewModel.isSyncing)
                     if let message = viewModel.syncMessage {
-                        Text(message).font(.footnote).foregroundColor(.secondary)
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundColor(viewModel.syncSucceeded ? .secondary : .red)
+                            .textSelection(.enabled)
                     }
                 } header: {
                     Text("Sincronización")
@@ -88,6 +95,11 @@ struct SettingsView: View {
             .navigationTitle("Configuración")
         }
         .navigationViewStyle(.stack)
+        .sheet(isPresented: $showingDeviceEnrollment) {
+            DeviceAuthView(allowDirectRegistration: false) {
+                showingDeviceEnrollment = false
+            }
+        }
     }
 
     private var appVersion: String {

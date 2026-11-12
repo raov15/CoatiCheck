@@ -29,6 +29,9 @@ class EmployeeRepositoryImpl(
     override suspend fun registerEmployee(employee: Employee, faceImage: ByteArray): Boolean {
         // 1. Embedding del rostro capturado (L2-normalizado).
         val embedding = engine.generarEmbedding(faceImage)
+        require(FaceMatcher.isValidEmbedding(embedding, engine.embeddingSize)) {
+            "No se pudo generar un perfil facial válido. Vuelve a capturar el rostro."
+        }
 
         // 2. Cifrado del embedding antes de tocar la BD.
         val encryptedBlob = crypto.encrypt(FaceMatcher.floatsToBytes(embedding))
@@ -53,12 +56,49 @@ class EmployeeRepositoryImpl(
         }
     }
 
+    suspend fun recoverInvalidFaceProfile(employeeId: String, faceImage: ByteArray, timestamp: Long) {
+        val employee = db.employees.findById(employeeId).executeAsOneOrNull()
+        require(employee != null && employee.is_active) { "El empleado ya no está activo." }
+        val profiles = db.faceProfiles.getActiveByEmployee(employeeId).executeAsList()
+        val hasValidProfile = profiles.any { profile ->
+            profile.model_version == engine.versionModelo && runCatching {
+                FaceMatcher.isValidEmbedding(
+                    FaceMatcher.bytesToFloats(crypto.decrypt(profile.embedding_blob)),
+                    engine.embeddingSize
+                )
+            }.getOrDefault(false)
+        }
+        require(!hasValidProfile) { "El empleado ya tiene un perfil facial válido." }
+
+        val embedding = engine.generarEmbedding(faceImage)
+        require(FaceMatcher.isValidEmbedding(embedding, engine.embeddingSize)) {
+            "No se pudo generar un perfil facial válido. Vuelve a capturar el rostro."
+        }
+        val encryptedBlob = crypto.encrypt(FaceMatcher.floatsToBytes(embedding))
+        db.transaction {
+            db.faceProfiles.deactivateAllForEmployee(employeeId)
+            db.faceProfiles.insertOrReplace(
+                id = "fp-$employeeId",
+                employee_id = employeeId,
+                embedding_blob = encryptedBlob,
+                model_version = engine.versionModelo,
+                quality_score = 1.0,
+                created_at = timestamp,
+                is_active = true
+            )
+        }
+    }
+
     override suspend fun employeeCodeExists(code: String): Boolean =
         db.employees.findByCode(code).executeAsOneOrNull() != null
 
     override suspend fun verifyIdentity(faceImage: ByteArray): IdentityVerificationResult {
         val embedding = try {
-            engine.generarEmbedding(faceImage)
+            engine.generarEmbedding(faceImage).also {
+                require(FaceMatcher.isValidEmbedding(it, engine.embeddingSize)) {
+                    "No se pudo generar un perfil facial válido."
+                }
+            }
         } catch (e: Exception) {
             return IdentityVerificationResult.Failure(
                 e.message ?: "No se pudo procesar el rostro capturado."
@@ -74,12 +114,13 @@ class EmployeeRepositoryImpl(
         var bestEmployeeId: String? = null
         var bestName: String? = null
         for (profile in profiles) {
+            if (profile.model_version != engine.versionModelo) continue
             val stored = try {
                 FaceMatcher.bytesToFloats(crypto.decrypt(profile.embedding_blob))
             } catch (_: Exception) {
                 continue
             }
-            if (stored.size != embedding.size) continue
+            if (!FaceMatcher.isValidEmbedding(stored, engine.embeddingSize)) continue
             val distance = FaceMatcher.distanciaCoseno(embedding, stored)
             if (distance < bestDistance) {
                 bestDistance = distance

@@ -79,6 +79,7 @@ class CoatiDatabaseTest {
         db.insertEmployee(employee(id = "e3", status = "ERROR"))
 
         assertEquals(1L, db.employees.countPending().executeAsOne())
+        assertEquals(2L, db.employees.countPendingToSync().executeAsOne())
     }
 
     @Test

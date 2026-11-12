@@ -3,14 +3,6 @@ import UIKit
 import CoatiCheckShared
 
 /// Motor de reconocimiento facial real con CoreML.
-///
-/// Carga `mobilefacenet.mlmodelc` (o `.mlmodel`) del bundle de la app.
-/// Si el modelo no está presente, el inicializador falla y la app usa
-/// el motor simulado determinista de Kotlin (mismo motor para enrolar
-/// y reconocer, consistente entre sí).
-///
-/// Pre-procesamiento idéntico a Android (EmbeddingService):
-/// 112x112 px, normalizado a [-1, 1], canales RGB.
 final class CoreMLFaceEngine: NSObject, FaceRecognitionEngine {
 
     private let model: MLModel
@@ -21,7 +13,12 @@ final class CoreMLFaceEngine: NSObject, FaceRecognitionEngine {
         let compiled = bundle.url(forResource: "mobilefacenet", withExtension: "mlmodelc")
         let source = bundle.url(forResource: "mobilefacenet", withExtension: "mlmodel")
         guard let modelURL = compiled ?? source,
-              let model = try? MLModel(contentsOf: modelURL) else {
+              let model = try? MLModel(contentsOf: modelURL),
+              model.modelDescription.inputDescriptionsByName.count == 1,
+              model.modelDescription.outputDescriptionsByName.count == 1,
+              let input = model.modelDescription.inputDescriptionsByName.values.first,
+              input.multiArrayConstraint?.shape.map(\.intValue) == [1, 3, 112, 112],
+              model.modelDescription.outputDescriptionsByName.values.first?.type == .multiArray else {
             return nil
         }
         self.model = model
@@ -81,12 +78,9 @@ final class CoreMLFaceEngine: NSObject, FaceRecognitionEngine {
         let pointer = multiArray.dataPointer.assumingMemoryBound(to: Float.self)
         let plane = inputSize * inputSize
         for index in 0..<plane {
-            let r = Float(pixels[index * 4]) / 255.0
-            let g = Float(pixels[index * 4 + 1]) / 255.0
-            let b = Float(pixels[index * 4 + 2]) / 255.0
-            let rn = (r - 0.5) * 2.0
-            let gn = (g - 0.5) * 2.0
-            let bn = (b - 0.5) * 2.0
+            let rn = (Float(pixels[index * 4]) - 127.5) / 128.0
+            let gn = (Float(pixels[index * 4 + 1]) - 127.5) / 128.0
+            let bn = (Float(pixels[index * 4 + 2]) - 127.5) / 128.0
             if channelLayout {
                 pointer[index] = rn
                 pointer[plane + index] = gn
@@ -100,13 +94,15 @@ final class CoreMLFaceEngine: NSObject, FaceRecognitionEngine {
 
         guard let provider = try? MLDictionaryFeatureProvider(dictionary: [inputName: multiArray]),
               let prediction = try? model.prediction(from: provider),
-              let output = prediction.featureValue(for: outputName)?.multiArrayValue else {
+              let output = prediction.featureValue(for: outputName)?.multiArrayValue,
+              output.count == Int(embeddingDimension) else {
             return nil
         }
         var values = [Float](repeating: 0, count: Int(output.count))
         for index in 0..<Int(output.count) {
             values[index] = output[index].floatValue
         }
+        guard values.allSatisfy(\.isFinite), values.contains(where: { $0 != 0 }) else { return nil }
         return values
     }
 

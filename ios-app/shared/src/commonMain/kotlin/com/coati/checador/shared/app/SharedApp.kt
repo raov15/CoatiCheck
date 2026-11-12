@@ -90,7 +90,8 @@ class SharedApp(
 
     /** true si el dispositivo ya está registrado contra el backend. */
     fun isDeviceRegistered(): Boolean =
-        db.devices.getCurrent().executeAsOneOrNull()?.let { it.id_remote != null } ?: false
+        db.devices.getCurrent().executeAsOneOrNull()?.id_remote != null &&
+            tokenStore.getBearer() != null
 
     suspend fun registerDevice(
         deviceName: String,
@@ -117,14 +118,11 @@ class SharedApp(
     // ASISTENCIA
     // =========================================================
 
-    /**
-     * Flujo completo del registro de asistencia:
-     * 1. Detecta y recorta el rostro más grande del fotograma.
-     * 2. Reconocimiento 1:N real contra los embeddings cifrados locales.
-     * 3. Ubicación best-effort (con respaldo; no bloquea el registro).
-     * 4. Guarda el registro PENDING para sincronización posterior.
-     */
-    suspend fun registrarAsistencia(frame: ByteArray): AttendanceRegistration {
+    suspend fun reconocerParaAsistencia(frame: ByteArray): AttendanceRegistration {
+        if (!engine.isRealModelAvailable) return AttendanceRegistration(
+            status = AttendanceStatus.ERROR, employeeName = null,
+            message = "El modelo facial real no está disponible; no se puede registrar asistencia."
+        )
         val capture = faceCapture.captureLargestFace(frame)
         val match = when (capture) {
             is FaceCapture.Result.Captured -> recognizeFaceUseCase(capture.faceImage)
@@ -145,6 +143,36 @@ class SharedApp(
             )
         }
 
+        return AttendanceRegistration(
+            status = AttendanceStatus.OK,
+            employeeName = recognized.employeeName,
+            confidence = recognized.confidence,
+            employeeId = recognized.employeeId
+        )
+    }
+
+    fun getAllowedAttendanceEvents(employeeId: String): List<String> =
+        allowedAttendanceEvents(employeeId, Clock.System.now().toEpochMilliseconds())
+
+    private fun allowedAttendanceEvents(employeeId: String, timestamp: Long): List<String> {
+        val bounds = AttendanceSequence.dayBounds(timestamp)
+        val events = db.attendance.getByEmployeeBetween(employeeId, bounds.first, bounds.last)
+            .executeAsList().asReversed().map { it.event_type }
+        return AttendanceSequence.allowedAfter(events)
+    }
+
+    suspend fun registrarAsistencia(
+        frame: ByteArray,
+        eventType: String,
+        expectedEmployeeId: String
+    ): AttendanceRegistration {
+        val recognized = reconocerParaAsistencia(frame)
+        if (recognized.status != AttendanceStatus.OK) return recognized
+        if (recognized.employeeId != expectedEmployeeId) return AttendanceRegistration(
+            status = AttendanceStatus.ERROR, employeeName = null,
+            message = "La identidad reconocida cambió; vuelve a capturar el rostro."
+        )
+
         val location = try {
             locationTracker.getBestEffortLocation()
         } catch (_: Exception) {
@@ -152,32 +180,44 @@ class SharedApp(
         }
 
         val now = Clock.System.now().toEpochMilliseconds()
-        db.attendance.insertOrReplace(
-            id_local = "att-$now-${Random.nextInt(1000, 9999)}",
-            id_remote = null,
-            employee_id = recognized.employeeId,
-            event_type = "CLOCK_IN",
-            occurred_at = now,
-            is_late = false,
-            late_minutes = 0L,
-            latitude = location?.latitude,
-            longitude = location?.longitude,
-            accuracy_m = location?.accuracyMeters?.toDouble(),
-            altitude_m = location?.altitudeMeters,
-            face_confidence = recognized.confidence.toDouble(),
-            device_id = db.devices.getCurrent().executeAsOneOrNull()?.id_local,
-            site_id = null,
-            sync_status = SyncStatus.PENDING,
-            sync_attempts = 0L,
-            last_error = null,
-            created_at = now
+        var registered = false
+        db.transaction {
+            if (eventType in allowedAttendanceEvents(expectedEmployeeId, now)) {
+                db.attendance.insertOrReplace(
+                    id_local = "att-$now-${Random.nextInt(1000, 9999)}",
+                    id_remote = null,
+                    employee_id = expectedEmployeeId,
+                    event_type = eventType,
+                    occurred_at = now,
+                    is_late = false,
+                    late_minutes = 0L,
+                    latitude = location?.latitude,
+                    longitude = location?.longitude,
+                    accuracy_m = location?.accuracyMeters?.toDouble(),
+                    altitude_m = location?.altitudeMeters,
+                    face_confidence = recognized.confidence?.toDouble(),
+                    device_id = db.devices.getCurrent().executeAsOneOrNull()?.id_local,
+                    site_id = null,
+                    sync_status = SyncStatus.PENDING,
+                    sync_attempts = 0L,
+                    last_error = null,
+                    created_at = now
+                )
+                registered = true
+            }
+        }
+        if (!registered) return AttendanceRegistration(
+            status = AttendanceStatus.ERROR, employeeName = recognized.employeeName,
+            message = "El movimiento no corresponde a la jornada actual. Vuelve a capturar el rostro."
         )
+        scheduler.syncNow()
         return AttendanceRegistration(
             status = AttendanceStatus.OK,
             employeeName = recognized.employeeName,
             confidence = recognized.confidence,
             latitude = location?.latitude,
-            longitude = location?.longitude
+            longitude = location?.longitude,
+            employeeId = expectedEmployeeId
         )
     }
 
@@ -195,6 +235,20 @@ class SharedApp(
         department: String,
         faceImage: ByteArray
     ): Result<Unit> {
+        if (!engine.isRealModelAvailable) return Result.Error(
+            IllegalStateException("El modelo facial real no está disponible"),
+            "El modelo facial real no está disponible; no se puede enrolar al empleado."
+        )
+        val croppedFace = when (val capture = faceCapture.captureLargestFace(faceImage)) {
+            is FaceCapture.Result.Captured -> capture.faceImage
+            is FaceCapture.Result.NoFace -> return Result.Error(
+                IllegalArgumentException("No se detectó ningún rostro"),
+                "No se detectó ningún rostro. Vuelve a capturar la foto."
+            )
+            is FaceCapture.Result.Failure -> return Result.Error(
+                IllegalStateException(capture.message), capture.message
+            )
+        }
         val now = Clock.System.now().toEpochMilliseconds()
         val employee = Employee(
             idLocal = generateEmployeeLocalId(),
@@ -211,7 +265,39 @@ class SharedApp(
             updatedAt = now,
             syncStatus = SyncStatus.PENDING
         )
-        return registerEmployeeUseCase(employee, faceImage)
+        return registerEmployeeUseCase(employee, croppedFace)
+    }
+
+    suspend fun recoverFaceProfile(employeeId: String, pin: String, faceImage: ByteArray): Result<Unit> {
+        if (!adminPin.hasPin()) return Result.Error(
+            IllegalStateException("PIN no configurado"),
+            "Configura primero el PIN de administrador en Configuración."
+        )
+        if (!adminPin.verifyPin(pin)) return Result.Error(
+            IllegalArgumentException("PIN incorrecto"), "El PIN de administrador es incorrecto."
+        )
+        if (!engine.isRealModelAvailable) return Result.Error(
+            IllegalStateException("El modelo facial real no está disponible"),
+            "El modelo facial real no está disponible."
+        )
+        val croppedFace = when (val capture = faceCapture.captureLargestFace(faceImage)) {
+            is FaceCapture.Result.Captured -> capture.faceImage
+            is FaceCapture.Result.NoFace -> return Result.Error(
+                IllegalArgumentException("No se detectó ningún rostro"),
+                "No se detectó ningún rostro. Vuelve a capturar la foto."
+            )
+            is FaceCapture.Result.Failure -> return Result.Error(
+                IllegalStateException(capture.message), capture.message
+            )
+        }
+        return try {
+            employeeRepository.recoverInvalidFaceProfile(
+                employeeId, croppedFace, Clock.System.now().toEpochMilliseconds()
+            )
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(e, e.message ?: "No se pudo recuperar el perfil facial.")
+        }
     }
 
     /** Cargos permitidos durante el enrolamiento (igual que Android). */
@@ -271,18 +357,36 @@ class SharedApp(
     /** Dispara la sincronización inmediata (4 pasos). */
     fun syncNow() = scheduler.syncNow()
 
-    /**
-     * Sincroniza y espera el resultado (para BGTask de iOS: el handler
-     * completa la tarea del BGTaskScheduler con el resultado).
-     */
-    suspend fun syncAwait(): Boolean =
-        runCatching { orchestrator.syncAll() }.isSuccess
+    /** Sincroniza y devuelve el resultado real para mostrarlo en la UI. */
+    suspend fun syncAwait(): SyncOperationResult {
+        val report = try {
+            orchestrator.syncAll()
+        } catch (e: Exception) {
+            return SyncOperationResult(false, e.message ?: "No se pudo sincronizar")
+        }
+        val errors = listOf(
+            "Empleados" to report.employees,
+            "Asignaciones" to report.workAssignments,
+            "Asistencias" to report.attendance,
+            "Ubicaciones" to report.foreignLocations
+        ).mapNotNull { (step, result) ->
+            when (result) {
+                is SyncOrchestrator.StepResult.Failed -> "$step: ${result.message}"
+                is SyncOrchestrator.StepResult.OkWithErrors -> "$step: ${result.lastError}"
+                else -> null
+            }
+        }
+        return SyncOperationResult(
+            success = errors.isEmpty(),
+            message = if (errors.isEmpty()) "Sincronización completada" else errors.joinToString("\n")
+        )
+    }
 
     /** Registros pendientes de sincronizar (badge UI). */
     fun countPendingToSync(): Long =
         db.attendance.countPending().executeAsOne() +
             db.foreignLocations.countPending().executeAsOne() +
-            db.employees.countPending().executeAsOne()
+            db.employees.countPendingToSync().executeAsOne()
 
     // =========================================================
     // MOTOR FACIAL (registro desde Swift/CoreML)
@@ -305,6 +409,12 @@ class SharedApp(
     }
 }
 
+/** Resultado de una sincronización esperada por la interfaz. */
+class SyncOperationResult(
+    val success: Boolean,
+    val message: String
+)
+
 /** Estados del registro de asistencia expuestos a la UI. */
 enum class AttendanceStatus {
     OK, NO_FACE, NOT_RECOGNIZED, ERROR
@@ -317,7 +427,8 @@ class AttendanceRegistration(
     val confidence: Float? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val message: String? = null
+    val message: String? = null,
+    val employeeId: String? = null
 )
 
 /** Empleado activo (vista de lista). */

@@ -3,14 +3,10 @@ package com.coati.checador.shared.domain.facecamera
 import com.coati.checador.shared.security.toByteArray
 import com.coati.checador.shared.security.toNSData
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.CoreGraphics.CGBitmapContextCreate
-import platform.CoreGraphics.CGBitmapContextCreateImage
-import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
-import platform.CoreGraphics.CGContextDrawImage
-import platform.CoreGraphics.CGContextScaleCTM
-import platform.CoreGraphics.CGContextTranslateCTM
+import platform.CoreGraphics.CGImageCreateWithImageInRect
 import platform.CoreGraphics.CGImageGetHeight
 import platform.CoreGraphics.CGImageGetWidth
+import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGImageRef
 import platform.CoreGraphics.CGRectMake
 import kotlinx.cinterop.useContents
@@ -20,9 +16,6 @@ import platform.UIKit.UIImageJPEGRepresentation
 import platform.Vision.VNDetectFaceRectanglesRequest
 import platform.Vision.VNFaceObservation
 import platform.Vision.VNImageRequestHandler
-
-/** kCGImageAlphaPremultipliedLast (no exportado por el cinterop). */
-private const val BITMAP_INFO_PREMULTIPLIED_LAST = 1u
 
 /**
  * Detector iOS sobre Vision (VNDetectFaceRectanglesRequest).
@@ -93,43 +86,12 @@ internal class VisionFaceDetector : FaceDetector {
         val rect = FaceCrop.paddedRect(face, imgW, imgH, paddingFraction)
             ?: throw IllegalArgumentException("El rostro no intersecta la imagen")
 
-        return cropViaContext(cgImage, rect, imgW, imgH)
-    }
-
-    /** Recorta reteniendo el contexto para CGBitmapContextCreateImage. */
-    @OptIn(ExperimentalForeignApi::class)
-    private fun cropViaContext(
-        cgImage: CGImageRef,
-        rect: IntRect,
-        imgW: Int,
-        imgH: Int
-    ): ByteArray {
-        val ctx = CGBitmapContextCreate(
-            null, // memoria gestionada por CoreGraphics
-            rect.width.toULong(),
-            rect.height.toULong(),
-            8.toULong(),
-            (rect.width * 4).toULong(),
-            CGColorSpaceCreateDeviceRGB(),
-            BITMAP_INFO_PREMULTIPLIED_LAST
-        ) ?: throw IllegalStateException("No se pudo crear el contexto de recorte")
-
-        CGContextTranslateCTM(ctx, 0.0, rect.height.toDouble())
-        CGContextScaleCTM(ctx, 1.0, -1.0)
-        CGContextDrawImage(
-            ctx,
-            CGRectMake(
-                -rect.left.toDouble(),
-                -rect.top.toDouble(),
-                imgW.toDouble(),
-                imgH.toDouble()
-            ),
-            cgImage
-        )
-        val cgCrop = CGBitmapContextCreateImage(ctx)
-            ?: throw IllegalStateException("No se pudo extraer el CGImage del recorte")
+        val cgCrop = CGImageCreateWithImageInRect(
+            cgImage,
+            CGRectMake(rect.left.toDouble(), rect.top.toDouble(), rect.width.toDouble(), rect.height.toDouble())
+        ) ?: throw IllegalStateException("No se pudo extraer el rostro")
         val uiCrop = UIImage.imageWithCGImage(cgCrop, 1.0, platform.UIKit.UIImageOrientation.UIImageOrientationUp)
-            ?: throw IllegalStateException("No se pudo crear el UIImage del recorte")
+        CGImageRelease(cgCrop)
         return UIImageJPEGRepresentation(uiCrop, 0.92)?.toByteArray()
             ?: throw IllegalStateException("No se pudo codificar el recorte a JPEG")
     }

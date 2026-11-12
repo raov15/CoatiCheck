@@ -6,6 +6,7 @@ struct AttendanceView: View {
     @StateObject private var viewModel = AttendanceViewModel()
     @StateObject private var camera = CameraService()
     @ObservedObject private var appState = AppState.shared
+    @State private var confirmClockOut = false
 
     var body: some View {
         NavigationView {
@@ -33,6 +34,26 @@ struct AttendanceView: View {
         }
         .onDisappear {
             camera.stop()
+            viewModel.cancelSelection()
+        }
+        .alert("Ubicación no autorizada", isPresented: $viewModel.showLocationWarning) {
+            Button("Abrir Ajustes") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Registrar sin ubicación") { viewModel.registerWithoutLocation() }
+            Button("Cancelar", role: .cancel) { viewModel.cancelSelection() }
+        } message: {
+            Text("Activa la ubicación para guardar las coordenadas. Si continúas, esta asistencia se registrará sin GPS.")
+        }
+        .alert("¿Finalizar la jornada?", isPresented: $confirmClockOut) {
+            Button("Finalizar jornada", role: .destructive) {
+                viewModel.registerAttendance(eventType: "CLOCK_OUT")
+            }
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text("Después de registrar la salida no podrás agregar movimientos hoy.")
         }
     }
 
@@ -73,7 +94,7 @@ struct AttendanceView: View {
                         viewModel.errorMessage = "No se pudo capturar la foto"
                         return
                     }
-                    viewModel.registerAttendance(frame: data)
+                    viewModel.recognize(frame: data)
                 }
             } label: {
                 ZStack {
@@ -105,6 +126,27 @@ struct AttendanceView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .padding(.vertical, 10)
+        } else if !viewModel.allowedEvents.isEmpty {
+            VStack(spacing: 8) {
+                Text("Selecciona un movimiento para \(viewModel.recognizedName ?? "el empleado")")
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                HStack {
+                    ForEach(viewModel.allowedEvents, id: \.self) { event in
+                        Button(eventName(event)) {
+                            if event == "CLOCK_OUT" {
+                                confirmClockOut = true
+                            } else {
+                                viewModel.registerAttendance(eventType: event)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    Button("Cancelar") { viewModel.cancelSelection() }
+                        .buttonStyle(.bordered)
+                }
+            }
+            .padding(10)
         } else if let error = viewModel.errorMessage {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline)
@@ -113,6 +155,16 @@ struct AttendanceView: View {
         } else if let result = viewModel.lastResult {
             resultBanner(result)
                 .padding(.vertical, 10)
+        }
+    }
+
+    private func eventName(_ event: String) -> String {
+        switch event {
+        case "CLOCK_IN": return "Entrada"
+        case "MEAL_START": return "Iniciar pausa"
+        case "MEAL_END": return "Terminar pausa"
+        case "CLOCK_OUT": return "Salida"
+        default: return event
         }
     }
 
@@ -132,6 +184,11 @@ struct AttendanceView: View {
         return Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(text).font(.subheadline).bold()
+                if result.status == AttendanceStatus.ok && (result.latitude == nil || result.longitude == nil) {
+                    Text("Asistencia registrada sin ubicación GPS")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
                 if result.status == AttendanceStatus.ok,
                    let confidence = result.confidence?.floatValue {
                     Text(String(format: "Confianza: %.0f%%", confidence * 100))

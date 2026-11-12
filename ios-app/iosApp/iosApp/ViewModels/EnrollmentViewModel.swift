@@ -14,6 +14,9 @@ final class EnrollmentViewModel: ObservableObject {
     @Published var isEnrolling = false
     @Published var successMessage: String?
     @Published var errorMessage: String?
+    @Published var employees: [EmployeeInfo] = []
+    @Published var selectedEmployeeId = ""
+    @Published var recoveryPin = ""
 
     let positions: [String]
 
@@ -32,6 +35,46 @@ final class EnrollmentViewModel: ObservableObject {
             !rfc.trimmingCharacters(in: .whitespaces).isEmpty &&
             facePhoto != nil &&
             !isEnrolling
+    }
+
+    var canRecover: Bool {
+        !selectedEmployeeId.isEmpty && !recoveryPin.isEmpty && facePhoto != nil && !isEnrolling
+    }
+
+    func refreshEmployees() {
+        employees = sharedApp.getActiveEmployees()
+        if !employees.contains(where: { $0.idLocal == selectedEmployeeId }) {
+            selectedEmployeeId = employees.first?.idLocal ?? ""
+        }
+    }
+
+    func recoverFace() {
+        guard canRecover, let facePhoto else { return }
+        isEnrolling = true
+        errorMessage = nil
+        successMessage = nil
+        sharedApp.recoverFaceProfile(
+            employeeId: selectedEmployeeId,
+            pin: recoveryPin,
+            faceImage: KotlinByteArray.from(data: facePhoto)
+        ) { [weak self] result, error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isEnrolling = false
+                self.recoveryPin = ""
+                if let error {
+                    self.errorMessage = error.localizedDescription
+                    return
+                }
+                switch unwrapKResult(result) {
+                case .success:
+                    self.successMessage = "Perfil facial actualizado. Prueba el reconocimiento en Asistencia."
+                    self.facePhoto = nil
+                case .failure(let message):
+                    self.errorMessage = message
+                }
+            }
+        }
     }
 
     func enroll() {
@@ -61,6 +104,7 @@ final class EnrollmentViewModel: ObservableObject {
                         self.successMessage =
                             "Empleado \(self.firstName) registrado correctamente"
                         self.resetForm()
+                        self.refreshEmployees()
                         AppState.shared.refreshPending()
                     case .failure(let message):
                         self.errorMessage = message

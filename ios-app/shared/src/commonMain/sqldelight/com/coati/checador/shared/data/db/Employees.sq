@@ -48,6 +48,9 @@ SELECT * FROM employees WHERE is_active = 1 ORDER BY full_name ASC;
 findBySyncStatus:
 SELECT * FROM employees WHERE sync_status = ?;
 
+findPendingForSync:
+SELECT * FROM employees WHERE sync_status IN ('PENDING', 'ERROR');
+
 updateSyncResult:
 UPDATE employees
 SET sync_status = ?,
@@ -64,6 +67,9 @@ WHERE id_local = ?;
 -- igual que el valor persistido por SyncStatus.PENDING.
 countPending:
 SELECT COUNT(*) FROM employees WHERE sync_status = 'PENDING';
+
+countPendingToSync:
+SELECT COUNT(*) FROM employees WHERE sync_status IN ('PENDING', 'ERROR');
 
 countActive:
 SELECT COUNT(*) FROM employees WHERE is_active = 1;

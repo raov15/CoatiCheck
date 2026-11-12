@@ -45,7 +45,11 @@ class RecognizeFaceUseCase(
         // 1. Embedding del rostro capturado.
         val embedding = try {
             require(faceImage.isNotEmpty()) { "Imagen del rostro vacía" }
-            engine.generarEmbedding(faceImage)
+            engine.generarEmbedding(faceImage).also {
+                require(FaceMatcher.isValidEmbedding(it, engine.embeddingSize)) {
+                    "No se pudo generar un perfil facial válido."
+                }
+            }
         } catch (e: Exception) {
             return MatchResult.Failure(
                 e.message ?: "No se pudo procesar el rostro capturado."
@@ -66,12 +70,13 @@ class RecognizeFaceUseCase(
         var bestDistance = Float.MAX_VALUE
         var best: EnrolledFaceProfile? = null
         for (profile in profiles) {
+            if (profile.modelVersion != engine.versionModelo) continue
             val storedEmbedding = try {
                 FaceMatcher.bytesToFloats(crypto.decrypt(profile.embeddingBlob))
             } catch (_: Exception) {
                 continue // perfil corrupto o con formato inválido: se ignora
             }
-            if (storedEmbedding.size != embedding.size) continue
+            if (!FaceMatcher.isValidEmbedding(storedEmbedding, engine.embeddingSize)) continue
 
             val distance = FaceMatcher.distanciaCoseno(embedding, storedEmbedding)
             if (distance < bestDistance) {

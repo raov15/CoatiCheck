@@ -4,33 +4,50 @@ import SwiftUI
 struct EnrollmentView: View {
     @StateObject private var viewModel = EnrollmentViewModel()
     @StateObject private var camera = CameraService()
+    @State private var confirmingRecovery = false
 
     var body: some View {
         NavigationView {
             Form {
-                Section("Datos del empleado") {
-                    TextField("Nombre", text: $viewModel.firstName)
-                    TextField("Apellido paterno", text: $viewModel.lastNamePaternal)
-                    TextField("Apellido materno", text: $viewModel.lastNameMaternal)
-                    TextField("RFC", text: $viewModel.rfc)
-                        .autocapitalization(.allCharacters)
-                        .disableAutocorrection(true)
-                    TextField("CURP", text: $viewModel.curp)
-                        .autocapitalization(.allCharacters)
-                        .disableAutocorrection(true)
-                    TextField("NSS", text: $viewModel.nss)
-                        .keyboardType(.numberPad)
-                }
+                if viewModel.employees.isEmpty {
+                    Section("Datos del empleado") {
+                        TextField("Nombre", text: $viewModel.firstName)
+                        TextField("Apellido paterno", text: $viewModel.lastNamePaternal)
+                        TextField("Apellido materno", text: $viewModel.lastNameMaternal)
+                        TextField("RFC", text: $viewModel.rfc)
+                            .autocapitalization(.allCharacters)
+                            .disableAutocorrection(true)
+                        TextField("CURP", text: $viewModel.curp)
+                            .autocapitalization(.allCharacters)
+                            .disableAutocorrection(true)
+                        TextField("NSS", text: $viewModel.nss)
+                            .keyboardType(.numberPad)
+                    }
 
-                Section("Cargo") {
-                    if viewModel.positions.isEmpty {
-                        TextField("Departamento", text: $viewModel.department)
-                    } else {
-                        Picker("Cargo", selection: $viewModel.department) {
-                            ForEach(viewModel.positions, id: \.self) { position in
-                                Text(position).tag(position)
+                    Section("Cargo") {
+                        if viewModel.positions.isEmpty {
+                            TextField("Departamento", text: $viewModel.department)
+                        } else {
+                            Picker("Cargo", selection: $viewModel.department) {
+                                ForEach(viewModel.positions, id: \.self) { position in
+                                    Text(position).tag(position)
+                                }
                             }
                         }
+                    }
+                } else {
+                    Section {
+                        Picker("Empleado", selection: $viewModel.selectedEmployeeId) {
+                            ForEach(viewModel.employees, id: \.idLocal) { employee in
+                                Text(employee.fullName).tag(employee.idLocal)
+                            }
+                        }
+                        SecureField("PIN de administrador", text: $viewModel.recoveryPin)
+                            .keyboardType(.numberPad)
+                    } header: {
+                        Text("Recuperar perfil facial")
+                    } footer: {
+                        Text("Solo permite reemplazar un perfil que no se puede usar. Si no tienes PIN, configúralo primero en Configuración.")
                     }
                 }
 
@@ -67,17 +84,21 @@ struct EnrollmentView: View {
 
                 Section {
                     Button {
-                        viewModel.enroll()
+                        if viewModel.employees.isEmpty {
+                            viewModel.enroll()
+                        } else {
+                            confirmingRecovery = true
+                        }
                     } label: {
                         if viewModel.isEnrolling {
                             ProgressView().frame(maxWidth: .infinity)
                         } else {
-                            Text("Registrar empleado")
+                            Text(viewModel.employees.isEmpty ? "Registrar empleado" : "Recuperar perfil facial")
                                 .frame(maxWidth: .infinity)
                                 .bold()
                         }
                     }
-                    .disabled(!viewModel.canEnroll)
+                    .disabled(viewModel.employees.isEmpty ? !viewModel.canEnroll : !viewModel.canRecover)
                 }
 
                 if let success = viewModel.successMessage {
@@ -90,7 +111,14 @@ struct EnrollmentView: View {
             .navigationTitle("Enrolamiento")
         }
         .navigationViewStyle(.stack)
+        .alert("¿Recuperar perfil facial?", isPresented: $confirmingRecovery) {
+            Button("Cancelar", role: .cancel) { }
+            Button("Recuperar") { viewModel.recoverFace() }
+        } message: {
+            Text("Confirma que el rostro capturado pertenece al empleado seleccionado.")
+        }
         .onAppear {
+            viewModel.refreshEmployees()
             camera.checkPermissionAndStart()
         }
         .onDisappear {
