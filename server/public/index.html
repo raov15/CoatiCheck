@@ -2582,7 +2582,7 @@ select{
   for(const [code,records] of groups){
    const worker=profiles.get(code);records.sort((a,b)=>(Number.isFinite(Number(a.occurred_at))?Number(a.occurred_at):Date.parse(a.occurred_at))-(Number.isFinite(Number(b.occurred_at))?Number(b.occurred_at):Date.parse(b.occurred_at)));
    const salary=finite(worker.daily_salary)?Number(worker.daily_salary):null;
-   const headers=['Fecha','Hora','Calificación','Detalle del movimiento',...movementColumns,...concepts,'Valuación aplicada (días)','Observaciones'];
+   const headers=['Fecha','Hora','Calificación','Detalle del movimiento',...movementColumns,...concepts,'Valuación aplicada (días)','Método de registro','Observaciones'];
    const valueCol=headers.indexOf('Valuación aplicada (días)'),noteCol=headers.indexOf('Observaciones'),attendanceCol=noteCol+1;
    const rows=[[worker.full_name||code],['RFC',String(worker.rfc||'Sin RFC'),'CURP',String(worker.curp||''),'NSS',String(worker.nss||'')],['Desde',from||'','Hasta',to||''],['Sueldo diario',salary===null?'Falta sueldo diario':salary],[],[],headers];
    const valuations=(category,concept)=>{const exact=(data.valuations||[]).find(v=>String(v.category_id)===String(category)&&v.concept===concept);const fallback=(worker.valuations||[]).find(v=>v.concept===concept);return finite(exact?.value)?Number(exact.value):finite(fallback?.value)?Number(fallback.value):null;};
@@ -2595,6 +2595,7 @@ select{
     if(r.weekly_absence_generated)row[headers.indexOf('Ausentismo')]=1;
     let value=finite(r.applied_value)?Number(r.applied_value):['Retardo','Historial'].includes(r.concept)?0:valuations(r.category_id,r.concept);
     if(!r.concept)value=0;
+    row[headers.indexOf('Método de registro')]=({ADMINISTRATIVE:'Registro administrativo',MOBILE:'Registro móvil',SHARED:'Registro compartido'}[r.record_origin]||'Origen no registrado');
     row[valueCol]=value;row[noteCol]=(r.weekly_absence_generated?'Ausentismo generado por 3 retardos de la misma semana. ':'')+(r.notes||'');
     details.push({row,value,concept:r.concept,generated:!!r.weekly_absence_generated});rows.push(row);
    }
@@ -2697,7 +2698,108 @@ select{
 @media(max-width:1050px){#attendance-page .incidence-filterbar-new{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:580px){#attendance-page .incidence-filterbar-new{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 </style>
-</head>
+<script id="nexora-labor-report">
+(function(){
+ const detailedBuilder=window.nexoraBuildWorkbook;
+ const dayKey=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Number(t)));
+ const time=t=>t==null?'':new Intl.DateTimeFormat('es-MX',{timeZone:'America/Mexico_City',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(Number(t)));
+ const add=(d,n)=>{const x=new Date(d+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10);};
+ const weekday=d=>(new Date(d+'T12:00:00Z').getUTCDay()||7);
+ const monday=d=>add(d,1-weekday(d));
+ const isoWeek=day=>{const d=new Date(day+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const year=d.getUTCFullYear(),jan=new Date(Date.UTC(year,0,1,12));return year+'-W'+String(Math.ceil((((d-jan)/86400000)+1)/7)).padStart(2,'0');};
+ const minutes=v=>/^\d\d?:\d\d/.test(v||'')?Number(v.split(':')[0])*60+Number(v.split(':')[1]):null;
+ const known=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+ const limit=y=>y<=2026?48:y===2027?46:y===2028?44:y===2029?42:40;
+ const doubles=y=>y<=2027?9:y===2028?10:y===2029?11:12;
+ window.nexoraLaborRules=day=>({weekly:limit(Number(day.slice(0,4))),double:doubles(Number(day.slice(0,4))),dailyExtra:4,extraDays:4,maxDay:12,maxTriple:4,available:day>='2026-05-01'});
+ window.nexoraBuildDailyRows=function(worker,events,records,from,to){
+   const days=new Map();const get=d=>{if(!days.has(d))days.set(d,{day:d,entry:null,exit:null,breakMs:0,open:null,issues:[]});return days.get(d);};let shiftDay=null;
+   for(const e of [...events].sort((a,b)=>Number(a.occurred_at)-Number(b.occurred_at))){const d=dayKey(e.occurred_at),r=get(shiftDay||d),stamp=Number(e.occurred_at);
+    if(e.event_type==='CLOCK_IN'){if(shiftDay)r.issues.push('Entrada adicional sin salida previa');shiftDay=d;get(d).entry??=stamp;}
+    else if(e.event_type==='MEAL_START'){if(r.open!==null)r.issues.push('Salida de pausa sin regreso previo');r.open=stamp;}
+    else if(e.event_type==='MEAL_END'){if(r.open===null)r.issues.push('Regreso sin salida de pausa');else{r.breakMs+=stamp-r.open;r.open=null;}}
+    else if(e.event_type==='CLOCK_OUT'){r.exit=stamp;if(r.open!==null)r.issues.push('Pausa sin regreso');shiftDay=null;}
+   }
+   for(let d=from;d<=to;d=add(d,1)){const r=get(d),schedule=(worker.schedules||[]).find(s=>Number(s.weekday)===weekday(d)),c=schedule?.category,w=schedule?.workday;const start=minutes(w?.start_time||c?.start_time),end=minutes(w?.end_time||c?.end_time);
+    r.planned=null;if(w?.is_workday===false)r.planned=0;else if(w?.is_workday===true&&start!==null&&end!==null){let duration=(end-start+1440)%1440;let ranges=[];for(const [v,length] of [[c.meal_start_time,c.meal_duration_minutes??60],[c.rest_start_time,c.rest_duration_minutes??30]]){const p=minutes(v);if(p!==null){const pos=(p-start+1440)%1440;if(pos<duration)ranges.push([pos,Math.min(duration,pos+Number(length))]);}}ranges.sort((a,b)=>a[0]-b[0]);let removed=0,last=-1;for(const [a,b]of ranges){removed+=Math.max(0,b-Math.max(a,last));last=Math.max(last,b);}r.planned=(duration-removed)/60;}
+    r.hours=r.entry!==null&&r.exit!==null&&r.open===null&&!r.issues.length?(r.exit-r.entry-r.breakMs)/3600000:null;if(r.hours!==null&&r.hours<0){r.hours=null;r.issues.push('Duración inconsistente');}
+    r.ordinary=r.hours!==null&&r.planned!==null?Math.min(r.hours,r.planned):null;r.extra=r.hours!==null&&r.planned!==null?Math.max(0,r.hours-r.planned):null;
+    r.incidents=records.filter(x=>dayKey(x.occurred_at)===d);r.shift=worker.shift_type||c?.shift_type||'';r.dailyLimit=r.shift==='Nocturna'?7:r.shift==='Mixta'?7.5:['Matutina','Diurna'].includes(r.shift)?8:null;
+   }return [...days.values()].filter(r=>r.day>=from&&r.day<=to).sort((a,b)=>a.day.localeCompare(b.day));
+ };
+ window.nexoraBuildWorkbook=function(data,filters,X){
+   const wb=detailedBuilder(data,filters,X);if(!Array.isArray(data.events)||!filters.from||!filters.to)return wb;
+   const profile=data.company?.details?.profile||{},company=data.company||{};for(const name of wb.SheetNames)delete wb.Sheets[name];wb.SheetNames=[];const names=[],used=new Set();
+   const unique=base=>{base=base.replace(/[\\/?*\[\]:]/g,' ').slice(0,31);let n=base,i=1;while(used.has(n.toLowerCase()))n=base.slice(0,26)+'_'+(++i);used.add(n.toLowerCase());return n;};
+   for(const worker of data.employees||[]){const events=data.events.filter(r=>r.employee_code===worker.employee_code),records=(data.records||[]).filter(r=>r.employee_code===worker.employee_code);const start=monday(filters.from),end=add(monday(filters.to),6);
+    const daily=nexoraBuildDailyRows(worker,events,records,start,end),selected=daily.filter(r=>r.day>=filters.from&&r.day<=filters.to),weeks=new Map();for(const row of daily){const key=monday(row.day);if(!weeks.has(key))weeks.set(key,[]);weeks.get(key).push(row);}
+    const rows=[],merges=[],bars=[];const section=text=>{bars.push(rows.length);rows.push([text]);merges.push({s:{r:rows.length-1,c:0},e:{r:rows.length-1,c:11}});};
+    section('REGISTRO ELECTRÓNICO DE JORNADA LABORAL — REPORTE DEL CORTE');
+    rows.push([],['Empleador',profile.business_name||profile.name||company.name||'No registrado','','','','RFC empleador',profile.rfc||''],['Registro patronal IMSS',profile.employer_registration||'','','','','Centro de trabajo',worker.worksite_name||''],['Trabajador',worker.full_name,'','','','Tipo de jornada',worker.shift_type||''],['RFC',worker.rfc||'','','','','CURP',worker.curp||''],['NSS',worker.nss||'','','','','Sueldo diario',known(worker.daily_salary)?Number(worker.daily_salary):''],['Puesto',worker.department||'','','','','Semana ISO',isoWeek(filters.from)],['Periodo',filters.from+' al '+filters.to],[]);
+    const header=rows.length;rows.push(['Fecha','Día','Jornada pactada (h)','Hora inicio','Hora fin','Descanso (min)','Horas trabajadas','Horas ordinarias','Horas extra','Incidencia','Método de registro','Observaciones / correcciones']);
+    const first=rows.length+1;
+    for(const r of selected)rows.push([new Date(r.day+'T00:00:00Z'),['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][weekday(r.day)],r.planned,time(r.entry),time(r.exit),r.breakMs/60000,r.hours,r.ordinary,r.extra,[...new Set(r.incidents.map(i=>i.concept).filter(Boolean))].join('; '),[...new Set(events.filter(e=>dayKey(e.occurred_at)===r.day).map(e=>e.record_origin==='ADMINISTRATIVE'?'Registro administrativo':e.record_origin==='MOBILE'?'Registro móvil':e.record_origin==='SHARED'?'Registro compartido':'Origen no registrado'))].join(' / '),r.issues.concat(r.incidents.map(i=>i.notes).filter(Boolean)).join('; ')]);
+    const last=rows.length;rows.push(['TOTAL DEL CORTE']);const totals=rows.length;
+    rows.push([]);section('RESUMEN DE PAGO');merges[merges.length-1].e.c=1;
+    const absences=records.filter(x=>x.concept==='Ausentismo'||x.weekly_absence_generated).reduce((n,x)=>n+(known(x.applied_value)?Number(x.applied_value):Number((worker.valuations||[]).find(v=>v.concept==='Ausentismo')?.value||0)),0);
+    const payFirst=rows.length+1;
+    rows.push(['Asistencia',365/24],['Ausentismos (días)',absences],['Sueldo diario',known(worker.daily_salary)?Number(worker.daily_salary):'Sin sueldo configurado'],['Pago',known(worker.daily_salary)?(365/24-absences)*Number(worker.daily_salary):'Sin sueldo configurado']);
+    for(let r=2;r<=8;r++){merges.push({s:{r,c:1},e:{r,c:4}},{s:{r,c:6},e:{r,c:11}});}
+    const ws=X.utils.aoa_to_sheet(rows);ws['!cols']=[20,20,20,18,18,20,20,20,20,32,24,76].map(wch=>({wch}));ws['!rows']=rows.map((_,i)=>({hpt:bars.includes(i)?34:i===header?58:54}));ws['!merges']=merges;ws['!margins']={left:.35,right:.35,top:.45,bottom:.45,header:.2,footer:.2};
+    const numeric={};for(const c of [2,5,6,7,8]){const cell=X.utils.encode_col(c)+(totals);const v=selected.reduce((s,r)=>s+(c===2?r.planned||0:c===5?r.breakMs/60000:c===6?r.hours||0:c===7?r.ordinary||0:r.extra||0),0);ws[cell]={t:'n',f:last>=first?'SUM('+X.utils.encode_col(c)+first+':'+X.utils.encode_col(c)+last+')':'0',v,z:'0.00'};}
+    for(let r=0;r<rows.length;r++)for(let c=0;c<12;c++){const key=X.utils.encode_col(c)+(r+1);if(!rows[r].length||((r>=payFirst-2)&&c>1)){delete ws[key];continue;}if(!ws[key])ws[key]={t:'s',v:''};const bar=bars.includes(r)||r===header;ws[key].s={font:{name:'Calibri',sz:r===4?16:13,bold:bar||r===totals-1||c===0||r===4,color:{rgb:bar?'FFFFFF':'20354D'}},fill:{patternType:'solid',fgColor:{rgb:bar?'20385D':r%2?'FFFFFF':'F3F6FA'}},border:Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:'thin',color:{rgb:'A7B4C4'}}])),alignment:{vertical:'center',wrapText:true}};if(typeof ws[key].v==='number')ws[key].z='0.00';if(r>=first-1&&r<=last-1&&c===0)ws[key].z='dd/mm/yyyy';}
+    if(ws.G7&&known(worker.daily_salary)){ws.G7.z='"$"#,##0.00';ws.G7.s.alignment.horizontal='left';}
+    ws['B'+payFirst]={...(ws['B'+payFirst]||{}),t:'n',f:'365/24',v:365/24,z:'0.0000'};
+    if(known(worker.daily_salary)){ws['B'+(payFirst+2)].z='"$"#,##0.00';ws['B'+(payFirst+3)]={...(ws['B'+(payFirst+3)]||{}),t:'n',f:'(B'+payFirst+'-B'+(payFirst+1)+')*B'+(payFirst+2),v:(365/24-absences)*Number(worker.daily_salary),z:'"$"#,##0.00'};}
+    for(let n=payFirst;n<=payFirst+3;n++)if(ws['B'+n]?.s)ws['B'+n].s.alignment.horizontal='left';
+    for(let n=0;n<rows.length;n++)if(rows[n][3]==='Cumple'||rows[n][3]==='Revisar'){const c=ws['D'+(n+1)];c.s.fill.fgColor.rgb=rows[n][3]==='Cumple'?'DCFCE7':'FEE2E2';c.s.font.bold=true;}
+    if(last>=first)ws['!autofilter']={ref:'A'+(header+1)+':L'+last};
+    X.utils.book_append_sheet(wb,ws,unique(worker.rfc||worker.employee_code));
+   }
+   wb.SheetNames=[...wb.SheetNames.filter(n=>!names.includes(n)),...names];return wb;
+ };
+})();
+
+</script>
+<script>
+(function(){
+ function arithmetic(s){if(!/^[0-9eE.\s+*/()\-]+$/.test(s))throw Error('Fórmula no compatible con el visor');const v=Function('"use strict";return ('+s+')')();if(!Number.isFinite(v))throw Error('Cálculo no válido');return v;}
+ window.nexoraRecalculateReport=function(ws,X){const active=new Set(),done=new Set();function value(key){const c=ws[key];if(!c)return 0;if(!c.f)return typeof c.v==='number'?c.v:0;if(done.has(key))return typeof c.v==='number'?c.v:0;if(active.has(key))throw Error('Referencia circular en '+key);active.add(key);let f=c.f;
+ const cells=range=>{const r=X.utils.decode_range(range.replace(/\$/g,'')),out=[];for(let row=r.s.r;row<=r.e.r;row++)for(let col=r.s.c;col<=r.e.c;col++)out.push(X.utils.encode_cell({r:row,c:col}));return out;};
+ if(/^"[^"\n]*"$/.test(f)){c.v=f.slice(1,-1);c.t='s';}else{
+ f=f.replace(/SUMIFS\(([^()]*)\)/gi,(_,args)=>{const a=args.split(',').map(s=>s.trim());const vals=cells(a[0]),conditions=[];for(let i=1;i<a.length;i+=2)conditions.push([cells(a[i]),Number(a[i+1])]);return String(vals.reduce((n,k,i)=>n+(conditions.every(([keys,want])=>value(keys[i])===want)?value(k):0),0));});
+ f=f.replace(/SUM\(([^()]*)\)/gi,(_,args)=>String(args.split(',').reduce((n,r)=>n+cells(r.trim()).reduce((s,k)=>s+value(k),0),0)));
+ f=f.replace(/\$?[A-Z]+\$?\d+/g,ref=>String(value(ref.replace(/\$/g,''))));c.v=arithmetic(f);c.t='n';}
+ delete c.w;active.delete(key);done.add(key);return typeof c.v==='number'?c.v:0;}
+ for(const key of Object.keys(ws))if(!key.startsWith('!')&&ws[key]?.f)value(key);
+ };
+ window.nexoraDeleteReportAxis=function(ws,X,axis,index){
+  nexoraRecalculateReport(ws,X);const range=X.utils.decode_range(ws['!ref']||'A1');if(index<0||index>range.e[axis])return 0;let frozen=0;
+  function moveRange(r){const start=r.s[axis],end=r.e[axis];if(start===index&&end===index)return null;const n={s:{...r.s},e:{...r.e}};n.s[axis]=start>index?start-1:start;n.e[axis]=end>=index?end-1:end;return n;}
+  function reference(ref){const q=ref.replace(/\$/g,''),pos=X.utils.decode_cell(q);if(pos[axis]===index)return null;if(pos[axis]>index)pos[axis]--;const next=X.utils.encode_cell(pos);const match=ref.match(/^(\$?)[A-Z]+(\$?)\d+$/);return (match[1]||'')+next.replace(/\d+$/,'')+(match[2]||'')+next.match(/\d+$/)[0];}
+  const output={};for(const [key,old]of Object.entries(ws)){if(key.startsWith('!'))continue;const pos=X.utils.decode_cell(key);if(pos[axis]===index)continue;const cell={...old};if(cell.f){let missing=false;const ranges=[];let f=cell.f.replace(/\$?[A-Z]+\$?\d+:\$?[A-Z]+\$?\d+/g,ref=>{const moved=moveRange(X.utils.decode_range(ref.replace(/\$/g,'')));if(!moved){missing=true;return '0';}ranges.push(X.utils.encode_range(moved));return '@range_'+(ranges.length-1)+'@';});f=f.replace(/\$?[A-Z]+\$?\d+/g,ref=>{const n=reference(ref);if(n===null)missing=true;return n||'0';});f=f.replace(/@range_(\d+)@/g,(_,n)=>ranges[Number(n)]);if(missing){delete cell.f;frozen++;}else cell.f=f;delete cell.w;}if(pos[axis]>index)pos[axis]--;output[X.utils.encode_cell(pos)]=cell;}
+  for(const key of Object.keys(ws))if(!key.startsWith('!'))delete ws[key];Object.assign(ws,output);
+  if(ws['!merges'])ws['!merges']=ws['!merges'].map(moveRange).filter(r=>r&&!(r.s.r===r.e.r&&r.s.c===r.e.c));
+  if(axis==='c')ws['!cols']?.splice(index,1);else ws['!rows']?.splice(index,1);
+  if(ws['!autofilter']){const moved=moveRange(X.utils.decode_range(ws['!autofilter'].ref));if(moved)ws['!autofilter'].ref=X.utils.encode_range(moved);else delete ws['!autofilter'];}
+  range.e[axis]=Math.max(0,range.e[axis]-1);ws['!ref']=X.utils.encode_range(range);nexoraRecalculateReport(ws,X);return frozen;
+ };
+ window.nexoraPreviewWorkbook=function(wb,X,filename){
+  const original=structuredClone(wb),protectedColumns=new Map(wb.SheetNames.map(name=>[name,Object.entries(wb.Sheets[name]).filter(([key,c])=>!key.startsWith('!')&&c?.v==='Método de registro').map(([key])=>X.utils.decode_cell(key).c)])),overlay=document.createElement('div');overlay.className='modal-backdrop';overlay.style.zIndex='20000';overlay.innerHTML='<div class="modal-card" style="width:98vw;max-width:98vw;height:95vh;max-height:95vh;display:flex;flex-direction:column;padding:14px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Editar reporte</h3><button type="button" class="btn btn-soft" data-close>Cerrar</button></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0"><select class="preview-sheet" style="width:220px"></select><button type="button" class="btn btn-soft" data-row>Quitar fila</button><button type="button" class="btn btn-soft" data-col>Quitar columna</button><button type="button" class="btn btn-soft" data-reset>Restaurar hoja</button><button type="button" class="btn btn-primary" data-download>Descargar Excel</button></div><label style="display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 8px"><input type="checkbox" data-all-sheets style="width:17px;height:17px;min-height:17px;padding:0;margin:0">Aplicar a todas las hojas <span style="font-size:12px;color:#64748b">(quitar la misma fila o columna)</span></label><p class="preview-status" style="font-size:14px;margin:0 0 8px">Toca un número de fila o una letra de columna para seleccionarla. Edita una celda directamente. Solo cambia esta copia.</p><div class="preview-grid" style="overflow:auto;flex:1;min-height:0"></div></div>';
+  document.body.append(overlay);const select=overlay.querySelector('select'),grid=overlay.querySelector('.preview-grid'),status=overlay.querySelector('.preview-status');let row=null,column=null;for(const name of wb.SheetNames)select.add(new Option(name,name));
+  function paint(){grid.replaceChildren();const ws=wb.Sheets[select.value],range=X.utils.decode_range(ws['!ref']||'A1'),table=document.createElement('table');table.style.cssText='border-collapse:collapse;font-size:15px;table-layout:fixed;min-width:100%;line-height:1.45';
+   const methods=Object.entries(ws).filter(([k,v])=>!k.startsWith('!')&&v?.v==='Método de registro').map(([k])=>X.utils.decode_cell(k));const head=document.createElement('tr');head.append(document.createElement('th'));for(let c=0;c<=range.e.c;c++){const th=document.createElement('th');th.textContent=X.utils.encode_col(c);th.style.cssText='position:sticky;top:0;background:#e2e8f0;padding:6px;cursor:pointer;z-index:2';th.onclick=()=>{column=c;row=null;status.textContent='Columna '+X.utils.encode_col(c)+' seleccionada';paint();};head.append(th);}table.append(head);
+   for(let r=0;r<=Math.min(range.e.r,499);r++){const tr=document.createElement('tr'),number=document.createElement('th');number.textContent=String(r+1);number.style.cssText='position:sticky;left:0;background:#e2e8f0;cursor:pointer;padding:5px';number.onclick=()=>{row=r;column=null;status.textContent='Fila '+(r+1)+' seleccionada';paint();};tr.append(number);for(let c=0;c<=range.e.c;c++){const key=X.utils.encode_cell({r,c}),cell=ws[key],td=document.createElement('td');td.style.cssText='border:1px solid #cbd5e1;padding:8px;min-width:135px;max-width:380px;white-space:normal';td.textContent=cell?X.utils.format_cell(cell):'';if(cell?.s?.font?.bold)td.style.fontWeight='700';if(row===r||column===c)td.style.background='#dbeafe';td.contentEditable='true';td.onblur=()=>{const before=cell?X.utils.format_cell(cell):'';if(td.textContent===before)return;const text=td.textContent;const numeric=cell?.t==='n'&&text.trim()!==''&&Number.isFinite(Number(text.replace(/,/g,'')));ws[key]={...(cell||{}),t:numeric?'n':'s',v:numeric?Number(text.replace(/,/g,'')):text};delete ws[key].f;delete ws[key].w;try{nexoraRecalculateReport(ws,X);}catch(e){status.textContent=e.message;}};tr.append(td);}table.append(tr);}grid.append(table);
+  }
+  function remove(axis){try{const index=axis==='r'?row:column;if(index===null)throw Error('Selecciona primero '+(axis==='r'?'el número de fila':'la letra de columna'));const names=overlay.querySelector('[data-all-sheets]').checked?wb.SheetNames:[select.value],changes=[];let frozen=0;
+   for(const name of names){const ws=wb.Sheets[name],range=X.utils.decode_range(ws['!ref']||'A1');if(index>range.e[axis])continue;const copy=structuredClone(ws);frozen+=nexoraDeleteReportAxis(copy,X,axis,index);changes.push([name,copy]);}
+   for(const [name,copy]of changes){wb.Sheets[name]=copy;if(axis==='c')protectedColumns.set(name,(protectedColumns.get(name)||[]).map(c=>c>index?c-1:c));}row=column=null;status.textContent='Se quitó '+(axis==='r'?'la fila':'la columna')+' en '+changes.length+' hoja(s).'+(frozen?' Los cálculos cuya fuente quitaste se conservaron como valores.':'');paint();}catch(e){status.textContent=e.message;}}
+
+  select.onchange=()=>{row=column=null;paint();};overlay.querySelector('[data-row]').onclick=()=>remove('r');overlay.querySelector('[data-col]').onclick=()=>remove('c');overlay.querySelector('[data-close]').onclick=()=>overlay.remove();overlay.querySelector('[data-reset]').onclick=()=>{wb.Sheets[select.value]=structuredClone(original.Sheets[select.value]);protectedColumns.set(select.value,Object.entries(wb.Sheets[select.value]).filter(([key,c])=>!key.startsWith('!')&&c?.v==='Método de registro').map(([key])=>X.utils.decode_cell(key).c));row=column=null;paint();status.textContent='Hoja restaurada.';};overlay.querySelector('[data-download]').onclick=()=>{try{for(const ws of Object.values(wb.Sheets))nexoraRecalculateReport(ws,X);X.writeFile(wb,filename);overlay.remove();}catch(e){status.textContent='Revisa el cálculo antes de descargar: '+e.message;}};paint();
+ };
+})();
+
+</script></head>
 
 <body>
 
@@ -3791,6 +3893,46 @@ select{
 </section>
 
 <script>
+(function(){
+  const eye='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  window.nexoraAddPasswordEye=function(input){
+    if(!input||input.dataset.nexoraEye)return;
+    input.dataset.nexoraEye='1';const wrap=document.createElement('div');wrap.style.cssText='display:flex;align-items:center;gap:8px;margin-top:4px';
+    input.replaceWith(wrap);wrap.append(input);input.style.cssText+=';flex:1;min-width:0;margin:0';
+    const toggle=document.createElement('button');toggle.type='button';toggle.innerHTML=eye;toggle.className='btn btn-soft';toggle.style.cssText='display:flex;align-items:center;justify-content:center;width:48px;min-width:48px;height:48px;padding:10px';
+    toggle.setAttribute('aria-label','Mostrar contraseña');toggle.setAttribute('aria-pressed','false');
+    toggle.onclick=()=>{const visible=input.type==='password';input.type=visible?'text':'password';toggle.setAttribute('aria-label',visible?'Ocultar contraseña':'Mostrar contraseña');toggle.setAttribute('aria-pressed',String(visible));};wrap.append(toggle);
+  };
+  async function jsonRequest(url,options){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);try{const response=await fetch(url,{...options,signal:controller.signal});const data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'No se pudo completar la solicitud');return data;}catch(e){if(e.name==='AbortError')throw Error('El servidor está tardando en responder. Intenta nuevamente.');throw e;}finally{clearTimeout(timer);}}
+  function changeRequiredPassword(token,currentPassword){return new Promise(resolve=>{
+    const overlay=document.createElement('div');overlay.className='modal-backdrop';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Cambia tu contraseña de acceso');
+    overlay.innerHTML='<form class="modal-card" style="max-width:560px"><h3>Cambia tu contraseña de acceso</h3><label>Nueva contraseña<input type="password" name="password" minlength="8" maxlength="128" autocomplete="new-password" required></label><label>Confirma tu nueva contraseña<input type="password" name="confirmation" minlength="8" maxlength="128" autocomplete="new-password" required></label><p role="status"></p><div class="modal-actions"><button type="button" class="btn btn-soft" data-cancel>Cancelar</button><button type="submit" class="btn btn-primary">Guardar contraseña</button></div></form>';
+    document.body.append(overlay);const form=overlay.querySelector('form'),feedback=form.querySelector('[role=status]'),save=form.querySelector('[type=submit]'),cancel=form.querySelector('[data-cancel]');let busy=false;
+    form.querySelectorAll('input').forEach(nexoraAddPasswordEye);
+    const finish=result=>{form.reset();overlay.remove();resolve(result);};cancel.onclick=()=>{if(!busy)finish(false);};
+    form.onsubmit=async e=>{e.preventDefault();if(busy)return;feedback.textContent='';if(form.elements.password.value!==form.elements.confirmation.value){feedback.textContent='Las contraseñas no coinciden.';return;}busy=true;save.disabled=cancel.disabled=true;save.textContent='Guardando…';
+      try{await jsonRequest('/api/admin/change-password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({current_password:currentPassword,password:form.elements.password.value})});finish(true);}catch(error){feedback.textContent=error.message;}finally{busy=false;save.disabled=cancel.disabled=false;save.textContent='Guardar contraseña';}
+    };form.elements.password.focus();
+  });}
+  let loginBusy=false;
+  window.nexoraStartLogin=async function(event){
+    event.preventDefault();if(loginBusy)return;loginBusy=true;
+    const form=document.querySelector('#login'),button=form.querySelector('[type=submit]'),message=document.querySelector('#message'),previous=button.textContent;
+    button.disabled=true;button.textContent='Entrando…';form.setAttribute('aria-busy','true');message.textContent='Verificando tus datos…';
+    try{
+      const password=document.querySelector('#password').value;
+      const data=await jsonRequest('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.querySelector('#username').value.trim(),password})});
+      sessionStorage.setItem(tokenKey,data.token);nexoraSessionExpired=false;
+      if(data.must_change_password&&!await changeRequiredPassword(data.token,password)){sessionStorage.removeItem(tokenKey);message.textContent='Debes cambiar tu contraseña para continuar.';return;}
+      document.querySelector('#password').value='';message.textContent='';loginView.classList.add('hidden');appView.classList.remove('hidden');setStatus('Sesión administrativa activa.');
+      // Mostrar el portal de inmediato; la carga de datos no bloquea el botón de acceso.
+      Promise.resolve().then(()=>refreshAll()).catch(error=>{console.error(error);setStatus('Entraste al portal, pero no se pudieron actualizar todos los datos. Usa Actualizar.','error');});startAutomaticRefresh();
+    }catch(error){message.textContent=error.message||'No fue posible conectar con el servidor.';}finally{loginBusy=false;button.disabled=false;button.textContent=previous;form.removeAttribute('aria-busy');}
+  };
+})();
+
+</script>
+<script>
 
 /* =========================
    VARIABLES
@@ -3964,61 +4106,7 @@ document.querySelector("#toggle-password")
    LOGIN
 ========================= */
 
-form.addEventListener("submit",async event=>{
-
-    event.preventDefault();
-
-    message.textContent="";
-
-    try {
-
-        const response = await fetch(
-            "/api/admin/login",
-            {
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body:JSON.stringify({
-                    username:document.querySelector("#username").value,
-                    password:document.querySelector("#password").value
-                })
-            }
-        );
-
-        const data = await response.json().catch(()=>({}));
-
-        if(!response.ok){
-
-            message.textContent =
-                data.error || "No se pudo iniciar sesión";
-
-            return;
-        }
-
-        sessionStorage.setItem(tokenKey,data.token);
-        nexoraSessionExpired = false;
-
-        loginView.classList.add("hidden");
-        appView.classList.remove("hidden");
-
-        setStatus("Sesión administrativa activa.");
-
-        await refreshAll();
-
-        startAutomaticRefresh();
-
-    } catch(error){
-
-        console.error(error);
-
-        message.textContent =
-            "No fue posible conectar con el servidor.";
-    }
-
-});
+form.addEventListener("submit",event=>nexoraStartLogin(event));
 
 
 /* =========================
@@ -7008,17 +7096,9 @@ function escapeHtml(value){
 ========================= */
 const policiesStorageKey = "coati_policies_v1";
 
-function getPolicies(){
-    try{
-        return JSON.parse(localStorage.getItem(policiesStorageKey) || "[]");
-    }catch{
-        return [];
-    }
-}
-
-function savePolicies(rows){
-    localStorage.setItem(policiesStorageKey, JSON.stringify(rows));
-}
+let legacyPolicyDrafts=[];
+function getPolicies(){return legacyPolicyDrafts;}
+function savePolicies(rows){legacyPolicyDrafts=Array.isArray(rows)?rows:[];}
 
 function renderPolicies(){
     const box = document.querySelector("#policies-list");
@@ -7116,8 +7196,6 @@ const BMC_INCIDENCES=[
   "Ausentismo","Retardo","Permiso médico justificado","Permiso médico no justificado",
   "Salida autorizada","Falta justificada","Tiempo extraordinario"
 ];
-const BMC_V7_POLICY_TITLE="Reglamento de BMC. De asistencia y ausentismo.";
-const BMC_V7_POLICY_TEXT=`1. La jornada será la establecida de forma individual.\n\n2. La tolerancia para la hora de entrada es de 10 minutos.\n\n3. Se considera retardo a partir del minuto 11 de la hora de entrada y el tiempo de retraso se repondrá doble a la hora de salida del mismo día en que ocurrió el retardo y se pierde la tolerancia, es decir se computará el tiempo a reponer a partir de la hora de entrada.\n\n4. Con tres retardos se considera un día de falta sin goce de sueldo por semana.\n\n5. El ausentismo justificado será de dos tipos:\n   1) Por razones médicas y trayendo un justificante médico expedido de IMSS, (cita, incapacidad), no se aceptarán comprobantes de médicos privados sin excepción;\n   2) y el segundo es bajo previa negociación con la C.P. Rosario Moreno Xolalpa con al menos 24 horas de anticipación.\n\n6. Solicitar ante el IMSS el turno vespertino, para que de esta forma las citas solicitadas interfieran en lo mínimo con la jornada laboral, si se cuenta con turno matutino, se deberá solicitar el cambio lo antes posible.\n\n7. Los permisos para citas médicas deberán informarse con una anticipación mínima de 24 horas con la C.P. Rosario Moreno Xolalpa, excepto en casos de urgencia médica.\n\n8. El ausentismo injustificado implicará descuento directo en nómina, y con 3 días de faltas consecutivas en un periodo de 30 días será causa de rescisión de contrato.`;
 
 let bmcCategoriesCache={};
 let bmcActiveCategory="";
@@ -7212,6 +7290,7 @@ function bmcReadFormExtras(){
   const overtimeAllowed=(document.querySelector("#bmc-overtime-enabled")?.value||"si")==="si";
   const incidence_values=BMC_INCIDENCES.filter(x=>x!=="Tiempo extraordinario").map((concept,i)=>({concept,value:Number(document.querySelector(`#bmc-inc-${i}`)?.value||0)}));
   return {
+    shift_type:document.querySelector("#cfg-shift-type")?.value||null,
     start_time:document.querySelector("#cfg-entry")?.value||null,
     end_time:document.querySelector("#cfg-exit")?.value||null,
     meal_start_time:document.querySelector("#cfg-meal")?.value||null,
@@ -7228,6 +7307,7 @@ function bmcReadFormExtras(){
   };
 }
 function bmcFillFormExtras(cfg={}){
+  const shift=document.querySelector("#cfg-shift-type");if(shift)shift.value=cfg.shift_type||"";
   renderWeekdayPickers();
   const entry=document.querySelector("#cfg-entry"); if(entry)entry.value=cfg.start_time||"09:00";
   const exit=document.querySelector("#cfg-exit"); if(exit)exit.value=cfg.end_time||"17:00";
@@ -7626,6 +7706,8 @@ openWorkerEdit=async function(worker){
   const setValue=(selector,value)=>{const el=document.querySelector(selector);if(el)el.value=value??"";};
   setValue("#worker-edit-hire-date",cfg.hire_date?String(cfg.hire_date).slice(0,10):"");
   setValue("#worker-edit-daily-salary",cfg.daily_salary ?? "");
+  window.nexoraEnsureWorkerShift?.();
+  setValue("#worker-edit-shift-type",cfg.shift_type||"");
   document.querySelector("#worker-edit-daily-salary")?.dispatchEvent(new Event("input"));
   setValue("#worker-edit-category",(Number.isInteger(Number(cfg.category_number))&&Number(cfg.category_number)>0)?String(cfg.category_number):"");
   setValue("#worker-edit-phone",cfg.phone||"");
@@ -7690,7 +7772,7 @@ async function bmcPersistWorkerConfig(){
   // el campo heredado category_number; no es una categoría principal del formulario.
   const legacyCategory=categories_by_day.find(x=>Number.isInteger(x.category_number)&&x.category_number>0)?.category_number||0;
   if(!legacyCategory){setStatus("Asigna al menos una categoría a los días activos.");return;}
-  const body={categories_by_day,daily_salary:salaryValue,category_number:legacyCategory,hire_date:document.querySelector("#worker-edit-hire-date")?.value||null,phone:document.querySelector("#worker-edit-phone")?.value.trim()||null,first_name:firstName,last_name_paternal:paternal,last_name_maternal:maternal,full_name:computedFullName,department:document.querySelector("#worker-edit-role")?.value.trim()||null,rfc:document.querySelector("#worker-edit-rfc")?.value.trim().toUpperCase()||null,curp:document.querySelector("#worker-edit-curp")?.value.trim().toUpperCase()||null,nss:document.querySelector("#worker-edit-nss")?.value.trim()||null,work_sites_by_day};
+  const body={categories_by_day,shift_type:document.querySelector("#worker-edit-shift-type")?.value||null,daily_salary:salaryValue,category_number:legacyCategory,hire_date:document.querySelector("#worker-edit-hire-date")?.value||null,phone:document.querySelector("#worker-edit-phone")?.value.trim()||null,first_name:firstName,last_name_paternal:paternal,last_name_maternal:maternal,full_name:computedFullName,department:document.querySelector("#worker-edit-role")?.value.trim()||null,rfc:document.querySelector("#worker-edit-rfc")?.value.trim().toUpperCase()||null,curp:document.querySelector("#worker-edit-curp")?.value.trim().toUpperCase()||null,nss:document.querySelector("#worker-edit-nss")?.value.trim()||null,work_sites_by_day};
   try{
     const response=await authorizedFetch(`/api/admin/companies/${encodeURIComponent(companyId)}/employees/${encodeURIComponent(code)}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await response.json().catch(()=>({}));
@@ -7819,11 +7901,7 @@ document.addEventListener("click",async event=>{
 
 async function bmcRenderVacationSummary(){ return nexoraVacationSummary(); }
 function bmcOpenVacationModal(code,name,available){ return nexoraVacationModal(code,name,available); }
-function bmcSeedPolicies(){
-  let rows=getPolicies(); let p=rows.find(x=>x.title===BMC_V7_POLICY_TITLE);
-  if(!p){p={id:`policy-${Date.now()}`,title:BMC_V7_POLICY_TITLE,text:BMC_V7_POLICY_TEXT,created_at:new Date().toISOString()};rows.unshift(p);savePolicies(rows);}else if(!p.text?.trim()){p.text=BMC_V7_POLICY_TEXT;savePolicies(rows);}
-  renderPolicies(); document.querySelectorAll('.policy-text').forEach(t=>{t.style.minHeight='360px';});
-}
+function bmcSeedPolicies(){ /* Las políticas solo se agregan por decisión del usuario. */ }
 
 function bmcEnhanceIncidenceModal(){
   const sel=document.querySelector("#incidence-modal-type"); if(!sel)return;
@@ -10603,8 +10681,10 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
    const params=new URLSearchParams({from,to,employee:q('coo-report-worker').value.trim(),only_incidents:String(q('coo-report-type').value==='incidents'),role:q('attendance-role').value,worksite:q('attendance-worksite').value,concept:q('attendance-incidence-type').value});
    const data=await getJson('/api/admin/companies/'+encodeURIComponent(id)+'/history-export?'+params);
    if(!window.XLSX)throw Error('No se cargó la librería Excel. Comprueba tu conexión y recarga la página.');
+   data.report_id='RJ-'+(window.crypto?.randomUUID?.()||Date.now().toString(36));
+   if(window.crypto?.subtle){const bytes=new TextEncoder().encode(JSON.stringify({company:data.company,employees:data.employees,events:data.events,records:data.records,from,to}));const hash=await crypto.subtle.digest('SHA-256',bytes);data.source_hash=Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');}
    const workbook=nexoraBuildWorkbook(data,{from,to},XLSX);
-   XLSX.writeFile(workbook,'NEXORA_'+(from||'historial')+'_'+(to||'completo')+'.xlsx');
+   nexoraPreviewWorkbook(workbook,XLSX,'NEXORA_'+(from||'historial')+'_'+(to||'completo')+'.xlsx');
   }catch(e){setStatus(e.message);}finally{btn.disabled=false;}
  });
  async function loadReportWorkers(){
@@ -10642,7 +10722,7 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
     // Historial mantiene el mismo estilo para todas las acciones.
     const date=new Date(Number(r.occurred_at));
     const dateLabel=r.event_type==='INCIDENT'?date.toLocaleDateString('es-MX',{timeZone:'America/Mexico_City'}):date.toLocaleString('es-MX',{timeZone:'America/Mexico_City'});
-    detail.textContent=r.full_name+' · '+dateLabel+' · '+(r.event_type==='INCIDENT'?(r.has_clock_in===false?'SIN REGISTRO DE ENTRADA (probable ausentismo)':'Incidencia del día'):movementLabel(r))+(r.concept?' · '+r.concept:'')+(r.notes?' · '+r.notes:'');
+    detail.textContent=r.full_name+' · '+dateLabel+' · '+(r.event_type==='INCIDENT'?(r.has_clock_in===false?'SIN REGISTRO DE ENTRADA (probable ausentismo)':'Incidencia del día'):movementLabel(r))+(r.concept?' · '+r.concept:'')+(r.notes?' · '+r.notes:'')+(r.record_origin?' · '+({ADMINISTRATIVE:'Registro administrativo',MOBILE:'Registro móvil',SHARED:'Registro compartido'}[r.record_origin]||'Origen no registrado'):'');
     li.append(detail);
     list.appendChild(li);
    }
@@ -10656,13 +10736,16 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
 <script id="nexora-configuration-security">
 (function(){
   const baseFetch=authorizedFetch;
-  const grants=new Map();let dialogPromise=null,setupBusy=false;
+  async function securityFetch(url,options={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);try{return await baseFetch(url,{...options,signal:controller.signal});}catch(e){if(e.name==='AbortError')throw Error('El servidor está tardando. Intenta nuevamente.');throw e;}finally{clearTimeout(timer);}}
+  const grants=new Map(),authorizations=new Map(),infoRequests=new Map();let dialogPromise=null,setupBusy=false;
   const cid=()=>document.querySelector('#settings-company')?.value||document.querySelector('#devices-company')?.value||'';
   const notice='Guarda tus contraseñas en un lugar seguro. Cualquier renovación de credenciales tendrá un costo extra.';
   let gate,protectedNodes=[];
   function lock(){grants.clear();for(const n of protectedNodes)n.inert=true;if(gate)gate.querySelector('[role=status]').textContent='Configuración bloqueada. Introduce tu contraseña para habilitarla.';}
   function unlocked(id){const grant=grants.get(id);return grant&&grant.until>Date.now()&&grant.session===sessionStorage.getItem(tokenKey)?grant.token:null;}
-  async function securityInfo(id){const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security');const data=await r.json();if(!r.ok)throw Error(data.error||'No se pudo consultar la protección');return data;}
+  function securityInfo(id){const session=sessionStorage.getItem(tokenKey),previous=infoRequests.get(id);if(previous&&previous.session===session&&previous.until>Date.now())return previous.promise;
+    const promise=(async()=>{const r=await securityFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security');const data=await r.json();if(!r.ok)throw Error(data.error||'No se pudo consultar la protección');return data;})();const entry={promise,session,until:Date.now()+15000};infoRequests.set(id,entry);promise.catch(()=>{if(infoRequests.get(id)===entry)infoRequests.delete(id);});return promise;
+  }
   function passwordDialog(id,setup){
     if(dialogPromise)return dialogPromise;
     dialogPromise=new Promise(resolve=>{
@@ -10670,28 +10753,26 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
       overlay.innerHTML='<form class="modal-card" style="max-width:420px"><h3></h3><p></p><label>Contraseña de configuración<input type="password" name="password" minlength="8" maxlength="128" autocomplete="'+(setup?'new-password':'current-password')+'" required></label>'+(setup?'<label>Confirma tu contraseña<input type="password" name="confirmation" minlength="8" maxlength="128" autocomplete="new-password" required></label>':'')+'<p role="status"></p><div class="modal-actions"><button type="button" class="btn btn-soft">Cancelar</button><button type="submit" class="btn btn-primary">'+(setup?'Crear contraseña':'Autorizar')+'</button></div></form>';
       overlay.querySelector('h3').textContent=setup?'Crea tu contraseña de configuración':'Autorizar con contraseña';overlay.querySelector('p').textContent=notice;
       document.body.append(overlay);const form=overlay.querySelector('form'),feedback=form.querySelector('[role=status]');
-      const finish=result=>{form.reset();overlay.remove();dialogPromise=null;resolve(result);};
-      form.querySelector('.modal-actions [type=button]').onclick=()=>finish(null);
-      form.querySelectorAll('input[type="password"]').forEach(input=>{
-        const wrapper=document.createElement('div');wrapper.style.cssText='display:flex;align-items:center;gap:6px';
-        input.replaceWith(wrapper);wrapper.append(input);input.style.cssText='flex:1;min-width:0;margin:0';
-        const toggle=document.createElement('button');toggle.type='button';toggle.className='btn btn-soft';
-        toggle.textContent='Mostrar';toggle.setAttribute('aria-label',input.name==='confirmation'?'Mostrar confirmación de contraseña':'Mostrar contraseña de configuración');toggle.setAttribute('aria-pressed','false');
-        toggle.style.cssText='width:auto;padding:7px 10px;font-size:12px;white-space:nowrap';
-        toggle.onclick=()=>{const visible=input.type==='password';input.type=visible?'text':'password';toggle.textContent=visible?'Ocultar':'Mostrar';toggle.setAttribute('aria-pressed',String(visible));toggle.setAttribute('aria-label',(visible?'Ocultar':'Mostrar')+(input.name==='confirmation'?' confirmación de contraseña':' contraseña de configuración'));};
-        wrapper.append(toggle);
-      });
-      form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('[type=submit]');button.disabled=true;
-        try{const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:form.elements.password.value,confirm_password:setup?form.elements.confirmation.value:undefined})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo autorizar');finish(d.token);}
-        catch(error){feedback.textContent=error.message;}finally{button.disabled=false;}
+      let submitting=false;const finish=result=>{form.reset();overlay.remove();dialogPromise=null;resolve(result);};
+      form.querySelector('.modal-actions [type=button]').onclick=()=>{if(!submitting)finish(null);};
+      form.querySelectorAll('input[type="password"]').forEach(nexoraAddPasswordEye);
+      form.onsubmit=async e=>{e.preventDefault();if(submitting)return;const button=form.querySelector('[type=submit]'),cancel=form.querySelector('.modal-actions [type=button]'),previous=button.textContent;submitting=true;button.disabled=cancel.disabled=true;button.textContent=setup?'Guardando…':'Verificando…';feedback.textContent='';
+        try{const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/configuration-security',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:form.elements.password.value,confirm_password:setup?form.elements.confirmation.value:undefined})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo autorizar');infoRequests.delete(id);finish(d.token);}
+        catch(error){feedback.textContent=error.message;}finally{submitting=false;button.disabled=cancel.disabled=false;button.textContent=previous;}
       };form.elements.password.focus();
     });return dialogPromise;
   }
-  async function authorize(id,always=false){
-    if(!always&&unlocked(id))return unlocked(id);
-    const info=await securityInfo(id);
-    if(!info.configured){const created=await passwordDialog(id,true);lock();if(!created)return null;setStatus('Contraseña creada. La configuración quedó bloqueada.');}
-    const token=await passwordDialog(id,false);if(token){grants.set(id,{token,until:Date.now()+900000,session:sessionStorage.getItem(tokenKey)});if(id===cid()){for(const n of protectedNodes)n.inert=false;if(gate)gate.querySelector('[role=status]').textContent='Configuración habilitada durante 15 minutos.';}}return token;
+  function authorize(id,always=false){
+    if(!always&&unlocked(id))return Promise.resolve(unlocked(id));
+    if(authorizations.has(id))return authorizations.get(id);
+    const task=(async()=>{
+      const info=await securityInfo(id);const session=sessionStorage.getItem(tokenKey);
+      const token=await passwordDialog(id,!info.configured);
+      if(!token||sessionStorage.getItem(tokenKey)!==session)return null;
+      grants.set(id,{token,until:Date.now()+900000,session});
+      if(id===cid()){for(const n of protectedNodes)n.inert=false;if(gate)gate.querySelector('[role=status]').textContent='Configuración habilitada durante 15 minutos.';}
+      return token;
+    })();authorizations.set(id,task);task.finally(()=>{if(authorizations.get(id)===task)authorizations.delete(id);}).catch(()=>{});return task;
   }
   window.authorizedFetch=async function(url,options={}){
     const match=String(url).match(/\/api\/admin\/companies\/([^/]+)\/(.+)/);const method=(options.method||'GET').toUpperCase();
@@ -10707,14 +10788,14 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
     const headers=new Headers(options.headers||{});if(token)headers.set('X-Configuration-Token',token);
     // El fetch original usa un objeto de cabeceras; convertir Headers antes de enviarlo.
     const response=await baseFetch(url,{...options,headers:Object.fromEntries(headers.entries())});
-    if(response.status===403&&token){const d=await response.clone().json().catch(()=>({}));if(d.code==='CONFIGURATION_LOCKED'||d.code==='CONFIGURATION_SETUP_REQUIRED')lock();}
+    if(response.status===403&&token){const d=await response.clone().json().catch(()=>({}));if(d.code==='CONFIGURATION_LOCKED'||d.code==='CONFIGURATION_SETUP_REQUIRED'){infoRequests.delete(id);lock();}}
     if(response.ok&&/\/qualify$|\/review$/.test(path))queueMicrotask(()=>loadAlerts().catch(console.error));
     return response;
   };
   async function loadAlerts(){const id=document.querySelector('#report-company')?.value||cid();const box=document.querySelector('#nx-weekly-alerts');if(!id||!box||!sessionStorage.getItem(tokenKey))return;
     const r=await baseFetch('/api/admin/companies/'+encodeURIComponent(id)+'/weekly-late-alerts');if(!r.ok)return;const rows=await r.json();box.replaceChildren();for(const row of rows){const p=document.createElement('p');p.textContent=row.full_name+' llegó tarde '+row.late_days+' veces esta semana y acumula '+row.absences+' ausentismo(s) por retardos.';box.append(p);}box.hidden=!rows.length;
   }
-  async function firstSetup(){if(setupBusy||!sessionStorage.getItem(tokenKey))return;const id=cid();if(!id)return;setupBusy=true;try{if(!(await securityInfo(id)).configured){await passwordDialog(id,true);lock();}}catch(e){if(!nexoraSessionExpired)setStatus(e.message,'error');}finally{setupBusy=false;}}
+  async function firstSetup(){if(setupBusy||dialogPromise||authorizations.size||!sessionStorage.getItem(tokenKey))return;const id=cid();if(!id)return;setupBusy=true;try{if(!(await securityInfo(id)).configured){await passwordDialog(id,true);if(!authorizations.has(id)&&!unlocked(id))lock();}}catch(e){if(!nexoraSessionExpired)setStatus(e.message,'error');}finally{setupBusy=false;}}
   function initialize(){
     const page=document.querySelector('#settings-page');if(!page)return;
     const companyCard=page.querySelector('#settings-company')?.closest('.card');
@@ -10722,7 +10803,7 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
     gate=document.createElement('div');gate.id='nx-config-security';gate.className='card';
     gate.innerHTML='<h3>Contraseña de configuración</h3><p></p><p role="status"></p><div style="display:flex;gap:8px"><button type="button" class="btn btn-primary">Desbloquear configuración</button><button type="button" class="btn btn-soft">Bloquear</button></div>';
     gate.querySelector('p').textContent=notice;page.append(gate);lock();
-    gate.querySelectorAll('button')[0].onclick=async()=>{try{if(!cid()){setStatus('Selecciona una empresa');return;}await authorize(cid());}catch(e){setStatus(e.message,'error');}};gate.querySelectorAll('button')[1].onclick=lock;
+    gate.querySelectorAll('button')[0].onclick=async event=>{const button=event.currentTarget;if(button.disabled)return;if(!cid()){setStatus('Selecciona una empresa');return;}button.disabled=true;button.textContent='Verificando…';try{await authorize(cid());}catch(e){setStatus(e.message,'error');}finally{button.disabled=false;button.textContent='Desbloquear configuración';}};gate.querySelectorAll('button')[1].onclick=lock;
     new MutationObserver(()=>{protectedNodes=[...page.children].filter(n=>n!==companyCard&&n!==gate);for(const n of protectedNodes)n.inert=!unlocked(cid());}).observe(page,{childList:true});
     document.querySelector('#settings-company')?.addEventListener('change',()=>{lock();firstSetup();});
     document.querySelector('#devices-company')?.addEventListener('change',lock);
@@ -10738,7 +10819,7 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
     const attendanceList=document.querySelector('#attendance');
     const describe=()=>{for(const card of attendanceList?.children||[]){const parts=[...card.querySelectorAll('.data-item-title,.data-item-subtitle,.incidence-info-line')].map(n=>n.textContent.trim());card.title=parts.join(' · ');}};
     if(attendanceList)new MutationObserver(describe).observe(attendanceList,{childList:true});
-    const old=refreshAll;window.refreshAll=async function(...args){await old.apply(this,args);await firstSetup();await loadAlerts();};
+    const old=refreshAll;let refreshing=null;window.refreshAll=function(...args){if(refreshing)return refreshing;const task=(async()=>{await old.apply(this,args);if(sessionStorage.getItem(tokenKey)){void firstSetup();void loadAlerts().catch(console.error);}})();refreshing=task;task.finally(()=>{if(refreshing===task)refreshing=null;}).catch(()=>{});return task;};
     setInterval(()=>{if(!unlocked(cid()))lock();},15000);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize);else initialize();
@@ -10754,5 +10835,11 @@ document.getElementById('shared-kiosk-copy-url-btn')?.addEventListener('click', 
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
 </script>
-</body>
+<script>
+(function(){function add(){const entry=document.getElementById('cfg-entry');if(!entry||document.getElementById('cfg-shift-type'))return;const row=entry.closest('tr');if(!row)return;const item=document.createElement('tr');item.innerHTML='<td><strong>Tipo de jornada</strong></td><td colspan="2"><select id="cfg-shift-type"><option value="">Selecciona jornada</option><option>Matutina</option><option>Diurna</option><option>Nocturna</option><option>Mixta</option></select></td>';row.before(item);}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add);else add();})();
+</script><script>
+(function(){function add(){const salary=document.getElementById('worker-edit-daily-salary');if(!salary||document.getElementById('worker-edit-shift-type'))return;const field=document.createElement('div');field.className='modal-field';field.innerHTML='<label>Tipo de jornada</label><select id="worker-edit-shift-type"><option value="">Usar jornada de categoría</option><option>Matutina</option><option>Diurna</option><option>Nocturna</option><option>Mixta</option></select>';salary.closest('.salary-grid').before(field);}window.nexoraEnsureWorkerShift=add;document.addEventListener('click',()=>setTimeout(add,0));if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add);else add();})();
+</script><script id="nexora-administrative-stars">(function(){let codes=new Set(),company='',version=0;function apply(){for(const row of document.querySelectorAll('#devices tr')){row.querySelector('.nexora-admin-star')?.remove();const cells=row.querySelectorAll('td');if(cells.length<2||!codes.has(cells[0].textContent.trim()))continue;const star=document.createElement('span');star.className='nexora-admin-star';star.textContent=' ★';star.title='Registro administrativo activado';star.setAttribute('aria-label','Registro administrativo activado');star.style.cssText='color:#b7791f;font-weight:800;margin-left:5px';cells[1].append(star);}}
+async function load(){const id=document.querySelector('#devices-company')?.value||'';const current=++version;company=id;codes.clear();apply();if(!id||!sessionStorage.getItem(tokenKey))return;try{const response=await authorizedFetch('/api/admin/companies/'+encodeURIComponent(id)+'/administrative-workers');if(!response.ok)return;const rows=await response.json();if(current!==version)return;codes=new Set(rows.map(r=>String(r.employee_code)));apply();}catch(e){console.error(e);}}
+function init(){const body=document.getElementById('devices');if(body)new MutationObserver(apply).observe(body,{childList:true});document.querySelector('#devices-company')?.addEventListener('change',load);document.querySelector('[data-page="devices-page"]')?.addEventListener('click',load);const old=loadDevices;window.loadDevices=async function(...args){await old.apply(this,args);await load();};}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();</script></body>
 </html>

@@ -79,8 +79,8 @@ router.post('/attendance', async (req: Request, res: Response): Promise<void> =>
     if (recent.rowCount) { await client.query('ROLLBACK'); res.status(409).json({error:'Este marcaje ya se registró hace menos de un minuto'}); return; }
     const idLocal = crypto.randomUUID();
     await client.query(`INSERT INTO attendance_records
-      (id_local, employee_id, event_type, occurred_at, face_confidence, device_id, company_id, site_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      (id_local, employee_id, event_type, occurred_at, face_confidence, device_id, company_id, site_id,record_origin)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'SHARED')`,
       [idLocal, employee.id_local, event_type, now, null, String(checker.id), checker.company_id, checker.site_id]);
     await client.query('COMMIT');
     res.status(201).json({saved:true, employee_name:employee.full_name, event_type, occurred_at:now});

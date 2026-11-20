@@ -1,3 +1,5 @@
+import administrativeAttendanceRouter from './routes/administrative-attendance';
+import { startMissingExitJob } from './services/missing-exits';
 import configurationSecurityRouter from './routes/configuration-security';
 import nexoraRouter, { devicePositionsRouter } from './routes/nexora';
 import 'dotenv/config';
@@ -74,7 +76,8 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/positions', devicePositionsRouter);
-app.use('/api/admin', configurationSecurityRouter);
+app.use('/api/admin/superadmin/administrative',administrativeAttendanceRouter);
+  app.use('/api/admin', configurationSecurityRouter);
   app.use('/api/admin', nexoraRouter);
 app.use('/api/admin', adminRouter);
 
@@ -101,6 +104,7 @@ async function start(): Promise<void> {
   try {
     await initDb();
     startAutomaticAbsenceJob();
+    startMissingExitJob();
 
     /*
      * No se especifica host de forma manual.

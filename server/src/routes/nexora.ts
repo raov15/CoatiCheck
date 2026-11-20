@@ -11,6 +11,7 @@ const access = (req: UserAuthRequest, res: Response) => {
   return allowed;
 };
 router.use('/companies/:companyId',userAuthMiddleware, requirePasswordChangeComplete);
+router.get('/companies/:companyId/administrative-workers',async(req:UserAuthRequest,res:Response):Promise<void>=>{if(!access(req,res))return;try{res.json((await pool.query('SELECT e.employee_code FROM administrative_attendance_policies p JOIN employees e ON e.id_remote=p.employee_id WHERE p.company_id=$1 AND p.active AND e.is_active',[req.params.companyId])).rows);}catch(e){res.status(500).json({error:'No se pudo consultar el registro administrativo'});}});
 router.get('/companies/:companyId/positions', async (req: UserAuthRequest,res:Response):Promise<void>=>{
   if(!access(req,res)) return;
   try {

@@ -17,5 +17,8 @@ data class EmployeeWorkAssignmentDto(
 @Serializable
 data class EmployeeWorkAssignmentsResponse(
     val departments: Map<String, String> = emptyMap(),
+    val exit_policies: List<ExitPolicyDto> = emptyList(),
     val assignments: List<EmployeeWorkAssignmentDto>
 )
+@Serializable
+data class ExitPolicyDto(val employee_id_local:String,val weekday:Int,val start_time:String?=null,val end_time:String?=null,val overtime_allowed:Boolean=true)

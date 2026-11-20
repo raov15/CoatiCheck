@@ -21,6 +21,36 @@ router.post('/companies/:companyId/configuration-security/reset',requireRole('su
  res.json({reset:true,company:result.rows[0],message:'Contraseña de configuración restablecida. En el próximo acceso se solicitará crear una nueva.'});
  }catch(e){next(e);}
 });
+export function issueConfigurationGrant(company: string, user: string, hash: string) {
+  return jwt.sign({purpose:'configuration',company,user,fingerprint:hash.slice(-16)},process.env.JWT_SECRET!,{expiresIn:'15m'});
+}
+
+router.get('/initial-configuration-security', userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin'), async (req: UserAuthRequest, res, next) => {
+  try {
+    const result = await pool.query('SELECT initial_configuration_password_hash IS NOT NULL AS configured FROM users WHERE id=$1', [req.user!.id]);
+    res.json({ configured: result.rows[0]?.configured === true, required: req.user!.companyIds.length === 0 });
+  } catch (error) { next(error); }
+});
+
+router.post('/initial-configuration-security', userAuthMiddleware, requirePasswordChangeComplete, requireRole('admin'), async (req: UserAuthRequest, res, next) => {
+  const { password, confirm_password } = req.body ?? {};
+  if (typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password) > 72 || password !== confirm_password) {
+    res.status(400).json({error:'Usa al menos 8 caracteres, hasta 72 bytes, y confirma la contraseña.'});
+    return;
+  }
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const result = await pool.query(`UPDATE users SET initial_configuration_password_hash=$2
+      WHERE id=$1 AND initial_configuration_password_hash IS NULL
+      AND NOT EXISTS (SELECT 1 FROM user_companies WHERE user_id=$1)`, [req.user!.id, hash]);
+    if (!result.rowCount) {
+      res.status(409).json({error:'La contraseña inicial ya se configuró o la cuenta ya tiene una empresa.'});
+      return;
+    }
+    res.json({configured:true});
+  } catch (error) { next(error); }
+});
+
 const failures=new Map<string,{count:number;until:number}>();
 router.post('/companies/:companyId/configuration-security',async(req:UserAuthRequest,res,next)=>{
  const key=req.params.companyId+':'+req.user!.id;const attempt=failures.get(key);
@@ -39,7 +69,7 @@ router.post('/companies/:companyId/configuration-security',async(req:UserAuthReq
    failures.set(key,{count:(attempt&&attempt.until>Date.now()?attempt.count:0)+1,until:Date.now()+900000});res.status(403).json({error:'Contraseña de configuración incorrecta'});return;
   }
   failures.delete(key);
-  res.json({token:jwt.sign({purpose:'configuration',company:req.params.companyId,user:req.user!.id,fingerprint:hash.slice(-16)},process.env.JWT_SECRET!,{expiresIn:'15m'}),expires_in:900});
+  res.json({token:issueConfigurationGrant(req.params.companyId,req.user!.id,hash),expires_in:900});
  }catch(e){next(e);}
 });
 router.get('/companies/:companyId/weekly-late-alerts',async(req:UserAuthRequest,res,next)=>{

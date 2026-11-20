@@ -347,6 +347,7 @@ router.post(
           const result = await pool.query(
             `
             INSERT INTO attendance_records (
+              record_origin,
               id_local,
               employee_id,
               event_type,
@@ -362,7 +363,7 @@ router.post(
               break_kind,
               late_return_minutes
             )
-            VALUES (
+            VALUES ('MOBILE',
               $1, $2, $3, $4, $5, $6,
               $7, $8, $9, $10, $11, $12, $13, $14
             )

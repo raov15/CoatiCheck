@@ -1892,6 +1892,7 @@ router.get(
          tolerance_minutes,
          overtime_allowed,
          overtime_value,
+         shift_type,
          configured_at,
          created_at,
          updated_at
@@ -2244,6 +2245,7 @@ router.put(
 
     const {
       name,
+      shift_type = null,
       start_time = null,
       end_time = null,
       meal_start_time = null,
@@ -2316,6 +2318,7 @@ router.put(
                    NULLIF(TRIM($1), ''),
                    name
                  ),
+               shift_type = COALESCE($14,shift_type),
                start_time = $2,
                end_time = $3,
                meal_start_time = $4,
@@ -2347,6 +2350,7 @@ router.put(
             rest_start_time || null,
             Math.max(0, Number(rest_duration_minutes) || 0),
             Math.max(0, Number(meal_duration_minutes) || 0),
+            shift_type && ['Matutina','Diurna','Nocturna','Mixta'].includes(shift_type) ? shift_type : null,
           ],
         );
 
@@ -2573,6 +2577,7 @@ router.get(
            e.department,
            e.hire_date,
            e.daily_salary,
+           e.shift_type,
            e.category_id,
            e.site_id,
            e.is_active,
@@ -2781,6 +2786,7 @@ router.put(
       curp,
       nss,
       daily_salary,
+      shift_type,
       categories_by_day,
       work_sites_by_day = [],
     } = req.body ?? {};
@@ -2897,6 +2903,7 @@ router.put(
                  COALESCE($10, curp),
                nss =
                  COALESCE($11, nss),
+               shift_type = CASE WHEN $17::boolean THEN $16 ELSE shift_type END,
                daily_salary = CASE WHEN $14::boolean THEN $15::numeric ELSE daily_salary END,
                workdays_customized = TRUE,
                workdays_customized_at = NOW(),
@@ -2929,6 +2936,8 @@ router.put(
             employeeCode,
             salaryProvided,
             salary,
+            ['Matutina','Diurna','Nocturna','Mixta'].includes(shift_type) ? shift_type : null,
+            Object.prototype.hasOwnProperty.call(req.body ?? {}, 'shift_type'),
           ],
         );
 
@@ -3140,6 +3149,7 @@ router.put(
              e.department,
              e.hire_date,
              e.daily_salary,
+           e.shift_type,
              e.category_id,
              e.site_id,
              e.is_active,
@@ -4133,7 +4143,7 @@ router.get(
        ) timing ON TRUE
           WHERE a.company_id = $1
         ), history AS (
-          SELECT a.employee_code, a.full_name, a.worker_id, qi.id AS qualification_id, a.event_type, a.occurred_at,
+          SELECT a.employee_code, a.full_name, a.worker_id, qi.id AS qualification_id,a.record_origin, a.event_type, a.occurred_at,
                  COALESCE(qi.concept, ai.concept, CASE WHEN a.is_late THEN
                    'Incidencia'
                    WHEN a.late_return_minutes > 0 THEN 'Retardo' END) AS concept,
@@ -4153,7 +4163,7 @@ router.get(
             ORDER BY i.reviewed_at DESC LIMIT 1
           ) ai ON TRUE
           UNION ALL
-          SELECT e.employee_code, e.full_name, e.id_remote, qi.id, 'INCIDENT',
+          SELECT e.employee_code, e.full_name, e.id_remote, qi.id,NULL::text, 'INCIDENT',
                  EXTRACT(EPOCH FROM (qi.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
                  qi.concept, qi.applied_value, qi.notes, qi.qualified_at,
                  cat.name, e.category_id, e.site_id, FALSE, TRUE, 'qualified', NULL::text, NULL::int
@@ -4162,7 +4172,7 @@ router.get(
           LEFT JOIN categories cat ON cat.id = qi.category_id
           WHERE qi.company_id = $1 AND qi.attendance_record_id IS NULL
           UNION ALL
-          SELECT e.employee_code, e.full_name, e.id_remote, NULL::uuid, 'INCIDENT',
+          SELECT e.employee_code, e.full_name, e.id_remote, NULL::uuid,NULL::text, 'INCIDENT',
                  EXTRACT(EPOCH FROM (ai.incident_date::timestamp AT TIME ZONE 'America/Mexico_City')) * 1000,
                  ai.concept, NULL, ai.notes, ai.reviewed_at,
                  cat.name, e.category_id, e.site_id, FALSE, TRUE,
@@ -4193,7 +4203,12 @@ router.get(
         ORDER BY h.occurred_at DESC`,
         [companyId, from, to, employee, role, worksite, concept, onlyIncidents],
       );
-      const employees=await pool.query(`SELECT e.id_remote,e.employee_code,e.full_name,e.rfc,e.curp,e.nss,e.daily_salary,e.category_id,
+      const employees=await pool.query(`SELECT e.id_remote,e.employee_code,e.full_name,e.rfc,e.curp,e.nss,e.daily_salary,e.category_id,e.department,COALESCE(e.shift_type,c.shift_type,(SELECT string_agg(DISTINCT sc.shift_type,', ') FROM employee_day_categories dc JOIN categories sc ON sc.id=dc.category_id WHERE dc.employee_id=e.id_remote)) AS shift_type,
+        COALESCE((SELECT string_agg(DISTINCT CASE WHEN ew.work_mode='FOREIGN' THEN 'Foráneo' ELSE st.name END,', ') FROM employee_work_sites ew LEFT JOIN sites st ON st.id=ew.site_id WHERE ew.employee_id=e.id_remote),(SELECT name FROM sites WHERE id=e.site_id)) AS worksite_name,
+        (SELECT json_agg(json_build_object('weekday',d.n,'category',row_to_json(sc),'workday',row_to_json(cw))) FROM generate_series(1,7) d(n)
+         LEFT JOIN LATERAL (SELECT category_id FROM employee_day_categories WHERE employee_id=e.id_remote AND weekday=d.n LIMIT 1) dc ON TRUE
+         LEFT JOIN categories sc ON sc.id=COALESCE(dc.category_id,e.category_id)
+         LEFT JOIN category_workdays cw ON cw.category_id=sc.id AND cw.weekday=d.n) AS schedules,
         COALESCE((SELECT json_agg(json_build_object('concept',v.concept,'value',v.value)) FROM category_incidence_values v WHERE v.category_id=e.category_id),'[]'::json) AS valuations
         FROM employees e LEFT JOIN categories c ON c.id=e.category_id
         WHERE e.company_id=$1
@@ -4203,7 +4218,14 @@ router.get(
         ORDER BY e.full_name`,[companyId,employee,role,worksite]);
       const valuations=await pool.query(`SELECT v.category_id,v.concept,v.value FROM category_incidence_values v
         JOIN categories c ON c.id=v.category_id WHERE c.company_id=$1`,[companyId]);
-      res.json({records:result.rows,count:result.rows.length,employees:employees.rows,valuations:valuations.rows,from,to});
+      const company=(await pool.query('SELECT id,name,to_jsonb(companies) AS details FROM companies WHERE id=$1',[companyId])).rows[0];
+      const events=await pool.query(`SELECT a.id_remote,a.id_local,a.event_type,a.occurred_at,a.break_kind,a.device_id,a.record_origin,e.employee_code
+        FROM attendance_records a JOIN employees e ON e.company_id=a.company_id AND a.employee_id IN(e.id_local,e.id_remote::text,e.employee_code)
+        WHERE a.company_id=$1 AND e.id_remote=ANY($4::uuid[])
+        AND ($2::text='' OR (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date>=date_trunc('week',NULLIF($2,'')::date)::date)
+        AND ($3::text='' OR (to_timestamp(a.occurred_at/1000.0) AT TIME ZONE 'America/Mexico_City')::date<=date_trunc('week',NULLIF($3,'')::date)::date+7)
+        ORDER BY a.occurred_at,a.id_remote`,[companyId,from,to,employees.rows.map(e=>e.id_remote)]);
+      res.json({records:result.rows,count:result.rows.length,employees:employees.rows,valuations:valuations.rows,events:events.rows,company,from,to,generated_at:new Date().toISOString()});
     } catch (error) {
       console.error('Error exportando historial:', error);
       res.status(500).json({ error: 'No se pudo generar el historial de asistencias' });
@@ -4568,8 +4590,16 @@ router.get('/companies/:companyId/policies', userAuthMiddleware, requirePassword
     const {companyId}=req.params;
     if(!canAccessCompany(req,companyId)){res.status(403).json({error:'Sin acceso a la empresa'});return;}
     try {
-      const result=await pool.query('SELECT id, title, text, created_at, updated_at FROM company_policies WHERE company_id=$1 ORDER BY created_at,id',[companyId]);
-      res.json(result.rows);
+      const result=await pool.query("SELECT to_jsonb(p) AS policy FROM company_policies p WHERE company_id=$1 ORDER BY COALESCE(to_jsonb(p)->>'created_at',to_jsonb(p)->>'updated_at'),to_jsonb(p)->>'id'",[companyId]);
+      const rows:any[]=[];
+      for(const {policy} of result.rows){
+        if(typeof policy.text==='string'){rows.push({id:policy.id,title:policy.title||'',text:policy.text});continue;}
+        if(typeof policy.policy_text!=='string'||!policy.policy_text.trim())continue;
+        let stored:any;try{stored=JSON.parse(policy.policy_text);}catch{}
+        if(Array.isArray(stored))rows.push(...stored.filter((p:any)=>typeof p?.title==='string'&&typeof p?.text==='string').map((p:any)=>({title:p.title,text:p.text})));
+        else rows.push({title:'Política',text:policy.policy_text});
+      }
+      res.json(rows);
     } catch(error){console.error('Consultando políticas:',error);res.status(500).json({error:'No se pudieron consultar las políticas. ¿Ejecutaste la migración SQL?'});}
   });
 router.put('/companies/:companyId/policies', userAuthMiddleware, requirePasswordChangeComplete,
@@ -4585,8 +4615,14 @@ router.put('/companies/:companyId/policies', userAuthMiddleware, requirePassword
       await client.query('BEGIN');
       await client.query('SELECT id FROM companies WHERE id=$1 FOR UPDATE',[companyId]);
       await client.query('DELETE FROM company_policies WHERE company_id=$1',[companyId]);
-      for(const p of rows){
-        await client.query('INSERT INTO company_policies(company_id,title,text) VALUES ($1,$2,$3)',[companyId,p.title,p.text]);
+      const columns=await client.query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='company_policies'");
+      const names=new Set(columns.rows.map((column:any)=>column.column_name));
+      if(names.has('title')&&names.has('text')){
+        for(const p of rows){
+          await client.query("INSERT INTO company_policies(company_id,title,text,created_at) VALUES ($1,$2,$3,clock_timestamp())",[companyId,p.title,p.text]);
+        }
+      }else if(rows.length){
+        await client.query('INSERT INTO company_policies(company_id,policy_text) VALUES ($1,$2)',[companyId,JSON.stringify(rows.map((p:any)=>({title:p.title,text:p.text})))]);
       }
       await client.query('COMMIT');
       res.json({saved:true,count:rows.length});

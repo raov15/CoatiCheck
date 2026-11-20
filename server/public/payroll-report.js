@@ -12,13 +12,13 @@
   for(const record of data.records||[]){const key=String(record.employee_code);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(record);if(!profiles.has(key))profiles.set(key,{employee_code:key,full_name:record.full_name});}
   if(!groups.size)throw Error('No hay trabajadores con esos filtros.');
   const from=filters.from||'',to=filters.to||'';
-  const onePeriod=!!from&&!!to&&from<=to&&from.slice(0,7)===to.slice(0,7)&&(Number(from.slice(8))<=15)===(Number(to.slice(8))<=15);
+  const onePeriod=!!from&&!!to&&from<=to&&(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000+1<=15;
   for(const [code,records] of groups){
    const worker=profiles.get(code);records.sort((a,b)=>(Number.isFinite(Number(a.occurred_at))?Number(a.occurred_at):Date.parse(a.occurred_at))-(Number.isFinite(Number(b.occurred_at))?Number(b.occurred_at):Date.parse(b.occurred_at)));
    const salary=finite(worker.daily_salary)?Number(worker.daily_salary):null;
-   const headers=['Fecha','Hora','Calificación','Detalle del movimiento',...movementColumns,...concepts,'Valuación aplicada (días)','Observaciones'];
+   const headers=['Fecha','Hora','Calificación','Detalle del movimiento',...movementColumns,...concepts,'Valuación aplicada (días)','Método de registro','Observaciones'];
    const valueCol=headers.indexOf('Valuación aplicada (días)'),noteCol=headers.indexOf('Observaciones'),attendanceCol=noteCol+1;
-   const rows=[[worker.full_name||code],['RFC',String(worker.rfc||'Sin RFC'),'CURP',String(worker.curp||''),'NSS',String(worker.nss||'')],['Código',code,'Corte',from||'','Hasta',to||''],['Sueldo diario',salary===null?'Falta sueldo diario':salary],[],[],headers];
+   const rows=[[worker.full_name||code],['RFC',String(worker.rfc||'Sin RFC'),'CURP',String(worker.curp||''),'NSS',String(worker.nss||'')],['Desde',from||'','Hasta',to||''],['Sueldo diario',salary===null?'Falta sueldo diario':salary],[],[],headers];
    const valuations=(category,concept)=>{const exact=(data.valuations||[]).find(v=>String(v.category_id)===String(category)&&v.concept===concept);const fallback=(worker.valuations||[]).find(v=>v.concept===concept);return finite(exact?.value)?Number(exact.value):finite(fallback?.value)?Number(fallback.value):null;};
    const details=[];
    for(const r of records){const parts=localParts(r.occurred_at);if(!parts)continue;if(from&&parts.date<from||to&&parts.date>to)continue;
@@ -29,6 +29,7 @@
     if(r.weekly_absence_generated)row[headers.indexOf('Ausentismo')]=1;
     let value=finite(r.applied_value)?Number(r.applied_value):['Retardo','Historial'].includes(r.concept)?0:valuations(r.category_id,r.concept);
     if(!r.concept)value=0;
+    row[headers.indexOf('Método de registro')]=({ADMINISTRATIVE:'Registro administrativo',MOBILE:'Registro móvil',SHARED:'Registro compartido'}[r.record_origin]||'Origen no registrado');
     row[valueCol]=value;row[noteCol]=(r.weekly_absence_generated?'Ausentismo generado por 3 retardos de la misma semana. ':'')+(r.notes||'');
     details.push({row,value,concept:r.concept,generated:!!r.weekly_absence_generated});rows.push(row);
    }
@@ -41,7 +42,7 @@
    const payLabels=['Asistencia','Ausentismos (días)','Sueldo diario','Pago'];
    for(let i=0;i<payLabels.length;i++){const row=rows[payStart+i-1]||(rows[payStart+i-1]=[]);row[summaryLabelCol]=payLabels[i];}
    rows[0][summaryLabelCol]='RESUMEN';
-   if(from&&to&&!onePeriod){rows[6][summaryLabelCol]='ESTÁ TOMANDO DÍAS DE LA SIGUIENTE QUINCENA';}
+   if(from&&to&&!onePeriod){rows[6][summaryLabelCol]='EL CORTE SUPERA LOS 15 DÍAS';}
 
 
    const ws=X.utils.aoa_to_sheet(rows);
@@ -77,6 +78,25 @@
    ws['!ref']='A1:'+col(summaryValueCol)+Math.max(rows.length,payStart+payLabels.length-1);
    ws['!margins']={left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2};
    if(details.length)ws['!autofilter']={ref:'A7:'+col(noteCol)+last};
+   // Estilos reales de Excel: la biblioteca de exportación admite font/fill/border.
+   const edge=(weight='thin')=>({style:weight,color:{rgb:weight==='medium'?'5B718A':'BCCBDD'}});
+   function paint(c,r,{bold=false,fill='FFFFFF',color='20354D',size=11,box=false,center=false}={}){
+     const key=address(c,r);if(!ws[key])ws[key]={t:'s',v:''};
+     const border={top:edge(),bottom:edge(),left:edge(),right:edge()};
+     if(box)for(const side of Object.keys(border))border[side]=edge('medium');
+     ws[key].s={font:{name:'Calibri',sz:size,bold,color:{rgb:color}},fill:{patternType:'solid',fgColor:{rgb:fill}},border,alignment:{vertical:'center',horizontal:center?'center':'left',wrapText:true},...(ws[key].z?{numFmt:ws[key].z}:{})};
+     if(ws[key].t==='n')ws[key].s.alignment.horizontal='right';
+   }
+   for(let r=1;r<=4;r++)for(let c=0;c<=5;c++)paint(c,r,{bold:r===1||c%2===0,fill:r===1?'EAF0F7':c%2===0?'F1F5F9':'FFFFFF',size:r===1?18:11});
+   for(let c=0;c<=8;c++)paint(c,1,{bold:true,fill:'EAF0F7',size:18});
+   for(let r=7;r<=equivalent;r++)for(let c=0;c<=noteCol;c++){
+     const head=r===7,footer=r>=total;
+     paint(c,r,{bold:head||footer,fill:head?'234A6C':footer?'EAF0F7':r%2===0?'FFFFFF':'F7FAFC',color:head?'FFFFFF':'20354D',center:c>1&&c<valueCol});
+     const border=ws[address(c,r)].s.border;
+     if(r===7)border.top=edge('medium');if(r===equivalent)border.bottom=edge('medium');if(c===0)border.left=edge('medium');if(c===noteCol)border.right=edge('medium');
+   }
+   for(let r=1;r<=payStart+payLabels.length-1;r++)for(let c=summaryLabelCol;c<=summaryValueCol;c++)paint(c,r,{bold:true,fill:r===1?'234A6C':r===payStart+3?'DCFCE7':'F1F5F9',color:r===1?'FFFFFF':r===payStart+3?'166534':'20354D',box:r===payStart+3,size:r===1?13:12});
+   if(from&&to&&!onePeriod)for(let c=summaryLabelCol;c<=summaryValueCol;c++)paint(c,7,{bold:true,fill:'FFF7ED',color:'9A3412'});
    X.utils.book_append_sheet(wb,ws,nameFor(worker,used));
   }
   wb.Workbook={...(wb.Workbook||{}),CalcPr:{calcMode:'auto',fullCalcOnLoad:true}};

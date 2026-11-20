@@ -176,9 +176,10 @@ fun AttendanceScreen(
     val nextEvent = if (recordsReady) nextAttendanceEvent(todayRecords.map { it.eventType }) else null
     val nextLabel = attendanceLabel(nextEvent)
 
-    fun canRegister(label: String): Boolean = recordsReady &&
+    fun canRegister(label: String): Boolean = recordsReady && !state.autoClosed &&
         allowedAttendanceEvents(todayRecords.map { it.eventType }).any { attendanceLabel(it) == label }
 
+    LaunchedEffect(state.selectedEmployeeId) { while(true) { viewModel.refreshExitClosure();delay(30_000) } }
     LaunchedEffect(state.selectedEmployeeId, nextLabel) {
         nextLabel?.let { viewModel.selectEvent(it) }
     }
@@ -779,7 +780,8 @@ fun AttendanceScreen(
                     )
             )
 
-            if (recordsReady && nextEvent == null) {
+            if (state.autoClosed) { Text("Jornada cerrada automáticamente: no marcó salida. Incidencia pendiente de revisión.",modifier=Modifier.padding(vertical=12.dp),fontWeight=FontWeight.Bold) }
+            if (recordsReady && nextEvent == null && !state.autoClosed) {
                 Text("Jornada finalizada. Todos los movimientos están registrados.",
                     modifier = Modifier.padding(vertical = 12.dp),
                     fontWeight = FontWeight.Bold)

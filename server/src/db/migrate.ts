@@ -90,6 +90,8 @@ export async function initDb(): Promise<void> {
        el reglamento de asistencia y ausentismo en un área amplia.
     ========================================================= */
 
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS initial_configuration_password_hash TEXT;
+
     CREATE TABLE IF NOT EXISTS company_policies (
       company_id UUID PRIMARY KEY
         REFERENCES companies(id)
@@ -232,6 +234,8 @@ export async function initDb(): Promise<void> {
     /* =========================================================
        DISPOSITIVOS
     ========================================================= */
+
+    ALTER TABLE categories ADD COLUMN IF NOT EXISTS shift_type TEXT;
 
     CREATE TABLE IF NOT EXISTS devices (
       id_remote UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -739,6 +743,7 @@ export async function initDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_employees_hire_date
       ON employees(hire_date);
 
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift_type TEXT;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS daily_salary NUMERIC(12,2);
 
     CREATE INDEX IF NOT EXISTS idx_employees_rfc
@@ -778,6 +783,23 @@ export async function initDb(): Promise<void> {
     ALTER TABLE qualified_incidents
       ALTER COLUMN incident_date SET NOT NULL;
 
+    ALTER TABLE company_policies ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+    ALTER TABLE company_policies ADD COLUMN IF NOT EXISTS title TEXT;
+    ALTER TABLE company_policies ADD COLUMN IF NOT EXISTS text TEXT;
+    ALTER TABLE company_policies ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'company_policies'::regclass
+          AND contype = 'p' AND pg_get_constraintdef(oid) = 'PRIMARY KEY (company_id)'
+      ) THEN
+        EXECUTE 'UPDATE company_policies SET title = COALESCE(title, ''Reglamento''), text = COALESCE(text, policy_text)';
+        ALTER TABLE company_policies DROP CONSTRAINT company_policies_pkey;
+        ALTER TABLE company_policies ADD PRIMARY KEY (id);
+      END IF;
+    END; $$;
+    CREATE INDEX IF NOT EXISTS idx_company_policies_company_id ON company_policies(company_id);
     CREATE INDEX IF NOT EXISTS idx_company_policies_updated_at
       ON company_policies(updated_at DESC);
 
@@ -939,7 +961,7 @@ $coati_concept$;
 DO $nexora$
 DECLARE t TEXT; rule TEXT; constraint_name TEXT; required TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['qualified_incidents','attendance_auto_incidents'] LOOP
+  FOREACH t IN ARRAY ARRAY['qualified_incidents','attendance_auto_incidents','category_incidence_values'] LOOP
     constraint_name := t || '_concept_check';
     SELECT pg_get_expr(conbin,conrelid) INTO rule FROM pg_constraint
       WHERE conrelid=('public.'||t)::regclass AND conname=constraint_name AND contype='c';
@@ -999,5 +1021,20 @@ $nexora$;`);
     ) UPDATE qualified_incidents AS q SET applied_value=CASE WHEN r.n%3=0 AND r.day_n=1
       THEN COALESCE((SELECT value FROM category_incidence_values WHERE category_id=r.category_id AND concept='Ausentismo' LIMIT 1),0)
       ELSE 0 END FROM ranked r WHERE q.id=r.id`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS automatic_shift_closures(
+ company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,employee_id UUID NOT NULL REFERENCES employees(id_remote) ON DELETE CASCADE,
+ work_date DATE NOT NULL,scheduled_exit_at BIGINT NOT NULL,closed_at BIGINT NOT NULL,reason TEXT NOT NULL DEFAULT 'No marcó salida',
+ PRIMARY KEY(company_id,employee_id,work_date));
+ CREATE TABLE IF NOT EXISTS exit_policy_activation(id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(id),enabled_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+ INSERT INTO exit_policy_activation(id) VALUES(TRUE) ON CONFLICT DO NOTHING;`);
+  await pool.query(`ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS record_origin TEXT;
+ UPDATE attendance_records a SET record_origin=CASE WHEN EXISTS(SELECT 1 FROM devices d WHERE d.id_remote::text=a.device_id OR d.id_local=a.device_id) THEN 'MOBILE' ELSE 'UNKNOWN' END WHERE record_origin IS NULL;
+ DO $origin$ BEGIN IF to_regclass('public.shared_checkers') IS NOT NULL THEN
+ EXECUTE 'UPDATE attendance_records a SET record_origin=''SHARED'' WHERE record_origin=''UNKNOWN'' AND EXISTS(SELECT 1 FROM shared_checkers sc WHERE sc.id::text=a.device_id)'; END IF;END $origin$;
+ CREATE TABLE IF NOT EXISTS administrative_attendance_policies(company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,employee_id UUID PRIMARY KEY REFERENCES employees(id_remote) ON DELETE CASCADE,active BOOLEAN NOT NULL DEFAULT TRUE,start_date DATE NOT NULL,confirmed_through DATE);
+ CREATE TABLE IF NOT EXISTS administrative_attendance_batches(id UUID PRIMARY KEY DEFAULT gen_random_uuid(),company_id UUID NOT NULL REFERENCES companies(id),confirmed_by UUID REFERENCES users(id),browser_id TEXT NOT NULL,confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),from_date DATE NOT NULL,to_date DATE NOT NULL,details JSONB NOT NULL);
+ ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS administrative_batch_id UUID REFERENCES administrative_attendance_batches(id);
+ `);
+  await pool.query('ALTER TABLE administrative_attendance_policies ADD COLUMN IF NOT EXISTS entry_time TEXT; ALTER TABLE administrative_attendance_policies ADD COLUMN IF NOT EXISTS exit_time TEXT;');
 }
 

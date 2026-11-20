@@ -24,6 +24,7 @@ class EmployeeWorkAssignmentSyncWorker @AssistedInject constructor(
     workerParams: WorkerParameters,
 
     private val employeeDao: EmployeeDao,
+    private val exitRecords: com.coati.checador.core.database.dao.AttendanceRecordDao,
 
     private val employeeWorkSiteDao: EmployeeWorkSiteDao,
 
@@ -77,6 +78,9 @@ class EmployeeWorkAssignmentSyncWorker @AssistedInject constructor(
             val now =
                 System.currentTimeMillis()
 
+            appSettingDao.getAll().filter { it.key.startsWith("nexora.exit.policy.") }.forEach { appSettingDao.upsert(it.copy(value=null,updatedAt=now)) }
+            response.exit_policies.forEach { p -> appSettingDao.upsert(AppSettingEntity("nexora.exit.policy.${p.employee_id_local}.${p.weekday}","${p.start_time.orEmpty()}|${p.end_time.orEmpty()}|${p.overtime_allowed}",now)) }
+            employeeDao.getAllActive().forEach { ExitReminderScheduler.refresh(applicationContext, exitRecords, appSettingDao, it.idLocal) }
             response.departments.forEach { (id, department) ->
                 val currentEmployee = employeeDao.findById(id)
                 if (currentEmployee != null && currentEmployee.department != department) {

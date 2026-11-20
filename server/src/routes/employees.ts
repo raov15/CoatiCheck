@@ -810,6 +810,13 @@ router.get(
       const profiles=await pool.query('SELECT id_local,department FROM employees WHERE company_id=$1 AND is_active',[device.company_id]);
       res.status(200).json({
         departments:Object.fromEntries(profiles.rows.filter(r=>r.department).map(r=>[r.id_local,r.department])),
+        exit_policies:(await pool.query(`SELECT e.id_local AS employee_id_local,d.n AS weekday,c.overtime_allowed,
+ COALESCE(NULLIF(cw.start_time,''),c.start_time) AS start_time,COALESCE(NULLIF(cw.end_time,''),c.end_time) AS end_time
+ FROM employees e CROSS JOIN generate_series(1,7) d(n)
+ LEFT JOIN employee_day_categories dc ON dc.employee_id=e.id_remote AND dc.weekday=d.n
+ JOIN categories c ON c.id=COALESCE(dc.category_id,e.category_id)
+ JOIN category_workdays cw ON cw.category_id=c.id AND cw.weekday=d.n AND cw.is_workday
+ WHERE e.company_id=$1 AND e.is_active`,[device.company_id])).rows,
         assignments: result.rows,
       });
 

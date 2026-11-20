@@ -108,7 +108,7 @@ fun RecordItem(
                     fontSize = 16.sp
                 )
                 Text(
-                    text = dateFormatter.format(Date(record.occurredAt)),
+                    text = "Registro móvil · " + dateFormatter.format(Date(record.occurredAt)),
                     fontSize = 12.sp,
                     color = Color.Gray
                 )

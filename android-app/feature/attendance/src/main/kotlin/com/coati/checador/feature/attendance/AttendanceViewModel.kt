@@ -2,6 +2,7 @@ package com.coati.checador.feature.attendance
 
 import android.Manifest
 import android.content.Context
+import com.coati.checador.core.sync.ExitReminderScheduler
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -361,6 +362,7 @@ class AttendanceViewModel @Inject constructor(
     // GUARDAR ASISTENCIA
     // =========================================================
 
+    fun refreshExitClosure() { viewModelScope.launch { val id=_state.value.selectedEmployeeId;val closed=id!=null&&ExitReminderScheduler.refresh(context,attendanceRecordDao,appSettingDao,id);_state.update { if(it.selectedEmployeeId==id)it.copy(autoClosed=closed) else it } } }
     fun saveAttendance() {
 
         if (_state.value.isSaving) {
@@ -429,6 +431,8 @@ class AttendanceViewModel @Inject constructor(
                     today.atStartOfDay(zone).toInstant().toEpochMilli(),
                     today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
                 ).sortedBy { it.occurredAt }
+                val autoClosed=ExitReminderScheduler.refresh(context,attendanceRecordDao,appSettingDao,employeeId)
+                if(autoClosed)throw IllegalStateException("Jornada cerrada automáticamente: no marcó salida dentro de la hora posterior a su horario.")
                 val allowed = eventType in allowedAttendanceEvents(dailyRecords.map { it.eventType })
                 if (!allowed) throw IllegalStateException(
                     "Este movimiento no está disponible según los registros de hoy."
@@ -587,6 +591,8 @@ class AttendanceViewModel @Inject constructor(
                     )
 
                 attendanceRecordDao.insert(record)
+                ExitReminderScheduler.refresh(context,attendanceRecordDao,appSettingDao,employeeId)
+                refreshExitClosure()
 
                 // =================================================
                 // JORNADA FORÁNEA
@@ -1166,6 +1172,7 @@ private data class SavedAttendanceResult(
 // =============================================================
 
 data class AttendanceUiState(
+    val autoClosed: Boolean = false,
 
     val isLoading: Boolean = false,
 
