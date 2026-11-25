@@ -2465,7 +2465,7 @@ router.post('/companies/:companyId/incidents/:attendanceRecordId/qualify', user_
         let appliedValue = 0;
         if (concept === 'Historial' || concept === 'Salida autorizada' ||
             concept === 'Permiso médico justificado' || concept === 'Falta justificada') {
-            // Registro administrativo sin sanción.
+            // Registro individual sin sanción.
             appliedValue = 0;
         }
         else if (concept === 'Tiempo extraordinario') {

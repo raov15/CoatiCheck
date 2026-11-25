@@ -29,7 +29,7 @@
     if(r.weekly_absence_generated)row[headers.indexOf('Ausentismo')]=1;
     let value=finite(r.applied_value)?Number(r.applied_value):['Retardo','Historial'].includes(r.concept)?0:valuations(r.category_id,r.concept);
     if(!r.concept)value=0;
-    row[headers.indexOf('Método de registro')]=({ADMINISTRATIVE:'Registro administrativo',MOBILE:'Registro móvil',SHARED:'Registro compartido'}[r.record_origin]||'Origen no registrado');
+    row[headers.indexOf('Método de registro')]=({ADMINISTRATIVE:'Registro Indovidual',MOBILE:'Registro móvil',SHARED:'Registro compartido'}[r.record_origin]||'Origen no registrado');
     row[valueCol]=value;row[noteCol]=(r.weekly_absence_generated?'Ausentismo generado por 3 retardos de la misma semana. ':'')+(r.notes||'');
     details.push({row,value,concept:r.concept,generated:!!r.weekly_absence_generated});rows.push(row);
    }
